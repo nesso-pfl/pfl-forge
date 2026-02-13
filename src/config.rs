@@ -40,6 +40,8 @@ pub struct Settings {
     pub worker_tools: Vec<String>,
     #[serde(default = "default_poll_interval")]
     pub poll_interval_secs: u64,
+    #[serde(default = "default_triage_tools")]
+    pub triage_tools: Vec<String>,
     #[serde(default = "default_worktree_dir")]
     pub worktree_dir: String,
     #[serde(default = "default_state_file")]
@@ -50,6 +52,8 @@ pub struct Settings {
 pub struct ModelSettings {
     #[serde(default = "default_triage_model")]
     pub triage: String,
+    #[serde(default = "default_triage_deep_model")]
+    pub triage_deep: String,
     #[serde(default = "default_model")]
     pub default: String,
     #[serde(default = "default_complex_model")]
@@ -71,6 +75,7 @@ impl Default for Settings {
             auto_merge: default_auto_merge(),
             models: ModelSettings::default(),
             worker_tools: default_worker_tools(),
+            triage_tools: default_triage_tools(),
             poll_interval_secs: default_poll_interval(),
             worktree_dir: default_worktree_dir(),
             state_file: default_state_file(),
@@ -82,6 +87,7 @@ impl Default for ModelSettings {
     fn default() -> Self {
         Self {
             triage: default_triage_model(),
+            triage_deep: default_triage_deep_model(),
             default: default_model(),
             complex: default_complex_model(),
         }
@@ -126,8 +132,14 @@ fn default_state_file() -> PathBuf {
         .join(".pfl-forge")
         .join("state.yaml")
 }
+fn default_triage_tools() -> Vec<String> {
+    vec!["Read".into(), "Glob".into(), "Grep".into()]
+}
 fn default_triage_model() -> String {
     "haiku".to_string()
+}
+fn default_triage_deep_model() -> String {
+    "sonnet".to_string()
 }
 fn default_model() -> String {
     "sonnet".to_string()

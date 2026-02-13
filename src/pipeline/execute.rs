@@ -7,7 +7,7 @@ use crate::config::RepoConfig;
 use crate::error::Result;
 use crate::git;
 use crate::github::issue::ForgeIssue;
-use crate::pipeline::triage::TriageResult;
+use crate::pipeline::triage::{DeepTriageResult, TriageResult};
 
 #[derive(Debug)]
 pub enum ExecuteResult {
@@ -20,6 +20,7 @@ pub enum ExecuteResult {
 pub fn execute(
     issue: &ForgeIssue,
     triage: &TriageResult,
+    deep: &DeepTriageResult,
     repo_config: &RepoConfig,
     runner: &ClaudeRunner,
     model_settings: &crate::config::ModelSettings,
@@ -47,7 +48,7 @@ pub fn execute(
     let selected_model = complexity.select_model(model_settings);
 
     // Build the worker prompt
-    let prompt = build_worker_prompt(issue, triage, repo_config);
+    let prompt = build_worker_prompt(issue, deep, repo_config);
 
     // Run Claude Code Worker
     let result = runner.run_prompt(&prompt, selected_model, &worktree_path);
@@ -90,23 +91,51 @@ pub fn execute(
 
 fn build_worker_prompt(
     issue: &ForgeIssue,
-    triage: &TriageResult,
+    deep: &DeepTriageResult,
     repo_config: &RepoConfig,
 ) -> String {
+    let files = deep
+        .relevant_files
+        .iter()
+        .map(|f| format!("- {f}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let steps = deep
+        .implementation_steps
+        .iter()
+        .enumerate()
+        .map(|(i, s)| format!("{}. {s}", i + 1))
+        .collect::<Vec<_>>()
+        .join("\n");
+
     format!(
-        r#"You are a coding agent. Implement the following GitHub issue.
+        r#"You are a coding agent. Implement the following GitHub issue according to the provided implementation plan.
 
 ## Issue #{number}: {title}
 
 {body}
 
-## Triage Analysis
-- Summary: {summary}
-- Plan: {plan}
+## Implementation Plan
+
+{plan}
+
+## Relevant Files
+
+{files}
+
+## Implementation Steps
+
+{steps}
+
+## Codebase Context
+
+{context}
 
 ## Instructions
-1. Read and understand the relevant code in this repository
-2. Implement the changes needed to resolve this issue
+
+1. Follow the implementation plan and steps above
+2. Modify the relevant files as described
 3. Run the test command: `{test_command}`
 4. Commit your changes with a descriptive message referencing the issue: "fix #{number}: <description>"
 5. Make sure all tests pass before committing
@@ -115,8 +144,10 @@ Do NOT push to remote. Just commit locally."#,
         number = issue.number,
         title = issue.title,
         body = issue.body,
-        summary = triage.summary,
-        plan = triage.plan,
+        plan = deep.plan,
+        files = files,
+        steps = steps,
+        context = deep.context,
         test_command = repo_config.test_command,
     )
 }

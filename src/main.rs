@@ -21,7 +21,7 @@ use crate::github::client::GitHubClient;
 use crate::github::issue::ForgeIssue;
 use crate::pipeline::execute::ExecuteResult;
 use crate::pipeline::integrate::WorkerOutput;
-use crate::pipeline::triage;
+use crate::pipeline::triage::{self, ConsultationOutcome};
 use crate::state::tracker::{IssueStatus, SharedState, StateTracker};
 
 #[derive(Parser)]
@@ -64,6 +64,15 @@ enum Commands {
         /// Specific repo to clean
         #[arg(long)]
         repo: Option<String>,
+    },
+}
+
+enum ProcessOutcome {
+    Output(WorkerOutput),
+    Skipped,
+    NeedsClarification {
+        issue: ForgeIssue,
+        message: String,
     },
 }
 
@@ -120,7 +129,6 @@ async fn cmd_run(
             let s = state.lock().unwrap();
             pipeline::fetch::fetch_resumable_issues(config, &github, &s).await?
         };
-        // Deduplicate: only add issues not already in the list
         for issue in resumable {
             if !issues.iter().any(|i| i.number == issue.number && i.full_repo() == issue.full_repo()) {
                 issues.push(issue);
@@ -159,19 +167,70 @@ async fn cmd_run(
         });
     }
 
-    // Collect results
-    let mut outputs = Vec::new();
+    // Streaming integration: process each result as it completes
     while let Some(result) = join_set.join_next().await {
         match result {
-            Ok(Ok(Some(output))) => outputs.push(output),
-            Ok(Ok(None)) => {} // Skipped/NeedsClarification
+            Ok(Ok(ProcessOutcome::Output(output))) => {
+                let repo_config = config
+                    .find_repo(&output.repo_config_name)
+                    .expect("repo config should exist");
+
+                if matches!(output.result, ExecuteResult::Success { .. }) {
+                    if let Err(e) =
+                        pipeline::integrate::integrate_one(&output, repo_config, config, &github, &state).await
+                    {
+                        error!("integration failed for {}: {e}", output.issue);
+                        state
+                            .lock()
+                            .unwrap()
+                            .set_error(&output.issue.full_repo(), output.issue.number, &e.to_string())?;
+                    }
+                } else {
+                    if let Err(e) = pipeline::report::report(
+                        &output.issue,
+                        &output.result,
+                        repo_config,
+                        &github,
+                        &state,
+                        &config.settings.worktree_dir,
+                    )
+                    .await
+                    {
+                        error!("report failed for {}: {e}", output.issue);
+                    }
+                }
+            }
+            Ok(Ok(ProcessOutcome::NeedsClarification { issue, message })) => {
+                let repo_config = config
+                    .find_repo(&issue.repo_name)
+                    .expect("repo config should exist");
+                let (owner, repo) = repo_config.owner_repo();
+
+                if let Err(e) = github
+                    .add_comment(
+                        owner,
+                        repo,
+                        issue.number,
+                        &format!(
+                            "pfl-forge could not determine an implementation plan for this issue.\n\n{message}"
+                        ),
+                    )
+                    .await
+                {
+                    error!("comment failed for {issue}: {e}");
+                }
+                if let Err(e) = github
+                    .add_label(owner, repo, issue.number, &["forge-blocked".to_string()])
+                    .await
+                {
+                    error!("label failed for {issue}: {e}");
+                }
+            }
+            Ok(Ok(ProcessOutcome::Skipped)) => {}
             Ok(Err(e)) => error!("worker error: {e}"),
             Err(e) => error!("task join error: {e}"),
         }
     }
-
-    // Integration phase (sequential)
-    pipeline::integrate::integrate(outputs, config, &github, &state).await?;
 
     let summary = state.lock().unwrap().summary();
     info!("run complete: {summary}");
@@ -183,21 +242,21 @@ async fn process_issue(
     issue: ForgeIssue,
     config: &Config,
     state: &SharedState,
-) -> Result<Option<WorkerOutput>> {
+) -> Result<ProcessOutcome> {
     let repo_config = config
         .find_repo(&issue.repo_name)
         .expect("issue repo should be in config");
     let full_repo = issue.full_repo();
     let repo_config_name = issue.repo_name.clone();
 
-    // Triage
+    // Quick Triage (haiku, no tools)
     {
         let mut s = state.lock().unwrap();
         s.set_status(&full_repo, issue.number, &issue.title, IssueStatus::Triaging)?;
         s.set_started(&full_repo, issue.number)?;
     }
 
-    let triage_runner = ClaudeRunner::new(config.settings.worker_tools.clone());
+    let triage_runner = ClaudeRunner::new(vec![]);
     let issue_clone = issue.clone();
     let config_clone = config.clone();
     let repo_path = repo_config.path.clone();
@@ -215,7 +274,7 @@ async fn process_issue(
             &issue.title,
             IssueStatus::Skipped,
         )?;
-        return Ok(None);
+        return Ok(ProcessOutcome::Skipped);
     }
 
     if triage_result.needs_clarification() {
@@ -226,8 +285,62 @@ async fn process_issue(
             &issue.title,
             IssueStatus::NeedsClarification,
         )?;
-        return Ok(None);
+        return Ok(ProcessOutcome::NeedsClarification {
+            issue,
+            message: format!("Issue clarity: {:?}. Summary: {}", triage_result.clarity, triage_result.summary),
+        });
     }
+
+    // Deep Triage (sonnet, read-only tools)
+    let deep_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
+    let issue_clone = issue.clone();
+    let triage_clone = triage_result.clone();
+    let config_clone = config.clone();
+    let repo_path = repo_config.path.clone();
+    let deep_result = tokio::task::spawn_blocking(move || {
+        triage::deep_triage(&issue_clone, &triage_clone, &config_clone, &deep_runner, &repo_path)
+    })
+    .await
+    .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
+
+    // If deep triage is insufficient, consult
+    let deep_result = if deep_result.is_sufficient() {
+        deep_result
+    } else {
+        info!("deep triage insufficient for {issue}, consulting...");
+        let consult_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
+        let issue_clone = issue.clone();
+        let triage_clone = triage_result.clone();
+        let deep_clone = deep_result.clone();
+        let config_clone = config.clone();
+        let repo_path = repo_config.path.clone();
+        let outcome = tokio::task::spawn_blocking(move || {
+            triage::consult(
+                &issue_clone,
+                &triage_clone,
+                &deep_clone,
+                &config_clone,
+                &consult_runner,
+                &repo_path,
+            )
+        })
+        .await
+        .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
+
+        match outcome {
+            ConsultationOutcome::Resolved(result) => result,
+            ConsultationOutcome::NeedsClarification(message) => {
+                info!("consultation needs clarification for {issue}");
+                state.lock().unwrap().set_status(
+                    &full_repo,
+                    issue.number,
+                    &issue.title,
+                    IssueStatus::NeedsClarification,
+                )?;
+                return Ok(ProcessOutcome::NeedsClarification { issue, message });
+            }
+        }
+    };
 
     // Execute
     {
@@ -240,6 +353,7 @@ async fn process_issue(
     let exec_runner = ClaudeRunner::new(tools);
     let issue_clone = issue.clone();
     let triage_clone = triage_result.clone();
+    let deep_clone = deep_result.clone();
     let repo_config_clone = repo_config.clone();
     let models = config.settings.models.clone();
     let worktree_dir = config.settings.worktree_dir.clone();
@@ -248,6 +362,7 @@ async fn process_issue(
         pipeline::execute::execute(
             &issue_clone,
             &triage_clone,
+            &deep_clone,
             &repo_config_clone,
             &exec_runner,
             &models,
@@ -267,29 +382,39 @@ async fn process_issue(
         )?;
     }
 
-    Ok(Some(WorkerOutput {
+    Ok(ProcessOutcome::Output(WorkerOutput {
         issue,
         result: exec_result,
         repo_config_name,
+        deep_triage: deep_result,
     }))
 }
 
 async fn cmd_run_dry(config: &Config, issues: &[ForgeIssue]) -> Result<()> {
-    let runner = ClaudeRunner::new(config.settings.worker_tools.clone());
+    let quick_runner = ClaudeRunner::new(vec![]);
+    let deep_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
 
     for issue in issues {
         let repo_config = config
             .find_repo(&issue.repo_name)
             .expect("issue repo should be in config");
 
-        let triage_result = triage::triage(issue, config, &runner, &repo_config.path)?;
+        let triage_result = triage::triage(issue, config, &quick_runner, &repo_config.path)?;
 
         println!("--- {} ---", issue);
         println!("Actionable: {}", triage_result.actionable);
         println!("Clarity:    {:?}", triage_result.clarity);
         println!("Complexity: {}", triage_result.complexity);
         println!("Summary:    {}", triage_result.summary);
-        println!("Plan:       {}", triage_result.plan);
+
+        if triage_result.actionable && !triage_result.needs_clarification() {
+            let deep = triage::deep_triage(issue, &triage_result, config, &deep_runner, &repo_config.path)?;
+            println!("Plan:       {}", deep.plan);
+            println!("Files:      {}", deep.relevant_files.join(", "));
+            println!("Steps:      {}", deep.implementation_steps.len());
+            println!("Sufficient: {}", deep.is_sufficient());
+        }
+
         println!();
     }
 

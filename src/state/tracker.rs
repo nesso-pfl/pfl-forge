@@ -196,6 +196,17 @@ impl StateTracker {
         Ok(())
     }
 
+    pub fn reset_to_pending(&mut self, repo: &str, number: u64) -> Result<()> {
+        let key = Self::issue_key(repo, number);
+        if let Some(entry) = self.state.issues.get_mut(&key) {
+            info!("{repo}#{number}: {:?} -> Pending (reset)", entry.status);
+            entry.status = IssueStatus::Pending;
+            entry.error = None;
+            self.save()?;
+        }
+        Ok(())
+    }
+
     pub fn set_started(&mut self, repo: &str, number: u64) -> Result<()> {
         let key = Self::issue_key(repo, number);
         if let Some(entry) = self.state.issues.get_mut(&key) {

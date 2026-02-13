@@ -146,6 +146,72 @@ fn parse_question_file(content: &str) -> (DeepTriageResult, String) {
     (result, questions)
 }
 
+pub struct PendingClarification {
+    pub repo_name: String,
+    pub issue_number: u64,
+    pub content: String,
+}
+
+pub fn list_pending_clarifications(
+    repos: &[(String, &Path)],
+) -> Result<Vec<PendingClarification>> {
+    let mut pending = Vec::new();
+
+    for (repo_name, repo_path) in repos {
+        let dir = clarification_dir(repo_path);
+        if !dir.exists() {
+            continue;
+        }
+        let entries = std::fs::read_dir(&dir)?;
+        for entry in entries {
+            let entry = entry?;
+            let name = entry.file_name().to_string_lossy().to_string();
+            // Match <number>.md but not <number>.answer.md
+            if name.ends_with(".answer.md") || !name.ends_with(".md") {
+                continue;
+            }
+            let num_str = name.trim_end_matches(".md");
+            let Ok(issue_number) = num_str.parse::<u64>() else {
+                continue;
+            };
+            // Skip if answer already exists
+            if answer_path(repo_path, issue_number).exists() {
+                continue;
+            }
+            let content = std::fs::read_to_string(entry.path())?;
+            pending.push(PendingClarification {
+                repo_name: repo_name.clone(),
+                issue_number,
+                content,
+            });
+        }
+    }
+
+    pending.sort_by_key(|p| (p.repo_name.clone(), p.issue_number));
+    Ok(pending)
+}
+
+pub fn write_answer(repo_path: &Path, issue_number: u64, text: &str) -> Result<()> {
+    let path = answer_path(repo_path, issue_number);
+    let dir = clarification_dir(repo_path);
+    std::fs::create_dir_all(&dir)?;
+    std::fs::write(&path, text)?;
+    info!("wrote answer file: {}", path.display());
+    Ok(())
+}
+
+pub fn find_repo_for_issue<'a>(
+    repos: &[(&'a str, &'a Path)],
+    issue_number: u64,
+) -> Option<(&'a str, &'a Path)> {
+    for &(name, path) in repos {
+        if question_path(path, issue_number).exists() {
+            return Some((name, path));
+        }
+    }
+    None
+}
+
 pub fn cleanup_clarification(repo_path: &Path, issue_number: u64) -> Result<()> {
     let q_path = question_path(repo_path, issue_number);
     let a_path = answer_path(repo_path, issue_number);

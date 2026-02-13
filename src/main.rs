@@ -3,6 +3,7 @@ mod config;
 mod error;
 mod git;
 mod github;
+mod parent_prompt;
 mod pipeline;
 mod state;
 
@@ -65,6 +66,27 @@ enum Commands {
         #[arg(long)]
         repo: Option<String>,
     },
+    /// List pending clarifications
+    Clarifications,
+    /// Answer a clarification question
+    Answer {
+        /// Issue number
+        number: u64,
+        /// Answer text
+        text: String,
+        /// Specific repo (auto-detected if omitted)
+        #[arg(long)]
+        repo: Option<String>,
+    },
+    /// Launch parent agent (interactive Claude Code session)
+    Parent {
+        /// Process only a specific repo
+        #[arg(long)]
+        repo: Option<String>,
+        /// Claude model to use
+        #[arg(long)]
+        model: Option<String>,
+    },
 }
 
 enum ProcessOutcome {
@@ -107,6 +129,9 @@ async fn run(cli: Cli) -> Result<()> {
         Commands::Watch { repo } => cmd_watch(&config, repo.as_deref()).await,
         Commands::Status => cmd_status(&config),
         Commands::Clean { repo } => cmd_clean(&config, repo.as_deref()),
+        Commands::Clarifications => cmd_clarifications(&config),
+        Commands::Answer { number, text, repo } => cmd_answer(&config, number, repo.as_deref(), &text),
+        Commands::Parent { repo, model } => cmd_parent(&config, repo.as_deref(), model.as_deref()),
     }
 }
 
@@ -473,4 +498,88 @@ fn cmd_clean(config: &Config, repo_filter: Option<&str>) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn cmd_clarifications(config: &Config) -> Result<()> {
+    let repos: Vec<(String, &std::path::Path)> = config
+        .repos
+        .iter()
+        .map(|r| (r.name.clone(), r.path.as_path()))
+        .collect();
+
+    let pending = pipeline::clarification::list_pending_clarifications(&repos)?;
+
+    if pending.is_empty() {
+        println!("No pending clarifications.");
+        return Ok(());
+    }
+
+    for c in &pending {
+        println!("=== {} #{} ===", c.repo_name, c.issue_number);
+        println!("{}", c.content);
+        println!();
+    }
+
+    Ok(())
+}
+
+fn cmd_answer(config: &Config, number: u64, repo_filter: Option<&str>, text: &str) -> Result<()> {
+    let repo = if let Some(filter) = repo_filter {
+        config
+            .find_repo(filter)
+            .ok_or_else(|| crate::error::ForgeError::Config(format!("repo not found: {filter}")))?
+    } else {
+        let repos: Vec<(&str, &std::path::Path)> = config
+            .repos
+            .iter()
+            .map(|r| (r.name.as_str(), r.path.as_path()))
+            .collect();
+        let (name, _) = pipeline::clarification::find_repo_for_issue(&repos, number)
+            .ok_or_else(|| {
+                crate::error::ForgeError::Config(format!(
+                    "no clarification found for issue #{number}"
+                ))
+            })?;
+        config.find_repo(name).unwrap()
+    };
+
+    pipeline::clarification::write_answer(&repo.path, number, text)?;
+
+    let (owner, repo_name) = repo.owner_repo();
+    let full_repo = format!("{owner}/{repo_name}");
+    let mut state = StateTracker::load(&config.settings.state_file)?;
+    state.reset_to_pending(&full_repo, number)?;
+
+    println!("Answered clarification for #{number} and reset to pending.");
+    Ok(())
+}
+
+fn cmd_parent(config: &Config, repo_filter: Option<&str>, model: Option<&str>) -> Result<()> {
+    let state = StateTracker::load(&config.settings.state_file)?;
+
+    let system_prompt = parent_prompt::build_system_prompt(config);
+    let initial_message = parent_prompt::build_initial_message(config, &state)?;
+
+    let mut cmd = std::process::Command::new("claude");
+    cmd.arg("--append-system-prompt")
+        .arg(&system_prompt)
+        .arg("--allowedTools")
+        .arg("Bash");
+
+    if let Some(m) = model {
+        cmd.arg("--model").arg(m);
+    }
+
+    if let Some(filter) = repo_filter {
+        let repo = config
+            .find_repo(filter)
+            .ok_or_else(|| crate::error::ForgeError::Config(format!("repo not found: {filter}")))?;
+        cmd.current_dir(&repo.path);
+    }
+
+    cmd.arg(&initial_message);
+
+    use std::os::unix::process::CommandExt;
+    let err = cmd.exec();
+    Err(crate::error::ForgeError::Claude(format!("exec failed: {err}")))
 }

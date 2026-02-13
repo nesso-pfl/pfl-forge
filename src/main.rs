@@ -12,7 +12,7 @@ use std::sync::Arc;
 use clap::{Parser, Subcommand};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
@@ -51,6 +51,12 @@ enum Commands {
         #[arg(long)]
         resume: bool,
     },
+    /// Watch for new issues and process them periodically
+    Watch {
+        /// Process only a specific repo
+        #[arg(long)]
+        repo: Option<String>,
+    },
     /// Show current processing status
     Status,
     /// Clean up worktrees for completed issues
@@ -87,6 +93,7 @@ async fn run(cli: Cli) -> Result<()> {
             repo,
             resume,
         } => cmd_run(&config, dry_run, repo.as_deref(), resume).await,
+        Commands::Watch { repo } => cmd_watch(&config, repo.as_deref()).await,
         Commands::Status => cmd_status(&config),
         Commands::Clean { repo } => cmd_clean(&config, repo.as_deref()),
     }
@@ -287,6 +294,26 @@ async fn cmd_run_dry(config: &Config, issues: &[ForgeIssue]) -> Result<()> {
     }
 
     Ok(())
+}
+
+async fn cmd_watch(config: &Config, repo_filter: Option<&str>) -> Result<()> {
+    let interval = std::time::Duration::from_secs(config.settings.poll_interval_secs);
+
+    loop {
+        info!("polling for new issues...");
+
+        if let Err(e) = cmd_run(config, false, repo_filter, true).await {
+            warn!("run error (will retry): {e}");
+        }
+
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                info!("shutting down");
+                return Ok(());
+            }
+            _ = tokio::time::sleep(interval) => {}
+        }
+    }
 }
 
 fn cmd_status(config: &Config) -> Result<()> {

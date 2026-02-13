@@ -1,0 +1,73 @@
+# Agents
+
+pfl-forge は複数の Claude Code エージェントを使い分けて issue を処理する。
+
+## Parent Agent
+
+`pfl-forge parent` で起動するインタラクティブセッション。
+ユーザーとの対話窓口として機能し、Bash ツールのみを持つ。
+
+- `pfl-forge run/status/clarifications/answer` 等のサブコマンドを呼び出して処理を制御
+- NeedsClarification が発生した場合、ユーザーに質問を提示し回答を記録
+- `claude --append-system-prompt --allowedTools Bash` + `exec()` で起動
+
+## Deep Triage Agent
+
+issue の詳細分析を行う読み取り専用エージェント。`claude -p` で非対話実行。
+
+- モデル: `settings.models.triage_deep` (default: sonnet)
+- ツール: `settings.triage_tools` (default: Read, Glob, Grep)
+- 出力: `DeepTriageResult` (complexity, plan, relevant_files, implementation_steps, context)
+- 分析が不十分な場合は Consultation Agent にエスカレート
+
+## Consultation Agent
+
+Deep Triage で十分な分析ができなかった場合に呼ばれる補助エージェント。
+
+- モデル: `settings.models.triage_deep` (default: sonnet)
+- ツール: `settings.triage_tools` (default: Read, Glob, Grep)
+- 出力: `ConsultationOutcome::Resolved(DeepTriageResult)` または `ConsultationOutcome::NeedsClarification(String)`
+- NeedsClarification の場合、`.forge/clarifications/<number>.md` にファイルを作成
+
+## Execute Agent (Worker)
+
+実際のコード変更を行うエージェント。Git worktree 内で動作する。
+
+- モデル: complexity に応じて `settings.models.default` (low/medium) または `settings.models.complex` (high)
+- ツール: `settings.worker_tools` + `repo.extra_tools` (default: Bash, Read, Write, Edit, Glob, Grep)
+- worktree 内で issue の実装を行い、コミットを作成
+- 出力: `ExecuteResult` (Success, TestFailure, Unclear, Error)
+
+## Review Agent
+
+Worker の成果物を検証するコードレビューエージェント。
+
+- モデル: `settings.models.default` (default: sonnet)
+- ツール: `settings.triage_tools` (default: Read, Glob, Grep)
+- base branch との diff をレビューし、issue の要件を満たしているか判定
+- 出力: `ReviewResult` (approved, issues, suggestions)
+- integrate フロー内で呼ばれ、approved でなければ PR 説明に指摘事項を含める
+
+## Agent 間の関係
+
+```
+Parent Agent (interactive)
+  └─ pfl-forge run (CLI)
+       ├─ Deep Triage Agent
+       │    └─ Consultation Agent (必要時)
+       │         └─ NeedsClarification → Parent に戻る
+       ├─ Execute Agent (Worker)
+       └─ integrate
+            └─ Review Agent
+```
+
+## モデル選択
+
+| Agent | 設定キー | Default |
+|-------|---------|---------|
+| Deep Triage | `models.triage_deep` | sonnet |
+| Consultation | `models.triage_deep` | sonnet |
+| Execute (low/medium) | `models.default` | sonnet |
+| Execute (high) | `models.complex` | opus |
+| Review | `models.default` | sonnet |
+| Parent | `--model` 引数 | (claude default) |

@@ -4,7 +4,7 @@ Multi-agent issue processor powered by Claude Code.
 
 ## Architecture
 
-- `src/pipeline/` — fetch → triage → execute → report の各ステージ
+- `src/pipeline/` — fetch → triage (quick → deep → consult) → execute → integrate (rebase → test → review → push) / report の各ステージ
 - `src/claude/` — Claude Code CLI (`claude -p`) のラッパー
 - `src/git/` — worktree/branch 操作
 - `src/github/` — octocrab による GitHub API 操作

@@ -1,0 +1,27 @@
+repos:
+  - name: pokeca-backend
+    path: /home/nesso/repos/pokeca-backend
+    github: nesso-pfl/pokeca-backend
+    test_command: "just test"
+    docker_required: true
+    issue_label: forge
+    base_branch: main
+    extra_tools: []
+
+settings:
+  parallel_workers: 4
+  auto_merge: tests_pass_no_conflict
+  models:
+    triage: haiku
+    default: sonnet
+    complex: opus
+  worker_tools:
+    - Bash
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+  poll_interval_secs: 300
+  worktree_dir: .pfl-worktrees
+  state_file: ~/.pfl-forge/state.yaml

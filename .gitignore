@@ -1,5 +1,7 @@
+/target
 .env*
 !.env.example
 *.log
 .secret*
 INSTRUCTION.md
+.pfl-worktrees/

@@ -7,7 +7,7 @@ use crate::config::RepoConfig;
 use crate::error::Result;
 use crate::git;
 use crate::github::issue::ForgeIssue;
-use crate::pipeline::triage::{DeepTriageResult, TriageResult};
+use crate::pipeline::triage::DeepTriageResult;
 
 #[derive(Debug)]
 pub enum ExecuteResult {
@@ -19,7 +19,6 @@ pub enum ExecuteResult {
 
 pub fn execute(
     issue: &ForgeIssue,
-    triage: &TriageResult,
     deep: &DeepTriageResult,
     repo_config: &RepoConfig,
     runner: &ClaudeRunner,
@@ -44,7 +43,7 @@ pub fn execute(
     }
 
     // Select model based on complexity
-    let complexity = triage.complexity();
+    let complexity = deep.complexity();
     let selected_model = complexity.select_model(model_settings);
 
     // Build the worker prompt

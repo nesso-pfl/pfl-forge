@@ -49,6 +49,7 @@ impl IssueStatus {
             self,
             IssueStatus::PrCreated
                 | IssueStatus::Skipped
+                | IssueStatus::NeedsClarification
                 | IssueStatus::Error
                 | IssueStatus::TestFailure
         )
@@ -126,6 +127,15 @@ impl StateTracker {
             .issues
             .values()
             .filter(|s| s.status.is_resumable())
+            .map(|s| (s.repo.clone(), s.number))
+            .collect()
+    }
+
+    pub fn needs_clarification_issues(&self) -> Vec<(String, u64)> {
+        self.state
+            .issues
+            .values()
+            .filter(|s| s.status == IssueStatus::NeedsClarification)
             .map(|s| (s.repo.clone(), s.number))
             .collect()
     }
@@ -260,6 +270,7 @@ mod tests {
     fn test_is_terminal() {
         assert!(IssueStatus::PrCreated.is_terminal());
         assert!(IssueStatus::Skipped.is_terminal());
+        assert!(IssueStatus::NeedsClarification.is_terminal());
         assert!(IssueStatus::Error.is_terminal());
         assert!(IssueStatus::TestFailure.is_terminal());
         assert!(!IssueStatus::Pending.is_terminal());

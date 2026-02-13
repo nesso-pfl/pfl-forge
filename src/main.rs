@@ -21,7 +21,7 @@ use crate::github::client::GitHubClient;
 use crate::github::issue::ForgeIssue;
 use crate::pipeline::execute::ExecuteResult;
 use crate::pipeline::integrate::WorkerOutput;
-use crate::pipeline::triage::{self, ConsultationOutcome};
+use crate::pipeline::triage::{self, ConsultationOutcome, DeepTriageResult};
 use crate::state::tracker::{IssueStatus, SharedState, StateTracker};
 
 #[derive(Parser)]
@@ -73,6 +73,8 @@ enum ProcessOutcome {
     NeedsClarification {
         issue: ForgeIssue,
         message: String,
+        deep_result: DeepTriageResult,
+        repo_path: PathBuf,
     },
 }
 
@@ -130,6 +132,19 @@ async fn cmd_run(
             pipeline::fetch::fetch_resumable_issues(config, &github, &s).await?
         };
         for issue in resumable {
+            if !issues.iter().any(|i| i.number == issue.number && i.full_repo() == issue.full_repo()) {
+                issues.push(issue);
+            }
+        }
+    }
+
+    // Fetch issues that received clarification answers
+    {
+        let clarified = {
+            let s = state.lock().unwrap();
+            pipeline::fetch::fetch_clarified_issues(config, &github, &s).await?
+        };
+        for issue in clarified {
             if !issues.iter().any(|i| i.number == issue.number && i.full_repo() == issue.full_repo()) {
                 issues.push(issue);
             }
@@ -200,30 +215,19 @@ async fn cmd_run(
                     }
                 }
             }
-            Ok(Ok(ProcessOutcome::NeedsClarification { issue, message })) => {
-                let repo_config = config
-                    .find_repo(&issue.repo_name)
-                    .expect("repo config should exist");
-                let (owner, repo) = repo_config.owner_repo();
-
-                if let Err(e) = github
-                    .add_comment(
-                        owner,
-                        repo,
-                        issue.number,
-                        &format!(
-                            "pfl-forge could not determine an implementation plan for this issue.\n\n{message}"
-                        ),
-                    )
-                    .await
-                {
-                    error!("comment failed for {issue}: {e}");
-                }
-                if let Err(e) = github
-                    .add_label(owner, repo, issue.number, &["forge-blocked".to_string()])
-                    .await
-                {
-                    error!("label failed for {issue}: {e}");
+            Ok(Ok(ProcessOutcome::NeedsClarification {
+                issue,
+                message,
+                deep_result,
+                repo_path,
+            })) => {
+                if let Err(e) = pipeline::clarification::write_clarification(
+                    &repo_path,
+                    &issue,
+                    &deep_result,
+                    &message,
+                ) {
+                    error!("failed to write clarification for {issue}: {e}");
                 }
             }
             Ok(Ok(ProcessOutcome::Skipped)) => {}
@@ -249,56 +253,29 @@ async fn process_issue(
     let full_repo = issue.full_repo();
     let repo_config_name = issue.repo_name.clone();
 
-    // Quick Triage (haiku, no tools)
     {
         let mut s = state.lock().unwrap();
         s.set_status(&full_repo, issue.number, &issue.title, IssueStatus::Triaging)?;
         s.set_started(&full_repo, issue.number)?;
     }
 
-    let triage_runner = ClaudeRunner::new(vec![]);
-    let issue_clone = issue.clone();
-    let config_clone = config.clone();
+    // Check for clarification context from previous NeedsClarification
     let repo_path = repo_config.path.clone();
-    let triage_result = tokio::task::spawn_blocking(move || {
-        triage::triage(&issue_clone, &config_clone, &triage_runner, &repo_path)
-    })
-    .await
-    .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
-
-    if triage_result.should_skip() {
-        info!("skipping non-actionable: {issue}");
-        state.lock().unwrap().set_status(
-            &full_repo,
-            issue.number,
-            &issue.title,
-            IssueStatus::Skipped,
-        )?;
-        return Ok(ProcessOutcome::Skipped);
-    }
-
-    if triage_result.needs_clarification() {
-        info!("needs clarification: {issue}");
-        state.lock().unwrap().set_status(
-            &full_repo,
-            issue.number,
-            &issue.title,
-            IssueStatus::NeedsClarification,
-        )?;
-        return Ok(ProcessOutcome::NeedsClarification {
-            issue,
-            message: format!("Issue clarity: {:?}. Summary: {}", triage_result.clarity, triage_result.summary),
-        });
-    }
+    let clarification_ctx = pipeline::clarification::check_clarification(&repo_path, issue.number)?;
 
     // Deep Triage (sonnet, read-only tools)
     let deep_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
     let issue_clone = issue.clone();
-    let triage_clone = triage_result.clone();
     let config_clone = config.clone();
-    let repo_path = repo_config.path.clone();
+    let repo_path_clone = repo_path.clone();
     let deep_result = tokio::task::spawn_blocking(move || {
-        triage::deep_triage(&issue_clone, &triage_clone, &config_clone, &deep_runner, &repo_path)
+        triage::deep_triage(
+            &issue_clone,
+            &config_clone,
+            &deep_runner,
+            &repo_path_clone,
+            clarification_ctx.as_ref(),
+        )
     })
     .await
     .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
@@ -310,18 +287,16 @@ async fn process_issue(
         info!("deep triage insufficient for {issue}, consulting...");
         let consult_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
         let issue_clone = issue.clone();
-        let triage_clone = triage_result.clone();
         let deep_clone = deep_result.clone();
         let config_clone = config.clone();
-        let repo_path = repo_config.path.clone();
+        let repo_path_clone = repo_path.clone();
         let outcome = tokio::task::spawn_blocking(move || {
             triage::consult(
                 &issue_clone,
-                &triage_clone,
                 &deep_clone,
                 &config_clone,
                 &consult_runner,
-                &repo_path,
+                &repo_path_clone,
             )
         })
         .await
@@ -337,7 +312,12 @@ async fn process_issue(
                     &issue.title,
                     IssueStatus::NeedsClarification,
                 )?;
-                return Ok(ProcessOutcome::NeedsClarification { issue, message });
+                return Ok(ProcessOutcome::NeedsClarification {
+                    issue,
+                    message,
+                    deep_result,
+                    repo_path,
+                });
             }
         }
     };
@@ -352,7 +332,6 @@ async fn process_issue(
     let tools = repo_config.all_tools(&config.settings.worker_tools);
     let exec_runner = ClaudeRunner::new(tools);
     let issue_clone = issue.clone();
-    let triage_clone = triage_result.clone();
     let deep_clone = deep_result.clone();
     let repo_config_clone = repo_config.clone();
     let models = config.settings.models.clone();
@@ -361,7 +340,6 @@ async fn process_issue(
     let exec_result = tokio::task::spawn_blocking(move || {
         pipeline::execute::execute(
             &issue_clone,
-            &triage_clone,
             &deep_clone,
             &repo_config_clone,
             &exec_runner,
@@ -372,7 +350,7 @@ async fn process_issue(
     .await
     .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
 
-    // Update state for success
+    // Update state for success and clean up clarification files
     if matches!(exec_result, ExecuteResult::Success { .. }) {
         state.lock().unwrap().set_status(
             &full_repo,
@@ -380,6 +358,7 @@ async fn process_issue(
             &issue.title,
             IssueStatus::Success,
         )?;
+        let _ = pipeline::clarification::cleanup_clarification(&repo_path, issue.number);
     }
 
     Ok(ProcessOutcome::Output(WorkerOutput {
@@ -391,7 +370,6 @@ async fn process_issue(
 }
 
 async fn cmd_run_dry(config: &Config, issues: &[ForgeIssue]) -> Result<()> {
-    let quick_runner = ClaudeRunner::new(vec![]);
     let deep_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
 
     for issue in issues {
@@ -399,22 +377,14 @@ async fn cmd_run_dry(config: &Config, issues: &[ForgeIssue]) -> Result<()> {
             .find_repo(&issue.repo_name)
             .expect("issue repo should be in config");
 
-        let triage_result = triage::triage(issue, config, &quick_runner, &repo_config.path)?;
+        let deep = triage::deep_triage(issue, config, &deep_runner, &repo_config.path, None)?;
 
         println!("--- {} ---", issue);
-        println!("Actionable: {}", triage_result.actionable);
-        println!("Clarity:    {:?}", triage_result.clarity);
-        println!("Complexity: {}", triage_result.complexity);
-        println!("Summary:    {}", triage_result.summary);
-
-        if triage_result.actionable && !triage_result.needs_clarification() {
-            let deep = triage::deep_triage(issue, &triage_result, config, &deep_runner, &repo_config.path)?;
-            println!("Plan:       {}", deep.plan);
-            println!("Files:      {}", deep.relevant_files.join(", "));
-            println!("Steps:      {}", deep.implementation_steps.len());
-            println!("Sufficient: {}", deep.is_sufficient());
-        }
-
+        println!("Complexity: {}", deep.complexity);
+        println!("Plan:       {}", deep.plan);
+        println!("Files:      {}", deep.relevant_files.join(", "));
+        println!("Steps:      {}", deep.implementation_steps.len());
+        println!("Sufficient: {}", deep.is_sufficient());
         println!();
     }
 

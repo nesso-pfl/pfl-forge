@@ -5,3 +5,4 @@
 .secret*
 INSTRUCTION.md
 .pfl-worktrees/
+.forge/

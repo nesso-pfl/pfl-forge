@@ -42,6 +42,37 @@ pub fn commit_count(repo_path: &Path, base_branch: &str, branch: &str) -> Result
         .map_err(|e| ForgeError::Git(format!("failed to parse commit count: {e}")))
 }
 
+pub fn rebase(worktree_path: &Path, base_branch: &str) -> Result<()> {
+    info!("fetching origin/{base_branch}");
+    let fetch = Command::new("git")
+        .args(["fetch", "origin", base_branch])
+        .current_dir(worktree_path)
+        .output()?;
+
+    if !fetch.status.success() {
+        let stderr = String::from_utf8_lossy(&fetch.stderr);
+        return Err(ForgeError::Git(format!("fetch failed: {stderr}")));
+    }
+
+    info!("rebasing onto origin/{base_branch}");
+    let rebase = Command::new("git")
+        .args(["rebase", &format!("origin/{base_branch}")])
+        .current_dir(worktree_path)
+        .output()?;
+
+    if !rebase.status.success() {
+        let stderr = String::from_utf8_lossy(&rebase.stderr);
+        // Abort the failed rebase
+        let _ = Command::new("git")
+            .args(["rebase", "--abort"])
+            .current_dir(worktree_path)
+            .output();
+        return Err(ForgeError::Git(format!("rebase failed: {stderr}")));
+    }
+
+    Ok(())
+}
+
 pub fn delete_branch(repo_path: &Path, branch: &str) -> Result<()> {
     let output = Command::new("git")
         .args(["branch", "-D", branch])

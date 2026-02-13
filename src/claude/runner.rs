@@ -6,6 +6,7 @@ use tracing::{debug, info};
 
 use crate::error::{ForgeError, Result};
 
+#[derive(Clone)]
 pub struct ClaudeRunner {
     allowed_tools: Vec<String>,
 }

@@ -7,16 +7,22 @@ mod pipeline;
 mod state;
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
+use tokio::sync::Semaphore;
+use tokio::task::JoinSet;
 use tracing::{error, info};
 
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
 use crate::github::client::GitHubClient;
+use crate::github::issue::ForgeIssue;
+use crate::pipeline::execute::ExecuteResult;
+use crate::pipeline::integrate::WorkerOutput;
 use crate::pipeline::triage;
-use crate::state::tracker::{IssueStatus, StateTracker};
+use crate::state::tracker::{IssueStatus, SharedState, StateTracker};
 
 #[derive(Parser)]
 #[command(name = "pfl-forge", about = "Multi-agent issue processor powered by Claude Code")]
@@ -40,6 +46,10 @@ enum Commands {
         /// Process only a specific repo
         #[arg(long)]
         repo: Option<String>,
+
+        /// Resume failed/interrupted issues
+        #[arg(long)]
+        resume: bool,
     },
     /// Show current processing status
     Status,
@@ -72,125 +82,209 @@ async fn run(cli: Cli) -> Result<()> {
     let config = Config::load(&cli.config)?;
 
     match cli.command {
-        Commands::Run { dry_run, repo } => cmd_run(&config, dry_run, repo.as_deref()).await,
+        Commands::Run {
+            dry_run,
+            repo,
+            resume,
+        } => cmd_run(&config, dry_run, repo.as_deref(), resume).await,
         Commands::Status => cmd_status(&config),
         Commands::Clean { repo } => cmd_clean(&config, repo.as_deref()),
     }
 }
 
-async fn cmd_run(config: &Config, dry_run: bool, repo_filter: Option<&str>) -> Result<()> {
+async fn cmd_run(
+    config: &Config,
+    dry_run: bool,
+    repo_filter: Option<&str>,
+    resume: bool,
+) -> Result<()> {
     let github = GitHubClient::new()?;
-    let mut state = StateTracker::load(&config.settings.state_file)?;
+    let state = StateTracker::load(&config.settings.state_file)?.into_shared();
 
-    let runner = ClaudeRunner::new(config.settings.worker_tools.clone());
+    // Fetch new issues
+    let mut issues = {
+        let s = state.lock().unwrap();
+        pipeline::fetch::fetch_issues(config, &github, &s).await?
+    };
 
-    // Fetch issues
-    let issues = pipeline::fetch::fetch_issues(config, &github, &state).await?;
+    // Fetch resumable issues if --resume
+    if resume {
+        let resumable = {
+            let s = state.lock().unwrap();
+            pipeline::fetch::fetch_resumable_issues(config, &github, &s).await?
+        };
+        // Deduplicate: only add issues not already in the list
+        for issue in resumable {
+            if !issues.iter().any(|i| i.number == issue.number && i.full_repo() == issue.full_repo()) {
+                issues.push(issue);
+            }
+        }
+    }
+
+    // Apply repo filter
+    if let Some(filter) = repo_filter {
+        issues.retain(|i| i.repo_name == filter);
+    }
 
     if issues.is_empty() {
-        info!("no new issues to process");
+        info!("no issues to process");
         return Ok(());
     }
 
     info!("processing {} issue(s)", issues.len());
 
-    for issue in &issues {
-        // Filter by repo if specified
-        if let Some(filter) = repo_filter {
-            if issue.repo_name != filter {
-                continue;
-            }
-        }
+    if dry_run {
+        return cmd_run_dry(config, &issues).await;
+    }
 
+    // Parallel phase: triage → execute
+    let semaphore = Arc::new(Semaphore::new(config.settings.parallel_workers));
+    let mut join_set = JoinSet::new();
+
+    for issue in issues {
+        let sem = semaphore.clone();
+        let state = state.clone();
+        let config = config.clone();
+
+        join_set.spawn(async move {
+            let _permit = sem.acquire().await.expect("semaphore closed");
+            process_issue(issue, &config, &state).await
+        });
+    }
+
+    // Collect results
+    let mut outputs = Vec::new();
+    while let Some(result) = join_set.join_next().await {
+        match result {
+            Ok(Ok(Some(output))) => outputs.push(output),
+            Ok(Ok(None)) => {} // Skipped/NeedsClarification
+            Ok(Err(e)) => error!("worker error: {e}"),
+            Err(e) => error!("task join error: {e}"),
+        }
+    }
+
+    // Integration phase (sequential)
+    pipeline::integrate::integrate(outputs, config, &github, &state).await?;
+
+    let summary = state.lock().unwrap().summary();
+    info!("run complete: {summary}");
+
+    Ok(())
+}
+
+async fn process_issue(
+    issue: ForgeIssue,
+    config: &Config,
+    state: &SharedState,
+) -> Result<Option<WorkerOutput>> {
+    let repo_config = config
+        .find_repo(&issue.repo_name)
+        .expect("issue repo should be in config");
+    let full_repo = issue.full_repo();
+    let repo_config_name = issue.repo_name.clone();
+
+    // Triage
+    {
+        let mut s = state.lock().unwrap();
+        s.set_status(&full_repo, issue.number, &issue.title, IssueStatus::Triaging)?;
+        s.set_started(&full_repo, issue.number)?;
+    }
+
+    let triage_runner = ClaudeRunner::new(config.settings.worker_tools.clone());
+    let issue_clone = issue.clone();
+    let config_clone = config.clone();
+    let repo_path = repo_config.path.clone();
+    let triage_result = tokio::task::spawn_blocking(move || {
+        triage::triage(&issue_clone, &config_clone, &triage_runner, &repo_path)
+    })
+    .await
+    .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
+
+    if triage_result.should_skip() {
+        info!("skipping non-actionable: {issue}");
+        state.lock().unwrap().set_status(
+            &full_repo,
+            issue.number,
+            &issue.title,
+            IssueStatus::Skipped,
+        )?;
+        return Ok(None);
+    }
+
+    if triage_result.needs_clarification() {
+        info!("needs clarification: {issue}");
+        state.lock().unwrap().set_status(
+            &full_repo,
+            issue.number,
+            &issue.title,
+            IssueStatus::NeedsClarification,
+        )?;
+        return Ok(None);
+    }
+
+    // Execute
+    {
+        let mut s = state.lock().unwrap();
+        s.set_status(&full_repo, issue.number, &issue.title, IssueStatus::Executing)?;
+        s.set_branch(&full_repo, issue.number, &issue.branch_name())?;
+    }
+
+    let tools = repo_config.all_tools(&config.settings.worker_tools);
+    let exec_runner = ClaudeRunner::new(tools);
+    let issue_clone = issue.clone();
+    let triage_clone = triage_result.clone();
+    let repo_config_clone = repo_config.clone();
+    let models = config.settings.models.clone();
+    let worktree_dir = config.settings.worktree_dir.clone();
+
+    let exec_result = tokio::task::spawn_blocking(move || {
+        pipeline::execute::execute(
+            &issue_clone,
+            &triage_clone,
+            &repo_config_clone,
+            &exec_runner,
+            &models,
+            &worktree_dir,
+        )
+    })
+    .await
+    .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
+
+    // Update state for success
+    if matches!(exec_result, ExecuteResult::Success { .. }) {
+        state.lock().unwrap().set_status(
+            &full_repo,
+            issue.number,
+            &issue.title,
+            IssueStatus::Success,
+        )?;
+    }
+
+    Ok(Some(WorkerOutput {
+        issue,
+        result: exec_result,
+        repo_config_name,
+    }))
+}
+
+async fn cmd_run_dry(config: &Config, issues: &[ForgeIssue]) -> Result<()> {
+    let runner = ClaudeRunner::new(config.settings.worker_tools.clone());
+
+    for issue in issues {
         let repo_config = config
             .find_repo(&issue.repo_name)
             .expect("issue repo should be in config");
 
-        let full_repo = issue.full_repo();
-
-        // Triage
-        state.set_status(&full_repo, issue.number, &issue.title, IssueStatus::Triaging)?;
-        state.set_started(&full_repo, issue.number)?;
-
         let triage_result = triage::triage(issue, config, &runner, &repo_config.path)?;
 
-        if triage_result.should_skip() {
-            info!("skipping non-actionable: {issue}");
-            state.set_status(&full_repo, issue.number, &issue.title, IssueStatus::Skipped)?;
-            continue;
-        }
-
-        if triage_result.needs_clarification() {
-            info!("needs clarification: {issue}");
-            github
-                .add_comment(
-                    &issue.owner,
-                    &issue.repo,
-                    issue.number,
-                    &format!(
-                        "pfl-forge needs more information to process this issue.\n\nTriage summary: {}",
-                        triage_result.summary
-                    ),
-                )
-                .await?;
-            github
-                .add_label(
-                    &issue.owner,
-                    &issue.repo,
-                    issue.number,
-                    &["forge-needs-clarification".to_string()],
-                )
-                .await?;
-            state.set_status(
-                &full_repo,
-                issue.number,
-                &issue.title,
-                IssueStatus::NeedsClarification,
-            )?;
-            continue;
-        }
-
-        if dry_run {
-            println!("--- {} ---", issue);
-            println!("Actionable: {}", triage_result.actionable);
-            println!("Clarity:    {:?}", triage_result.clarity);
-            println!("Complexity: {}", triage_result.complexity);
-            println!("Summary:    {}", triage_result.summary);
-            println!("Plan:       {}", triage_result.plan);
-            println!();
-            continue;
-        }
-
-        // Execute
-        state.set_status(&full_repo, issue.number, &issue.title, IssueStatus::Executing)?;
-        state.set_branch(&full_repo, issue.number, &issue.branch_name())?;
-
-        let tools = repo_config.all_tools(&config.settings.worker_tools);
-        let exec_runner = ClaudeRunner::new(tools);
-
-        let exec_result = pipeline::execute::execute(
-            issue,
-            &triage_result,
-            repo_config,
-            &exec_runner,
-            &config.settings.models,
-            &config.settings.worktree_dir,
-        )?;
-
-        // Report
-        pipeline::report::report(
-            issue,
-            &exec_result,
-            repo_config,
-            &github,
-            &mut state,
-            &config.settings.worktree_dir,
-        )
-        .await?;
+        println!("--- {} ---", issue);
+        println!("Actionable: {}", triage_result.actionable);
+        println!("Clarity:    {:?}", triage_result.clarity);
+        println!("Complexity: {}", triage_result.complexity);
+        println!("Summary:    {}", triage_result.summary);
+        println!("Plan:       {}", triage_result.plan);
+        println!();
     }
-
-    let summary = state.summary();
-    info!("run complete: {summary}");
 
     Ok(())
 }
@@ -242,7 +336,6 @@ fn cmd_clean(config: &Config, repo_filter: Option<&str>) -> Result<()> {
                 continue;
             }
 
-            // Extract issue number from path
             if let Some(num_str) = wt.rsplit("issue-").next() {
                 if let Ok(num) = num_str.parse::<u64>() {
                     let (owner, repo_name) = repo.owner_repo();

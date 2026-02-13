@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::error::Result;
+
+pub type SharedState = Arc<Mutex<StateTracker>>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateFile {
@@ -38,6 +41,28 @@ pub enum IssueStatus {
     TestFailure,
     Error,
     PrCreated,
+}
+
+impl IssueStatus {
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            IssueStatus::PrCreated
+                | IssueStatus::Skipped
+                | IssueStatus::Error
+                | IssueStatus::TestFailure
+        )
+    }
+
+    pub fn is_resumable(&self) -> bool {
+        matches!(
+            self,
+            IssueStatus::Triaging
+                | IssueStatus::Executing
+                | IssueStatus::Error
+                | IssueStatus::TestFailure
+        )
+    }
 }
 
 pub struct StateTracker {
@@ -79,9 +104,30 @@ impl StateTracker {
         self.state.issues.get(&Self::issue_key(repo, number))
     }
 
+    pub fn into_shared(self) -> SharedState {
+        Arc::new(Mutex::new(self))
+    }
+
     pub fn is_processed(&self, repo: &str, number: u64) -> bool {
         self.get(repo, number)
             .is_some_and(|s| matches!(s.status, IssueStatus::PrCreated | IssueStatus::Skipped))
+    }
+
+    pub fn is_terminal(&self, repo: &str, number: u64) -> bool {
+        self.get(repo, number).is_some_and(|s| s.status.is_terminal())
+    }
+
+    pub fn is_resumable(&self, repo: &str, number: u64) -> bool {
+        self.get(repo, number).is_some_and(|s| s.status.is_resumable())
+    }
+
+    pub fn resumable_issues(&self) -> Vec<(String, u64)> {
+        self.state
+            .issues
+            .values()
+            .filter(|s| s.status.is_resumable())
+            .map(|s| (s.repo.clone(), s.number))
+            .collect()
     }
 
     pub fn set_status(
@@ -208,6 +254,30 @@ mod tests {
         let state = tracker2.get("owner/repo", 1).unwrap();
         assert_eq!(state.status, IssueStatus::Executing);
         assert_eq!(state.branch.as_deref(), Some("forge/issue-1"));
+    }
+
+    #[test]
+    fn test_is_terminal() {
+        assert!(IssueStatus::PrCreated.is_terminal());
+        assert!(IssueStatus::Skipped.is_terminal());
+        assert!(IssueStatus::Error.is_terminal());
+        assert!(IssueStatus::TestFailure.is_terminal());
+        assert!(!IssueStatus::Pending.is_terminal());
+        assert!(!IssueStatus::Triaging.is_terminal());
+        assert!(!IssueStatus::Executing.is_terminal());
+        assert!(!IssueStatus::Success.is_terminal());
+    }
+
+    #[test]
+    fn test_is_resumable() {
+        assert!(IssueStatus::Triaging.is_resumable());
+        assert!(IssueStatus::Executing.is_resumable());
+        assert!(IssueStatus::Error.is_resumable());
+        assert!(IssueStatus::TestFailure.is_resumable());
+        assert!(!IssueStatus::Pending.is_resumable());
+        assert!(!IssueStatus::PrCreated.is_resumable());
+        assert!(!IssueStatus::Skipped.is_resumable());
+        assert!(!IssueStatus::Success.is_resumable());
     }
 
     #[test]

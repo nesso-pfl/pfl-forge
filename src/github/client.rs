@@ -117,6 +117,51 @@ impl GitHubClient {
         Ok(())
     }
 
+    pub async fn merge_pr(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr_number: u64,
+    ) -> Result<()> {
+        info!("merging PR #{pr_number} in {owner}/{repo}");
+
+        self.octocrab
+            .pulls(owner, repo)
+            .merge(pr_number)
+            .method(octocrab::params::pulls::MergeMethod::Squash)
+            .send()
+            .await
+            .map_err(|e| ForgeError::GitHub(format!("merge PR failed: {e}")))?;
+
+        Ok(())
+    }
+
+    pub async fn fetch_issue(
+        &self,
+        owner: &str,
+        repo: &str,
+        number: u64,
+    ) -> Result<ForgeIssue> {
+        info!("fetching issue {owner}/{repo}#{number}");
+
+        let issue = self
+            .octocrab
+            .issues(owner, repo)
+            .get(number)
+            .await?;
+
+        Ok(ForgeIssue {
+            number: issue.number,
+            title: issue.title,
+            body: issue.body.unwrap_or_default(),
+            labels: issue.labels.iter().map(|l| l.name.clone()).collect(),
+            repo_name: repo.to_string(),
+            owner: owner.to_string(),
+            repo: repo.to_string(),
+            created_at: issue.created_at,
+        })
+    }
+
     pub async fn remove_label(
         &self,
         owner: &str,

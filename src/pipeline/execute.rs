@@ -135,7 +135,7 @@ fn check_docker(worktree_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn run_tests(worktree_path: &Path, test_command: &str) -> Result<bool> {
+pub fn run_tests(worktree_path: &Path, test_command: &str) -> Result<bool> {
     info!("running tests: {test_command}");
 
     let parts: Vec<&str> = test_command.split_whitespace().collect();

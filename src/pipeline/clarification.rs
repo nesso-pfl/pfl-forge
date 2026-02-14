@@ -26,7 +26,7 @@ fn answer_path(repo_path: &Path, task_id: &str) -> std::path::PathBuf {
 
 pub fn write_clarification(
   repo_path: &Path,
-  issue: &ForgeTask,
+  forge_task: &ForgeTask,
   deep_result: &DeepTriageResult,
   questions: &str,
 ) -> Result<()> {
@@ -48,16 +48,16 @@ Context: {context}
 ## Questions
 {questions}
 "#,
-    id = issue.id,
-    title = issue.title,
-    body = issue.body,
+    id = forge_task.id,
+    title = forge_task.title,
+    body = forge_task.body,
     files = deep_result.relevant_files.join(", "),
     plan = deep_result.plan,
     context = deep_result.context,
     questions = questions,
   );
 
-  let path = question_path(repo_path, &issue.id);
+  let path = question_path(repo_path, &forge_task.id);
   std::fs::write(&path, &content)?;
   info!("wrote clarification file: {}", path.display());
 

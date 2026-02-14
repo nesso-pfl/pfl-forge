@@ -21,7 +21,7 @@ pub struct ReviewResult {
 }
 
 pub fn review(
-  issue: &ForgeTask,
+  forge_task: &ForgeTask,
   task: &Task,
   config: &Config,
   runner: &ClaudeRunner,
@@ -46,16 +46,16 @@ pub fn review(
 ```
 {diff}
 ```"#,
-    id = issue.id,
-    title = issue.title,
-    body = issue.body,
+    id = forge_task.id,
+    title = forge_task.title,
+    body = forge_task.body,
     plan = task.plan,
     diff = truncate_diff(&diff, 50000),
   );
 
   let timeout = Some(Duration::from_secs(config.settings.triage_timeout_secs));
 
-  info!("reviewing: {issue}");
+  info!("reviewing: {forge_task}");
   let result: ReviewResult = runner.run_json(
     &prompt,
     prompt::REVIEW,

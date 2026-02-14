@@ -200,7 +200,7 @@ mod tests {
 
     let mut tracker = StateTracker::load(&path).unwrap();
     tracker
-      .set_status("abc123", "Test issue", TaskStatus::Executing)
+      .set_status("abc123", "Test task", TaskStatus::Executing)
       .unwrap();
     tracker.set_branch("abc123", "forge/abc123").unwrap();
 

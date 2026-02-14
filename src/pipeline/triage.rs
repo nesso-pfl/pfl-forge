@@ -45,11 +45,11 @@ pub struct Task {
 }
 
 impl Task {
-  pub fn from_triage(issue: &ForgeTask, deep: &DeepTriageResult) -> Self {
+  pub fn from_triage(forge_task: &ForgeTask, deep: &DeepTriageResult) -> Self {
     Self {
-      task_id: issue.id.clone(),
-      task_title: issue.title.clone(),
-      task_body: issue.body.clone(),
+      task_id: forge_task.id.clone(),
+      task_title: forge_task.title.clone(),
+      task_body: forge_task.body.clone(),
       status: WorkStatus::Pending,
       complexity: deep.complexity.clone(),
       plan: deep.plan.clone(),
@@ -82,7 +82,7 @@ pub enum ConsultationOutcome {
 }
 
 pub fn deep_triage(
-  issue: &ForgeTask,
+  forge_task: &ForgeTask,
   config: &Config,
   runner: &ClaudeRunner,
   repo_path: &std::path::Path,
@@ -90,7 +90,7 @@ pub fn deep_triage(
 ) -> Result<DeepTriageResult> {
   let deep_model = model::resolve(&config.settings.models.triage_deep);
 
-  let labels = issue.labels.join(", ");
+  let labels = forge_task.labels.join(", ");
 
   let clarification_section = if let Some(ctx) = clarification {
     format!(
@@ -120,16 +120,16 @@ questions from the prior attempt. Update the plan accordingly."#,
 Labels: {labels}
 
 {body}{clarification_section}"#,
-    id = issue.id,
-    title = issue.title,
+    id = forge_task.id,
+    title = forge_task.title,
     labels = labels,
-    body = issue.body,
+    body = forge_task.body,
     clarification_section = clarification_section,
   );
 
   let timeout = Some(Duration::from_secs(config.settings.triage_timeout_secs));
 
-  info!("deep triaging: {issue}");
+  info!("deep triaging: {forge_task}");
   let result: DeepTriageResult =
     runner.run_json(&prompt, prompt::DEEP_TRIAGE, deep_model, repo_path, timeout)?;
 
@@ -145,7 +145,7 @@ Labels: {labels}
 }
 
 pub fn consult(
-  issue: &ForgeTask,
+  forge_task: &ForgeTask,
   deep_result: &DeepTriageResult,
   config: &Config,
   runner: &ClaudeRunner,
@@ -163,9 +163,9 @@ pub fn consult(
 - Relevant files: {prev_files}
 - Steps: {prev_steps}
 - Context: {prev_context}"#,
-    id = issue.id,
-    title = issue.title,
-    body = issue.body,
+    id = forge_task.id,
+    title = forge_task.title,
+    body = forge_task.body,
     prev_plan = deep_result.plan,
     prev_files = deep_result.relevant_files.join(", "),
     prev_steps = deep_result.implementation_steps.join("; "),
@@ -174,7 +174,7 @@ pub fn consult(
 
   let timeout = Some(Duration::from_secs(config.settings.triage_timeout_secs));
 
-  info!("consulting on: {issue}");
+  info!("consulting on: {forge_task}");
   let raw: serde_json::Value =
     runner.run_json(&prompt, prompt::CONSULT, complex_model, repo_path, timeout)?;
 

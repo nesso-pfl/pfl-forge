@@ -43,7 +43,7 @@ pub enum ExecuteResult {
 }
 
 pub fn execute(
-  issue: &ForgeTask,
+  forge_task: &ForgeTask,
   task: &Task,
   config: &Config,
   runner: &ClaudeRunner,
@@ -51,7 +51,7 @@ pub fn execute(
   worktree_dir: &str,
   worker_timeout_secs: u64,
 ) -> Result<ExecuteResult> {
-  let branch = issue.branch_name();
+  let branch = forge_task.branch_name();
   let repo_path = Config::repo_path();
 
   // Create worktree
@@ -77,7 +77,7 @@ pub fn execute(
   let selected_model = complexity.select_model(model_settings);
 
   // Build the worker prompt
-  let prompt = build_worker_prompt(issue, &config.test_command);
+  let prompt = build_worker_prompt(forge_task, &config.test_command);
 
   // Run Claude Code Worker
   let timeout = Some(Duration::from_secs(worker_timeout_secs));
@@ -118,7 +118,7 @@ pub fn execute(
   }
 }
 
-fn build_worker_prompt(issue: &ForgeTask, test_command: &str) -> String {
+fn build_worker_prompt(forge_task: &ForgeTask, test_command: &str) -> String {
   format!(
     r#"## Issue {id}: {title}
 
@@ -127,9 +127,9 @@ fn build_worker_prompt(issue: &ForgeTask, test_command: &str) -> String {
 ## Test Command
 
 `{test_command}`"#,
-    id = issue.id,
-    title = issue.title,
-    body = issue.body,
+    id = forge_task.id,
+    title = forge_task.title,
+    body = forge_task.body,
     test_command = test_command,
   )
 }

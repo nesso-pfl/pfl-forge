@@ -16,14 +16,14 @@ fn task_filename(task_id: &str, index: u32) -> String {
 
 pub fn write_tasks(
   repo_path: &Path,
-  issue: &ForgeTask,
+  forge_task: &ForgeTask,
   deep: &DeepTriageResult,
 ) -> Result<Vec<PathBuf>> {
   let dir = work_dir(repo_path);
   std::fs::create_dir_all(&dir)?;
 
-  let task = Task::from_triage(issue, deep);
-  let path = dir.join(task_filename(&issue.id, 1));
+  let task = Task::from_triage(forge_task, deep);
+  let path = dir.join(task_filename(&forge_task.id, 1));
   let content = serde_yaml::to_string(&task)?;
   std::fs::write(&path, content)?;
 

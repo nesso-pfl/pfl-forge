@@ -19,7 +19,7 @@ fn write_review_yaml(worktree_path: &std::path::Path, result: &ReviewResult) -> 
 }
 
 pub struct WorkerOutput {
-  pub issue: ForgeTask,
+  pub forge_task: ForgeTask,
   pub result: ExecuteResult,
   pub task: Task,
   pub task_path: std::path::PathBuf,
@@ -30,13 +30,13 @@ pub async fn integrate_one(
   config: &Config,
   state: &SharedState,
 ) -> Result<()> {
-  let issue = &output.issue;
-  let branch = issue.branch_name();
-  let worktree_path = issue.worktree_path(&config.settings.worktree_dir);
+  let forge_task = &output.forge_task;
+  let branch = forge_task.branch_name();
+  let worktree_path = forge_task.worktree_path(&config.settings.worktree_dir);
   let base_branch = config.base_branch.clone();
 
   // Rebase onto latest base branch
-  info!("rebasing {issue} onto {base_branch}");
+  info!("rebasing {forge_task} onto {base_branch}");
   let wt = worktree_path.clone();
   let bb = base_branch.clone();
   let rebase_result = tokio::task::spawn_blocking(move || git::branch::rebase(&wt, &bb))
@@ -44,17 +44,17 @@ pub async fn integrate_one(
     .map_err(|e| crate::error::ForgeError::Git(format!("spawn_blocking: {e}")))?;
 
   if let Err(e) = rebase_result {
-    warn!("rebase conflict for {issue}: {e}");
-    info!("task {issue}: rebase conflict, branch {branch} left as-is");
+    warn!("rebase conflict for {forge_task}: {e}");
+    info!("task {forge_task}: rebase conflict, branch {branch} left as-is");
     state
       .lock()
       .unwrap()
-      .set_status(&issue.id, &issue.title, TaskStatus::Error)?;
+      .set_status(&forge_task.id, &forge_task.title, TaskStatus::Error)?;
     return Ok(());
   }
 
   // Re-run tests after rebase
-  info!("re-running tests for {issue}");
+  info!("re-running tests for {forge_task}");
   let wt = worktree_path.clone();
   let test_cmd = config.test_command.clone();
   let test_passed =
@@ -63,25 +63,25 @@ pub async fn integrate_one(
       .map_err(|e| crate::error::ForgeError::Git(format!("spawn_blocking: {e}")))?;
 
   if !test_passed? {
-    info!("task {issue}: tests failed after rebase, branch {branch} left as-is");
+    info!("task {forge_task}: tests failed after rebase, branch {branch} left as-is");
     state
       .lock()
       .unwrap()
-      .set_status(&issue.id, &issue.title, TaskStatus::TestFailure)?;
+      .set_status(&forge_task.id, &forge_task.title, TaskStatus::TestFailure)?;
     return Ok(());
   }
 
   // Review
-  info!("reviewing {issue}");
+  info!("reviewing {forge_task}");
   let review_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
-  let issue_clone = issue.clone();
+  let task_clone2 = forge_task.clone();
   let task_clone = output.task.clone();
   let config_clone = config.clone();
   let wt = worktree_path.clone();
   let bb = base_branch.clone();
   let review_result = tokio::task::spawn_blocking(move || {
     review::review(
-      &issue_clone,
+      &task_clone2,
       &task_clone,
       &config_clone,
       &review_runner,
@@ -101,21 +101,21 @@ pub async fn integrate_one(
 
   match review_result {
     Ok(result) if !result.approved => {
-      info!("task {issue}: review rejected, branch {branch} left for manual review");
+      info!("task {forge_task}: review rejected, branch {branch} left for manual review");
       state
         .lock()
         .unwrap()
-        .set_status(&issue.id, &issue.title, TaskStatus::Error)?;
+        .set_status(&forge_task.id, &forge_task.title, TaskStatus::Error)?;
       return Ok(());
     }
     Err(e) => {
-      warn!("review failed for {issue}, proceeding anyway: {e}");
+      warn!("review failed for {forge_task}, proceeding anyway: {e}");
     }
     _ => {
-      info!("review approved for {issue}");
+      info!("review approved for {forge_task}");
     }
   }
 
-  info!("task {issue} completed, branch {branch} available locally");
+  info!("task {forge_task} completed, branch {branch} available locally");
   Ok(())
 }

@@ -74,7 +74,7 @@ enum Commands {
 enum TriageOutcome {
   Tasks(Vec<(PathBuf, ForgeTask)>),
   NeedsClarification {
-    issue: ForgeTask,
+    forge_task: ForgeTask,
     message: String,
     deep_result: DeepTriageResult,
     repo_path: PathBuf,
@@ -115,34 +115,34 @@ async fn run(cli: Cli) -> Result<()> {
 async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
   let state = StateTracker::load(&config.settings.state_file)?.into_shared();
 
-  let issues = {
+  let tasks = {
     let s = state.lock().unwrap();
     pipeline::fetch::fetch_tasks(config, &s)?
   };
 
-  if issues.is_empty() {
-    info!("no issues to process");
+  if tasks.is_empty() {
+    info!("no tasks to process");
     return Ok(());
   }
 
-  info!("processing {} issue(s)", issues.len());
+  info!("processing {} task(s)", tasks.len());
 
   if dry_run {
-    return cmd_run_dry(config, &issues).await;
+    return cmd_run_dry(config, &tasks).await;
   }
 
   // Phase 1: Triage (parallel per issue)
   let semaphore = Arc::new(Semaphore::new(config.settings.parallel_workers));
   let mut triage_set = JoinSet::new();
 
-  for issue in issues {
+  for forge_task in tasks {
     let sem = semaphore.clone();
     let state = state.clone();
     let config = config.clone();
 
     triage_set.spawn(async move {
       let _permit = sem.acquire().await.expect("semaphore closed");
-      triage_issue(issue, &config, &state).await
+      triage_issue(forge_task, &config, &state).await
     });
   }
 
@@ -154,15 +154,18 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
         task_entries.extend(entries);
       }
       Ok(Ok(TriageOutcome::NeedsClarification {
-        issue,
+        forge_task,
         message,
         deep_result,
         repo_path,
       })) => {
-        if let Err(e) =
-          pipeline::clarification::write_clarification(&repo_path, &issue, &deep_result, &message)
-        {
-          error!("failed to write clarification for {issue}: {e}");
+        if let Err(e) = pipeline::clarification::write_clarification(
+          &repo_path,
+          &forge_task,
+          &deep_result,
+          &message,
+        ) {
+          error!("failed to write clarification for {forge_task}: {e}");
         }
       }
       Ok(Err(e)) => error!("triage error: {e}"),
@@ -182,14 +185,14 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
   // Phase 2: Execute (parallel per task) + Phase 3: Streaming integration
   let mut exec_set = JoinSet::new();
 
-  for (task_path, issue) in task_entries {
+  for (task_path, forge_task) in task_entries {
     let sem = semaphore.clone();
     let state = state.clone();
     let config = config.clone();
 
     exec_set.spawn(async move {
       let _permit = sem.acquire().await.expect("semaphore closed");
-      execute_task(task_path, issue, &config, &state).await
+      execute_task(task_path, forge_task, &config, &state).await
     });
   }
 
@@ -198,19 +201,19 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
       Ok(Ok(output)) => {
         if matches!(output.result, ExecuteResult::Success { .. }) {
           if let Err(e) = pipeline::integrate::integrate_one(&output, config, &state).await {
-            error!("integration failed for {}: {e}", output.issue);
+            error!("integration failed for {}: {e}", output.forge_task);
             let _ = work::set_task_status(&output.task_path, WorkStatus::Failed);
             state
               .lock()
               .unwrap()
-              .set_error(&output.issue.id, &e.to_string())?;
+              .set_error(&output.forge_task.id, &e.to_string())?;
           } else {
             let _ = work::set_task_status(&output.task_path, WorkStatus::Completed);
           }
         } else {
           let _ = work::set_task_status(&output.task_path, WorkStatus::Failed);
-          if let Err(e) = pipeline::report::report(&output.issue, &output.result, &state) {
-            error!("report failed for {}: {e}", output.issue);
+          if let Err(e) = pipeline::report::report(&output.forge_task, &output.result, &state) {
+            error!("report failed for {}: {e}", output.forge_task);
           }
         }
       }
@@ -226,7 +229,7 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
 }
 
 async fn triage_issue(
-  issue: ForgeTask,
+  forge_task: ForgeTask,
   config: &Config,
   state: &SharedState,
 ) -> Result<TriageOutcome> {
@@ -234,19 +237,19 @@ async fn triage_issue(
 
   {
     let mut s = state.lock().unwrap();
-    s.set_status(&issue.id, &issue.title, TaskStatus::Triaging)?;
-    s.set_started(&issue.id)?;
+    s.set_status(&forge_task.id, &forge_task.title, TaskStatus::Triaging)?;
+    s.set_started(&forge_task.id)?;
   }
 
-  let clarification_ctx = pipeline::clarification::check_clarification(&repo_path, &issue.id)?;
+  let clarification_ctx = pipeline::clarification::check_clarification(&repo_path, &forge_task.id)?;
 
   let deep_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
-  let issue_clone = issue.clone();
+  let task_clone = forge_task.clone();
   let config_clone = config.clone();
   let repo_path_clone = repo_path.clone();
   let deep_result = tokio::task::spawn_blocking(move || {
     triage::deep_triage(
-      &issue_clone,
+      &task_clone,
       &config_clone,
       &deep_runner,
       &repo_path_clone,
@@ -259,15 +262,15 @@ async fn triage_issue(
   let deep_result = if deep_result.is_sufficient() {
     deep_result
   } else {
-    info!("deep triage insufficient for {issue}, consulting...");
+    info!("deep triage insufficient for {forge_task}, consulting...");
     let consult_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
-    let issue_clone = issue.clone();
+    let task_clone = forge_task.clone();
     let deep_clone = deep_result.clone();
     let config_clone = config.clone();
     let repo_path_clone = repo_path.clone();
     let outcome = tokio::task::spawn_blocking(move || {
       triage::consult(
-        &issue_clone,
+        &task_clone,
         &deep_clone,
         &config_clone,
         &consult_runner,
@@ -280,14 +283,14 @@ async fn triage_issue(
     match outcome {
       ConsultationOutcome::Resolved(result) => result,
       ConsultationOutcome::NeedsClarification(message) => {
-        info!("consultation needs clarification for {issue}");
+        info!("consultation needs clarification for {forge_task}");
         state.lock().unwrap().set_status(
-          &issue.id,
-          &issue.title,
+          &forge_task.id,
+          &forge_task.title,
           TaskStatus::NeedsClarification,
         )?;
         return Ok(TriageOutcome::NeedsClarification {
-          issue,
+          forge_task,
           message,
           deep_result,
           repo_path,
@@ -297,17 +300,19 @@ async fn triage_issue(
   };
 
   // Write task YAML to .forge/work/
-  let task_paths = work::write_tasks(&repo_path, &issue, &deep_result)?;
+  let task_paths = work::write_tasks(&repo_path, &forge_task, &deep_result)?;
 
-  let entries: Vec<(PathBuf, ForgeTask)> =
-    task_paths.into_iter().map(|p| (p, issue.clone())).collect();
+  let entries: Vec<(PathBuf, ForgeTask)> = task_paths
+    .into_iter()
+    .map(|p| (p, forge_task.clone()))
+    .collect();
 
   Ok(TriageOutcome::Tasks(entries))
 }
 
 async fn execute_task(
   task_path: PathBuf,
-  issue: ForgeTask,
+  forge_task: ForgeTask,
   config: &Config,
   state: &SharedState,
 ) -> Result<WorkerOutput> {
@@ -320,13 +325,13 @@ async fn execute_task(
 
   {
     let mut s = state.lock().unwrap();
-    s.set_status(&issue.id, &issue.title, TaskStatus::Executing)?;
-    s.set_branch(&issue.id, &issue.branch_name())?;
+    s.set_status(&forge_task.id, &forge_task.title, TaskStatus::Executing)?;
+    s.set_branch(&forge_task.id, &forge_task.branch_name())?;
   }
 
   let tools = config.all_tools();
   let exec_runner = ClaudeRunner::new(tools);
-  let issue_clone = issue.clone();
+  let forge_task_clone = forge_task.clone();
   let task_clone = task.clone();
   let config_clone = config.clone();
   let models = config.settings.models.clone();
@@ -335,7 +340,7 @@ async fn execute_task(
 
   let exec_result = tokio::task::spawn_blocking(move || {
     pipeline::execute::execute(
-      &issue_clone,
+      &forge_task_clone,
       &task_clone,
       &config_clone,
       &exec_runner,
@@ -351,26 +356,26 @@ async fn execute_task(
     state
       .lock()
       .unwrap()
-      .set_status(&issue.id, &issue.title, TaskStatus::Success)?;
-    let _ = pipeline::clarification::cleanup_clarification(&repo_path, &issue.id);
+      .set_status(&forge_task.id, &forge_task.title, TaskStatus::Success)?;
+    let _ = pipeline::clarification::cleanup_clarification(&repo_path, &forge_task.id);
   }
 
   Ok(WorkerOutput {
-    issue,
+    forge_task,
     result: exec_result,
     task,
     task_path,
   })
 }
 
-async fn cmd_run_dry(config: &Config, issues: &[ForgeTask]) -> Result<()> {
+async fn cmd_run_dry(config: &Config, tasks: &[ForgeTask]) -> Result<()> {
   let deep_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
   let repo_path = Config::repo_path();
 
-  for issue in issues {
-    let deep = triage::deep_triage(issue, config, &deep_runner, &repo_path, None)?;
+  for forge_task in tasks {
+    let deep = triage::deep_triage(forge_task, config, &deep_runner, &repo_path, None)?;
 
-    println!("--- {} ---", issue);
+    println!("--- {} ---", forge_task);
     println!("Complexity: {}", deep.complexity);
     println!("Plan:       {}", deep.plan);
     println!("Files:      {}", deep.relevant_files.join(", "));
@@ -411,9 +416,9 @@ fn cmd_status(config: &Config) -> Result<()> {
   println!("{summary}");
   println!();
 
-  for (key, issue_state) in state.all_tasks() {
-    let status = format!("{:?}", issue_state.status);
-    let err = issue_state
+  for (key, task_state) in state.all_tasks() {
+    let status = format!("{:?}", task_state.status);
+    let err = task_state
       .error
       .as_ref()
       .map(|e| format!(" ({e})"))

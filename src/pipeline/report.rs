@@ -5,29 +5,30 @@ use crate::pipeline::execute::ExecuteResult;
 use crate::state::tracker::{SharedState, TaskStatus};
 use crate::task::ForgeTask;
 
-pub fn report(issue: &ForgeTask, result: &ExecuteResult, state: &SharedState) -> Result<()> {
-  let branch = issue.branch_name();
+pub fn report(forge_task: &ForgeTask, result: &ExecuteResult, state: &SharedState) -> Result<()> {
+  let branch = forge_task.branch_name();
 
   match result {
     ExecuteResult::Success { .. } => {}
 
     ExecuteResult::TestFailure { commits, .. } => {
-      info!("test failure: {issue} with {commits} commits");
-      info!("task {issue}: tests failed, branch {branch} left as-is");
-      state
-        .lock()
-        .unwrap()
-        .set_status(&issue.id, &issue.title, TaskStatus::TestFailure)?;
+      info!("test failure: {forge_task} with {commits} commits");
+      info!("task {forge_task}: tests failed, branch {branch} left as-is");
+      state.lock().unwrap().set_status(
+        &forge_task.id,
+        &forge_task.title,
+        TaskStatus::TestFailure,
+      )?;
     }
 
     ExecuteResult::Unclear(reason) => {
-      info!("unclear result: {issue}: {reason}");
-      state.lock().unwrap().set_error(&issue.id, reason)?;
+      info!("unclear result: {forge_task}: {reason}");
+      state.lock().unwrap().set_error(&forge_task.id, reason)?;
     }
 
     ExecuteResult::Error(error) => {
-      info!("error: {issue}: {error}");
-      state.lock().unwrap().set_error(&issue.id, error)?;
+      info!("error: {forge_task}: {error}");
+      state.lock().unwrap().set_error(&forge_task.id, error)?;
     }
   }
 

@@ -47,16 +47,6 @@ impl IssueStatus {
       IssueStatus::Success | IssueStatus::Skipped | IssueStatus::NeedsClarification
     )
   }
-
-  pub fn is_resumable(&self) -> bool {
-    matches!(
-      self,
-      IssueStatus::Triaging
-        | IssueStatus::Executing
-        | IssueStatus::Error
-        | IssueStatus::TestFailure
-    )
-  }
 }
 
 pub struct StateTracker {
@@ -106,20 +96,6 @@ impl StateTracker {
 
   pub fn is_terminal(&self, id: &str) -> bool {
     self.get(id).is_some_and(|s| s.status.is_terminal())
-  }
-
-  pub fn is_resumable(&self, id: &str) -> bool {
-    self.get(id).is_some_and(|s| s.status.is_resumable())
-  }
-
-  pub fn resumable_issues(&self) -> Vec<String> {
-    self
-      .state
-      .issues
-      .values()
-      .filter(|s| s.status.is_resumable())
-      .map(|s| s.id.clone())
-      .collect()
   }
 
   pub fn needs_clarification_issues(&self) -> Vec<String> {
@@ -258,17 +234,6 @@ mod tests {
     assert!(!IssueStatus::Pending.is_terminal());
     assert!(!IssueStatus::Triaging.is_terminal());
     assert!(!IssueStatus::Executing.is_terminal());
-  }
-
-  #[test]
-  fn test_is_resumable() {
-    assert!(IssueStatus::Triaging.is_resumable());
-    assert!(IssueStatus::Executing.is_resumable());
-    assert!(IssueStatus::Error.is_resumable());
-    assert!(IssueStatus::TestFailure.is_resumable());
-    assert!(!IssueStatus::Pending.is_resumable());
-    assert!(!IssueStatus::Success.is_resumable());
-    assert!(!IssueStatus::Skipped.is_resumable());
   }
 
   #[test]

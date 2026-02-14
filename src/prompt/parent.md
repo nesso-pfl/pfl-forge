@@ -4,7 +4,6 @@ You manage task processing by running pfl-forge CLI commands via Bash.
 ## Available commands
 
 - `pfl-forge run` — Process pending tasks (fetch, triage, execute, integrate)
-  - `--resume` — Resume failed/interrupted tasks
   - `--dry-run` — Triage only, don't execute
 - `pfl-forge status` — Show current processing state
 - `pfl-forge clarifications` — List unanswered clarification questions

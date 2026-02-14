@@ -67,12 +67,10 @@ Triaging
   ├─→ NeedsClarification → (ユーザー回答) → Pending → Triaging
   └─→ Executing
        ├─→ Success (terminal)
-       ├─→ TestFailure (terminal, ブランチ残存)
-       ├─→ Error (terminal)
+       ├─→ TestFailure (自動再試行)
+       ├─→ Error (自動再試行)
        └─→ Skipped (terminal)
 ```
-
-再実行可能（`--resume`）: Triaging, Executing, Error, TestFailure
 
 ## 並列実行
 

@@ -65,35 +65,6 @@ pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeIs
   Ok(issues)
 }
 
-pub fn fetch_resumable_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeIssue>> {
-  let repo_path = Config::repo_path();
-  let resumable = state.resumable_issues();
-  let mut issues = Vec::new();
-
-  for id in resumable {
-    let task_path = repo_path.join(".forge/tasks").join(format!("{id}.yaml"));
-    if !task_path.exists() {
-      info!("skipping resumable task {id}: task file not found");
-      continue;
-    }
-
-    let content = std::fs::read_to_string(&task_path)?;
-    let task: LocalTask = serde_yaml::from_str(&content)?;
-
-    info!("resuming: {id}");
-    issues.push(ForgeIssue {
-      id,
-      title: task.title,
-      body: task.body,
-      labels: task.labels,
-      created_at: chrono::Utc::now(),
-    });
-  }
-
-  info!("resumable tasks: {}", issues.len());
-  Ok(issues)
-}
-
 pub fn fetch_clarified_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeIssue>> {
   let repo_path = Config::repo_path();
   let needs_clarification = state.needs_clarification_issues();

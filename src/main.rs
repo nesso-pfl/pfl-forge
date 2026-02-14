@@ -47,10 +47,6 @@ enum Commands {
     /// Only triage, don't execute
     #[arg(long)]
     dry_run: bool,
-
-    /// Resume failed/interrupted issues
-    #[arg(long)]
-    resume: bool,
   },
   /// Watch for new issues and process them periodically
   Watch,
@@ -106,7 +102,7 @@ async fn run(cli: Cli) -> Result<()> {
   let config = Config::load(&cli.config)?;
 
   match cli.command {
-    Commands::Run { dry_run, resume } => cmd_run(&config, dry_run, resume).await,
+    Commands::Run { dry_run } => cmd_run(&config, dry_run).await,
     Commands::Watch => cmd_watch(&config).await,
     Commands::Status => cmd_status(&config),
     Commands::Clean => cmd_clean(&config),
@@ -116,27 +112,13 @@ async fn run(cli: Cli) -> Result<()> {
   }
 }
 
-async fn cmd_run(config: &Config, dry_run: bool, resume: bool) -> Result<()> {
+async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
   let state = StateTracker::load(&config.settings.state_file)?.into_shared();
 
-  // Fetch local tasks
   let mut issues = {
     let s = state.lock().unwrap();
     pipeline::fetch::fetch_tasks(config, &s)?
   };
-
-  // Fetch resumable tasks if --resume
-  if resume {
-    let resumable = {
-      let s = state.lock().unwrap();
-      pipeline::fetch::fetch_resumable_tasks(config, &s)?
-    };
-    for issue in resumable {
-      if !issues.iter().any(|i| i.id == issue.id) {
-        issues.push(issue);
-      }
-    }
-  }
 
   // Fetch tasks that received clarification answers
   {
@@ -419,7 +401,7 @@ async fn cmd_watch(config: &Config) -> Result<()> {
   loop {
     info!("polling for new tasks...");
 
-    if let Err(e) = cmd_run(config, false, true).await {
+    if let Err(e) = cmd_run(config, false).await {
       warn!("run error (will retry): {e}");
     }
 

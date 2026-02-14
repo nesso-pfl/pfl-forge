@@ -13,7 +13,7 @@ pub type SharedState = Arc<Mutex<StateTracker>>;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateFile {
   #[serde(default)]
-  pub issues: HashMap<String, TaskState>,
+  pub tasks: HashMap<String, TaskState>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,7 +57,7 @@ impl StateTracker {
       serde_yaml::from_str(&content)?
     } else {
       StateFile {
-        issues: HashMap::new(),
+        tasks: HashMap::new(),
       }
     };
 
@@ -77,7 +77,7 @@ impl StateTracker {
   }
 
   pub fn get(&self, id: &str) -> Option<&TaskState> {
-    self.state.issues.get(id)
+    self.state.tasks.get(id)
   }
 
   pub fn into_shared(self) -> SharedState {
@@ -97,7 +97,7 @@ impl StateTracker {
   pub fn set_status(&mut self, id: &str, title: &str, status: TaskStatus) -> Result<()> {
     let entry = self
       .state
-      .issues
+      .tasks
       .entry(id.to_string())
       .or_insert_with(|| TaskState {
         id: id.to_string(),
@@ -115,7 +115,7 @@ impl StateTracker {
   }
 
   pub fn set_branch(&mut self, id: &str, branch: &str) -> Result<()> {
-    if let Some(entry) = self.state.issues.get_mut(id) {
+    if let Some(entry) = self.state.tasks.get_mut(id) {
       entry.branch = Some(branch.to_string());
       self.save()?;
     }
@@ -123,7 +123,7 @@ impl StateTracker {
   }
 
   pub fn set_error(&mut self, id: &str, error: &str) -> Result<()> {
-    if let Some(entry) = self.state.issues.get_mut(id) {
+    if let Some(entry) = self.state.tasks.get_mut(id) {
       entry.status = TaskStatus::Error;
       entry.error = Some(error.to_string());
       entry.completed_at = Some(Utc::now());
@@ -133,7 +133,7 @@ impl StateTracker {
   }
 
   pub fn reset_to_pending(&mut self, id: &str) -> Result<()> {
-    if let Some(entry) = self.state.issues.get_mut(id) {
+    if let Some(entry) = self.state.tasks.get_mut(id) {
       info!("{id}: {:?} -> Pending (reset)", entry.status);
       entry.status = TaskStatus::Pending;
       entry.error = None;
@@ -143,7 +143,7 @@ impl StateTracker {
   }
 
   pub fn set_started(&mut self, id: &str) -> Result<()> {
-    if let Some(entry) = self.state.issues.get_mut(id) {
+    if let Some(entry) = self.state.tasks.get_mut(id) {
       entry.started_at = Some(Utc::now());
       self.save()?;
     }
@@ -152,7 +152,7 @@ impl StateTracker {
 
   pub fn summary(&self) -> StateSummary {
     let mut summary = StateSummary::default();
-    for state in self.state.issues.values() {
+    for state in self.state.tasks.values() {
       match state.status {
         TaskStatus::Pending => summary.pending += 1,
         TaskStatus::Triaging | TaskStatus::Executing => summary.in_progress += 1,
@@ -164,8 +164,8 @@ impl StateTracker {
     summary
   }
 
-  pub fn all_issues(&self) -> &HashMap<String, TaskState> {
-    &self.state.issues
+  pub fn all_tasks(&self) -> &HashMap<String, TaskState> {
+    &self.state.tasks
   }
 }
 

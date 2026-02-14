@@ -411,7 +411,7 @@ fn cmd_status(config: &Config) -> Result<()> {
   println!("{summary}");
   println!();
 
-  for (key, issue_state) in state.all_issues() {
+  for (key, issue_state) in state.all_tasks() {
     let status = format!("{:?}", issue_state.status);
     let err = issue_state
       .error

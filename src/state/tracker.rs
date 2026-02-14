@@ -42,7 +42,10 @@ pub enum IssueStatus {
 
 impl IssueStatus {
   pub fn is_terminal(&self) -> bool {
-    matches!(self, IssueStatus::Success | IssueStatus::Skipped)
+    matches!(
+      self,
+      IssueStatus::Success | IssueStatus::Skipped | IssueStatus::NeedsClarification
+    )
   }
 }
 
@@ -215,7 +218,7 @@ mod tests {
   fn test_is_terminal() {
     assert!(IssueStatus::Success.is_terminal());
     assert!(IssueStatus::Skipped.is_terminal());
-    assert!(!IssueStatus::NeedsClarification.is_terminal());
+    assert!(IssueStatus::NeedsClarification.is_terminal());
     assert!(!IssueStatus::TestFailure.is_terminal());
     assert!(!IssueStatus::Error.is_terminal());
     assert!(!IssueStatus::Pending.is_terminal());

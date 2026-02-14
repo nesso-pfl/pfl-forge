@@ -21,15 +21,13 @@ impl Issue {
   }
 
   pub fn fetch_all(state: &StateTracker) -> Result<Vec<Issue>> {
-    let tasks_dir = Config::repo_path().join(".forge/tasks");
-    if !tasks_dir.exists() {
-      info!("local tasks: 0");
+    let dir = Config::repo_path().join(".forge/tasks");
+    if !dir.exists() {
+      info!("local issues: 0");
       return Ok(Vec::new());
     }
 
-    let mut entries: Vec<_> = std::fs::read_dir(&tasks_dir)?
-      .filter_map(|e| e.ok())
-      .collect();
+    let mut entries: Vec<_> = std::fs::read_dir(&dir)?.filter_map(|e| e.ok()).collect();
     entries.sort_by_key(|e| e.file_name());
 
     let mut issues = Vec::new();
@@ -50,7 +48,7 @@ impl Issue {
       }
 
       if state.is_terminal(&id) {
-        info!("skipping terminal local task: {id}");
+        info!("skipping terminal issue: {id}");
         continue;
       }
 
@@ -61,7 +59,7 @@ impl Issue {
       issues.push(issue);
     }
 
-    info!("local tasks: {}", issues.len());
+    info!("local issues: {}", issues.len());
     Ok(issues)
   }
 }

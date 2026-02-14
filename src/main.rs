@@ -167,7 +167,7 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
 
   let issues = {
     let s = state.lock().unwrap();
-    task::issue::fetch_tasks(config, &s)?
+    Issue::fetch_all(&s)?
   };
 
   if issues.is_empty() {

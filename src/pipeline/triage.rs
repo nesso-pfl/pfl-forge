@@ -70,31 +70,23 @@ questions from the prior attempt. Update the plan accordingly."#,
         String::new()
     };
 
-    let prompt = format!(
-        r#"You are a deep triage agent. Explore this repository's codebase to create a detailed implementation plan for the following issue.
+    let system_prompt = r#"You are a triage agent. Explore this repository's codebase to create a detailed implementation plan for the given issue.
 
-Repository: {repo}
-Issue #{number}: {title}
-Labels: {labels}
-
-{body}{clarification_section}
-
-## Instructions
-
-1. Use Read, Glob, and Grep to explore the codebase
-2. Identify the relevant files that need to be modified
-3. Determine the implementation steps needed
-4. Understand the surrounding code context and patterns
-5. Assess the complexity of the change
-
-Respond with ONLY a JSON object (no markdown, no explanation):
-{{
+Respond with ONLY a JSON object (no markdown):
+{
   "complexity": "<low|medium|high>",
   "plan": "<detailed implementation plan>",
   "relevant_files": ["<file paths that need modification>"],
   "implementation_steps": ["<ordered list of concrete implementation steps>"],
   "context": "<relevant codebase context: patterns, conventions, dependencies>"
-}}"#,
+}"#;
+
+    let prompt = format!(
+        r#"Repository: {repo}
+Issue #{number}: {title}
+Labels: {labels}
+
+{body}{clarification_section}"#,
         repo = issue.full_repo(),
         number = issue.number,
         title = issue.title,
@@ -106,7 +98,8 @@ Respond with ONLY a JSON object (no markdown, no explanation):
     let timeout = Some(Duration::from_secs(config.settings.triage_timeout_secs));
 
     info!("deep triaging: {issue}");
-    let result: DeepTriageResult = runner.run_json(&prompt, deep_model, repo_path, timeout)?;
+    let result: DeepTriageResult =
+        runner.run_json(&prompt, system_prompt, deep_model, repo_path, timeout)?;
 
     info!(
         "deep triage: complexity={}, {} relevant files, {} steps, sufficient={}",
@@ -128,43 +121,27 @@ pub fn consult(
 ) -> Result<ConsultationOutcome> {
     let complex_model = model::resolve(&config.settings.models.complex);
 
-    let prompt = format!(
-        r#"You are a senior consulting agent. A deep triage agent attempted to analyze this issue but produced insufficient results. Your job is to explore the codebase yourself, fill in the gaps, and produce a complete implementation plan.
+    let system_prompt = r#"You are a senior consulting agent. A triage agent produced insufficient results for the given issue. Explore the codebase yourself, fill in the gaps, and produce a complete implementation plan. If the issue is genuinely unclear, respond with "needs_clarification".
 
-Repository: {repo}
+Respond with ONLY a JSON object (no markdown):
+
+If resolved:
+{ "status": "resolved", "complexity": "...", "plan": "...", "relevant_files": [...], "implementation_steps": [...], "context": "..." }
+
+If needs clarification:
+{ "status": "needs_clarification", "message": "..." }"#;
+
+    let prompt = format!(
+        r#"Repository: {repo}
 Issue #{number}: {title}
 
 {body}
 
-## Previous deep triage attempt (insufficient):
+## Previous triage attempt (insufficient):
 - Plan: {prev_plan}
-- Relevant files found: {prev_files}
+- Relevant files: {prev_files}
 - Steps: {prev_steps}
-- Context: {prev_context}
-
-## Instructions
-
-1. Use Read, Glob, and Grep to explore the codebase and fill in missing information
-2. If you can produce a complete implementation plan, respond with a "resolved" result
-3. If the issue is genuinely unclear or impossible to plan, respond with a "needs_clarification" result
-
-Respond with ONLY a JSON object (no markdown, no explanation):
-
-If resolved:
-{{
-  "status": "resolved",
-  "complexity": "<low|medium|high>",
-  "plan": "<detailed implementation plan>",
-  "relevant_files": ["<file paths>"],
-  "implementation_steps": ["<ordered steps>"],
-  "context": "<codebase context>"
-}}
-
-If needs clarification:
-{{
-  "status": "needs_clarification",
-  "message": "<what information is missing and what questions to ask>"
-}}"#,
+- Context: {prev_context}"#,
         repo = issue.full_repo(),
         number = issue.number,
         title = issue.title,
@@ -178,7 +155,8 @@ If needs clarification:
     let timeout = Some(Duration::from_secs(config.settings.triage_timeout_secs));
 
     info!("consulting on: {issue}");
-    let raw: serde_json::Value = runner.run_json(&prompt, complex_model, repo_path, timeout)?;
+    let raw: serde_json::Value =
+        runner.run_json(&prompt, system_prompt, complex_model, repo_path, timeout)?;
 
     let status = raw
         .get("status")

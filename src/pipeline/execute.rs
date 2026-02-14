@@ -49,11 +49,11 @@ pub fn execute(
     let selected_model = complexity.select_model(model_settings);
 
     // Build the worker prompt
-    let prompt = build_worker_prompt(issue, deep, repo_config);
+    let (system_prompt, prompt) = build_worker_prompt(issue, deep, repo_config);
 
     // Run Claude Code Worker
     let timeout = Some(Duration::from_secs(worker_timeout_secs));
-    let result = runner.run_prompt(&prompt, selected_model, &worktree_path, timeout);
+    let result = runner.run_prompt(&prompt, &system_prompt, selected_model, &worktree_path, timeout);
 
     match result {
         Ok(output) => {
@@ -95,7 +95,7 @@ fn build_worker_prompt(
     issue: &ForgeIssue,
     deep: &DeepTriageResult,
     repo_config: &RepoConfig,
-) -> String {
+) -> (String, String) {
     let files = deep
         .relevant_files
         .iter()
@@ -111,10 +111,17 @@ fn build_worker_prompt(
         .collect::<Vec<_>>()
         .join("\n");
 
-    format!(
-        r#"You are a coding agent. Implement the following GitHub issue according to the provided implementation plan.
+    let system_prompt = format!(
+        r#"You are a coding agent. Implement the given GitHub issue according to the provided plan.
 
-## Issue #{number}: {title}
+- Commit with a message referencing the issue number (e.g. "fix #N: ..." or "add #N: ...")
+- Run tests with: `{test_command}`
+- Do NOT push to remote"#,
+        test_command = repo_config.test_command,
+    );
+
+    let user_prompt = format!(
+        r#"## Issue #{number}: {title}
 
 {body}
 
@@ -132,17 +139,7 @@ fn build_worker_prompt(
 
 ## Codebase Context
 
-{context}
-
-## Instructions
-
-1. Follow the implementation plan and steps above
-2. Modify the relevant files as described
-3. Run the test command: `{test_command}`
-4. Commit your changes with a descriptive message referencing the issue: "fix #{number}: <description>"
-5. Make sure all tests pass before committing
-
-Do NOT push to remote. Just commit locally."#,
+{context}"#,
         number = issue.number,
         title = issue.title,
         body = issue.body,
@@ -150,8 +147,9 @@ Do NOT push to remote. Just commit locally."#,
         files = files,
         steps = steps,
         context = deep.context,
-        test_command = repo_config.test_command,
-    )
+    );
+
+    (system_prompt, user_prompt)
 }
 
 fn check_docker(worktree_path: &Path) -> Result<()> {

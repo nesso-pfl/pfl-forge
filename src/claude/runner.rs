@@ -21,6 +21,7 @@ impl ClaudeRunner {
     pub fn run_prompt(
         &self,
         prompt: &str,
+        system_prompt: &str,
         model: &str,
         cwd: &Path,
         timeout: Option<Duration>,
@@ -35,6 +36,10 @@ impl ClaudeRunner {
             .args(["--allowedTools", &tools_csv])
             .current_dir(cwd)
             .env_remove("CLAUDE_CODE_ENTRYPOINT");
+
+        if !system_prompt.is_empty() {
+            cmd.args(["--append-system-prompt", system_prompt]);
+        }
 
         // Remove CLAUDECODE env var to allow nested Claude Code invocation
         cmd.env_remove("CLAUDECODE");
@@ -74,11 +79,12 @@ impl ClaudeRunner {
     pub fn run_json<T: DeserializeOwned>(
         &self,
         prompt: &str,
+        system_prompt: &str,
         model: &str,
         cwd: &Path,
         timeout: Option<Duration>,
     ) -> Result<T> {
-        let raw = self.run_prompt(prompt, model, cwd, timeout)?;
+        let raw = self.run_prompt(prompt, system_prompt, model, cwd, timeout)?;
         parse_claude_json_output(&raw)
     }
 }

@@ -29,12 +29,23 @@ pub fn review(
 ) -> Result<ReviewResult> {
     let review_model = model::resolve(&config.settings.models.default);
 
+    let system_prompt = r#"You are a code review agent.
+
+Review criteria:
+1. Does the implementation satisfy the issue requirements?
+2. Does the code follow existing patterns and conventions?
+3. Are there any obvious bugs or security issues?
+4. Is the implementation consistent with the plan?
+5. If new tests are added, are they meaningful and well-structured?
+6. If tests were modified, is the change justified?
+
+Respond with ONLY a JSON object (no markdown):
+{ "approved": <bool>, "issues": [...], "suggestions": [...] }"#;
+
     let diff = get_diff(worktree_path, base_branch)?;
 
     let prompt = format!(
-        r#"You are a code review agent. Review the following diff for a GitHub issue implementation.
-
-## Issue #{number}: {title}
+        r#"## Issue #{number}: {title}
 
 {body}
 
@@ -46,23 +57,7 @@ pub fn review(
 
 ```
 {diff}
-```
-
-## Review Criteria
-
-1. Does the implementation satisfy the issue requirements?
-2. Does the code follow existing patterns and conventions?
-3. Are there any obvious bugs or security issues?
-4. Is the implementation consistent with the plan?
-5. If new tests are added, are they meaningful and well-structured?
-6. If tests were modified, is the change justified?
-
-Respond with ONLY a JSON object (no markdown, no explanation):
-{{
-  "approved": <boolean - true if the code is acceptable>,
-  "issues": ["<list of problems found, empty if approved>"],
-  "suggestions": ["<list of improvement suggestions, can be empty>"]
-}}"#,
+```"#,
         number = issue.number,
         title = issue.title,
         body = issue.body,
@@ -73,7 +68,8 @@ Respond with ONLY a JSON object (no markdown, no explanation):
     let timeout = Some(Duration::from_secs(config.settings.triage_timeout_secs));
 
     info!("reviewing: {issue}");
-    let result: ReviewResult = runner.run_json(&prompt, review_model, worktree_path, timeout)?;
+    let result: ReviewResult =
+        runner.run_json(&prompt, system_prompt, review_model, worktree_path, timeout)?;
 
     info!(
         "review: approved={}, {} issues, {} suggestions",

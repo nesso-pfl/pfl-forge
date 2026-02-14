@@ -1,5 +1,4 @@
 # pfl-forge.yaml — リポジトリルートに配置して pfl-forge を実行
-test_command: "just test"
 base_branch: main
 extra_tools: []
 

@@ -35,7 +35,6 @@ pub enum TaskStatus {
   NeedsClarification,
   Executing,
   Success,
-  TestFailure,
   Error,
 }
 
@@ -158,7 +157,7 @@ impl StateTracker {
         TaskStatus::Triaging | TaskStatus::Executing => summary.in_progress += 1,
         TaskStatus::Success => summary.completed += 1,
         TaskStatus::NeedsClarification => summary.skipped += 1,
-        TaskStatus::TestFailure | TaskStatus::Error => summary.failed += 1,
+        TaskStatus::Error => summary.failed += 1,
       }
     }
     summary
@@ -214,7 +213,6 @@ mod tests {
   fn test_is_terminal() {
     assert!(TaskStatus::Success.is_terminal());
     assert!(TaskStatus::NeedsClarification.is_terminal());
-    assert!(!TaskStatus::TestFailure.is_terminal());
     assert!(!TaskStatus::Error.is_terminal());
     assert!(!TaskStatus::Pending.is_terminal());
     assert!(!TaskStatus::Triaging.is_terminal());

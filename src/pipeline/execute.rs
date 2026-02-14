@@ -37,7 +37,6 @@ pub fn ensure_gitignore_forge(worktree_path: &Path) -> Result<()> {
 #[derive(Debug)]
 pub enum ExecuteResult {
   Success { commits: u32 },
-  TestFailure { commits: u32, output: String },
   Unclear(String),
   Error(String),
 }
@@ -69,7 +68,7 @@ pub fn execute(
   let selected_model = complexity.select_model(model_settings);
 
   // Build the worker prompt
-  let prompt = build_worker_prompt(forge_task, &config.test_command);
+  let prompt = build_worker_prompt(forge_task);
 
   // Run Claude Code Worker
   let timeout = Some(Duration::from_secs(worker_timeout_secs));
@@ -82,7 +81,7 @@ pub fn execute(
   );
 
   match result {
-    Ok(output) => {
+    Ok(_output) => {
       // Check if there are commits
       let commits =
         git::branch::commit_count(&worktree_path, &config.base_branch, "HEAD").unwrap_or(0);
@@ -95,47 +94,19 @@ pub fn execute(
       }
 
       info!("{commits} commit(s) produced");
-
-      // Run tests
-      match run_tests(&worktree_path, &config.test_command) {
-        Ok(true) => Ok(ExecuteResult::Success { commits }),
-        Ok(false) => Ok(ExecuteResult::TestFailure { commits, output }),
-        Err(e) => Ok(ExecuteResult::TestFailure {
-          commits,
-          output: format!("Test execution error: {e}"),
-        }),
-      }
+      Ok(ExecuteResult::Success { commits })
     }
     Err(e) => Ok(ExecuteResult::Error(e.to_string())),
   }
 }
 
-fn build_worker_prompt(forge_task: &ForgeTask, test_command: &str) -> String {
+fn build_worker_prompt(forge_task: &ForgeTask) -> String {
   format!(
     r#"## Task {id}: {title}
 
-{body}
-
-## Test Command
-
-`{test_command}`"#,
+{body}"#,
     id = forge_task.id,
     title = forge_task.title,
     body = forge_task.body,
-    test_command = test_command,
   )
-}
-
-pub fn run_tests(worktree_path: &Path, test_command: &str) -> Result<bool> {
-  info!("running tests: {test_command}");
-
-  let parts: Vec<&str> = test_command.split_whitespace().collect();
-  let (cmd, args) = parts.split_first().expect("test_command is non-empty");
-
-  let output = std::process::Command::new(cmd)
-    .args(args)
-    .current_dir(worktree_path)
-    .output()?;
-
-  Ok(output.status.success())
 }

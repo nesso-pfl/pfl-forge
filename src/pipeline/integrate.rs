@@ -53,24 +53,6 @@ pub async fn integrate_one(
     return Ok(());
   }
 
-  // Re-run tests after rebase
-  info!("re-running tests for {forge_task}");
-  let wt = worktree_path.clone();
-  let test_cmd = config.test_command.clone();
-  let test_passed =
-    tokio::task::spawn_blocking(move || crate::pipeline::execute::run_tests(&wt, &test_cmd))
-      .await
-      .map_err(|e| crate::error::ForgeError::Git(format!("spawn_blocking: {e}")))?;
-
-  if !test_passed? {
-    info!("task {forge_task}: tests failed after rebase, branch {branch} left as-is");
-    state
-      .lock()
-      .unwrap()
-      .set_status(&forge_task.id, &forge_task.title, TaskStatus::TestFailure)?;
-    return Ok(());
-  }
-
   // Review
   info!("reviewing {forge_task}");
   let review_runner = ClaudeRunner::new(config.settings.triage_tools.clone());

@@ -6,8 +6,6 @@ use crate::error::{ForgeError, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-  #[serde(default = "default_test_command")]
-  pub test_command: String,
   #[serde(default = "default_base_branch")]
   pub base_branch: String,
   #[serde(default)]
@@ -74,9 +72,6 @@ impl Default for ModelSettings {
   }
 }
 
-fn default_test_command() -> String {
-  "cargo test".to_string()
-}
 fn default_base_branch() -> String {
   "main".to_string()
 }
@@ -160,7 +155,6 @@ mod tests {
   #[test]
   fn test_all_tools() {
     let config = Config {
-      test_command: "cargo test".into(),
       base_branch: "main".into(),
       extra_tools: vec!["WebSearch".into()],
       settings: Settings::default(),

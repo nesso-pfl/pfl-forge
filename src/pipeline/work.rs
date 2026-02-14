@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use tracing::info;
 
 use crate::error::Result;
-use crate::pipeline::triage::{DeepTriageResult, Task, TaskStatus};
+use crate::pipeline::triage::{DeepTriageResult, Task, WorkStatus};
 use crate::task::ForgeTask;
 
 fn work_dir(repo_path: &Path) -> PathBuf {
@@ -46,7 +46,7 @@ pub fn read_pending_tasks(repo_path: &Path) -> Result<Vec<(PathBuf, Task)>> {
     }
     let content = std::fs::read_to_string(&path)?;
     let task: Task = serde_yaml::from_str(&content)?;
-    if task.status == TaskStatus::Pending {
+    if task.status == WorkStatus::Pending {
       tasks.push((path, task));
     }
   }
@@ -54,7 +54,7 @@ pub fn read_pending_tasks(repo_path: &Path) -> Result<Vec<(PathBuf, Task)>> {
   Ok(tasks)
 }
 
-pub fn set_task_status(path: &Path, status: TaskStatus) -> Result<()> {
+pub fn set_task_status(path: &Path, status: WorkStatus) -> Result<()> {
   let content = std::fs::read_to_string(path)?;
   let mut task: Task = serde_yaml::from_str(&content)?;
   task.status = status;

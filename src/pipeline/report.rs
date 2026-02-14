@@ -2,7 +2,7 @@ use tracing::info;
 
 use crate::error::Result;
 use crate::pipeline::execute::ExecuteResult;
-use crate::state::tracker::{IssueStatus, SharedState};
+use crate::state::tracker::{SharedState, TaskStatus};
 use crate::task::ForgeTask;
 
 pub fn report(issue: &ForgeTask, result: &ExecuteResult, state: &SharedState) -> Result<()> {
@@ -17,7 +17,7 @@ pub fn report(issue: &ForgeTask, result: &ExecuteResult, state: &SharedState) ->
       state
         .lock()
         .unwrap()
-        .set_status(&issue.id, &issue.title, IssueStatus::TestFailure)?;
+        .set_status(&issue.id, &issue.title, TaskStatus::TestFailure)?;
     }
 
     ExecuteResult::Unclear(reason) => {

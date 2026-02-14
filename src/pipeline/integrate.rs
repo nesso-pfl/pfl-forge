@@ -7,7 +7,7 @@ use crate::git;
 use crate::pipeline::execute::ExecuteResult;
 use crate::pipeline::review::{self, ReviewResult};
 use crate::pipeline::triage::Task;
-use crate::state::tracker::{IssueStatus, SharedState};
+use crate::state::tracker::{SharedState, TaskStatus};
 use crate::task::ForgeTask;
 
 fn write_review_yaml(worktree_path: &std::path::Path, result: &ReviewResult) -> Result<()> {
@@ -49,7 +49,7 @@ pub async fn integrate_one(
     state
       .lock()
       .unwrap()
-      .set_status(&issue.id, &issue.title, IssueStatus::Error)?;
+      .set_status(&issue.id, &issue.title, TaskStatus::Error)?;
     return Ok(());
   }
 
@@ -67,7 +67,7 @@ pub async fn integrate_one(
     state
       .lock()
       .unwrap()
-      .set_status(&issue.id, &issue.title, IssueStatus::TestFailure)?;
+      .set_status(&issue.id, &issue.title, TaskStatus::TestFailure)?;
     return Ok(());
   }
 
@@ -105,7 +105,7 @@ pub async fn integrate_one(
       state
         .lock()
         .unwrap()
-        .set_status(&issue.id, &issue.title, IssueStatus::Error)?;
+        .set_status(&issue.id, &issue.title, TaskStatus::Error)?;
       return Ok(());
     }
     Err(e) => {

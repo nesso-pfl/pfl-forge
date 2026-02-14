@@ -22,7 +22,7 @@ pub struct DeepTriageResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub enum TaskStatus {
+pub enum WorkStatus {
   #[default]
   Pending,
   Executing,
@@ -36,7 +36,7 @@ pub struct Task {
   pub issue_title: String,
   pub issue_body: String,
   #[serde(default)]
-  pub status: TaskStatus,
+  pub status: WorkStatus,
   pub complexity: String,
   pub plan: String,
   pub relevant_files: Vec<String>,
@@ -50,7 +50,7 @@ impl Task {
       issue_id: issue.id.clone(),
       issue_title: issue.title.clone(),
       issue_body: issue.body.clone(),
-      status: TaskStatus::Pending,
+      status: WorkStatus::Pending,
       complexity: deep.complexity.clone(),
       plan: deep.plan.clone(),
       relevant_files: deep.relevant_files.clone(),

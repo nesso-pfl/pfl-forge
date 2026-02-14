@@ -21,9 +21,9 @@ use crate::config::Config;
 use crate::error::Result;
 use crate::pipeline::execute::ExecuteResult;
 use crate::pipeline::integrate::WorkerOutput;
-use crate::pipeline::triage::{self, ConsultationOutcome, DeepTriageResult, Task, TaskStatus};
+use crate::pipeline::triage::{self, ConsultationOutcome, DeepTriageResult, Task, WorkStatus};
 use crate::pipeline::work;
-use crate::state::tracker::{IssueStatus, SharedState, StateTracker};
+use crate::state::tracker::{SharedState, StateTracker, TaskStatus};
 use crate::task::ForgeTask;
 
 #[derive(Parser)]
@@ -199,16 +199,16 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
         if matches!(output.result, ExecuteResult::Success { .. }) {
           if let Err(e) = pipeline::integrate::integrate_one(&output, config, &state).await {
             error!("integration failed for {}: {e}", output.issue);
-            let _ = work::set_task_status(&output.task_path, TaskStatus::Failed);
+            let _ = work::set_task_status(&output.task_path, WorkStatus::Failed);
             state
               .lock()
               .unwrap()
               .set_error(&output.issue.id, &e.to_string())?;
           } else {
-            let _ = work::set_task_status(&output.task_path, TaskStatus::Completed);
+            let _ = work::set_task_status(&output.task_path, WorkStatus::Completed);
           }
         } else {
-          let _ = work::set_task_status(&output.task_path, TaskStatus::Failed);
+          let _ = work::set_task_status(&output.task_path, WorkStatus::Failed);
           if let Err(e) = pipeline::report::report(&output.issue, &output.result, &state) {
             error!("report failed for {}: {e}", output.issue);
           }
@@ -234,7 +234,7 @@ async fn triage_issue(
 
   {
     let mut s = state.lock().unwrap();
-    s.set_status(&issue.id, &issue.title, IssueStatus::Triaging)?;
+    s.set_status(&issue.id, &issue.title, TaskStatus::Triaging)?;
     s.set_started(&issue.id)?;
   }
 
@@ -284,7 +284,7 @@ async fn triage_issue(
         state.lock().unwrap().set_status(
           &issue.id,
           &issue.title,
-          IssueStatus::NeedsClarification,
+          TaskStatus::NeedsClarification,
         )?;
         return Ok(TriageOutcome::NeedsClarification {
           issue,
@@ -316,11 +316,11 @@ async fn execute_task(
   // Read and lock task
   let content = std::fs::read_to_string(&task_path)?;
   let task: Task = serde_yaml::from_str(&content)?;
-  work::set_task_status(&task_path, TaskStatus::Executing)?;
+  work::set_task_status(&task_path, WorkStatus::Executing)?;
 
   {
     let mut s = state.lock().unwrap();
-    s.set_status(&issue.id, &issue.title, IssueStatus::Executing)?;
+    s.set_status(&issue.id, &issue.title, TaskStatus::Executing)?;
     s.set_branch(&issue.id, &issue.branch_name())?;
   }
 
@@ -351,7 +351,7 @@ async fn execute_task(
     state
       .lock()
       .unwrap()
-      .set_status(&issue.id, &issue.title, IssueStatus::Success)?;
+      .set_status(&issue.id, &issue.title, TaskStatus::Success)?;
     let _ = pipeline::clarification::cleanup_clarification(&repo_path, &issue.id);
   }
 

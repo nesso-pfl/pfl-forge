@@ -34,6 +34,7 @@ pub enum TaskStatus {
   Triaging,
   NeedsClarification,
   Executing,
+  Reviewing,
   Success,
   Error,
 }
@@ -154,7 +155,9 @@ impl StateTracker {
     for state in self.state.tasks.values() {
       match state.status {
         TaskStatus::Pending => summary.pending += 1,
-        TaskStatus::Triaging | TaskStatus::Executing => summary.in_progress += 1,
+        TaskStatus::Triaging | TaskStatus::Executing | TaskStatus::Reviewing => {
+          summary.in_progress += 1
+        }
         TaskStatus::Success => summary.completed += 1,
         TaskStatus::NeedsClarification => summary.skipped += 1,
         TaskStatus::Error => summary.failed += 1,
@@ -217,6 +220,7 @@ mod tests {
     assert!(!TaskStatus::Pending.is_terminal());
     assert!(!TaskStatus::Triaging.is_terminal());
     assert!(!TaskStatus::Executing.is_terminal());
+    assert!(!TaskStatus::Reviewing.is_terminal());
   }
 
   #[test]

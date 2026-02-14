@@ -26,6 +26,8 @@ pub struct Config {
   pub worker_timeout_secs: u64,
   #[serde(default = "default_triage_timeout")]
   pub triage_timeout_secs: u64,
+  #[serde(default = "default_max_review_retries")]
+  pub max_review_retries: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,6 +81,9 @@ fn default_worker_timeout() -> u64 {
 fn default_triage_timeout() -> u64 {
   600
 }
+fn default_max_review_retries() -> u32 {
+  2
+}
 fn default_triage_tools() -> Vec<String> {
   vec!["Read".into(), "Glob".into(), "Grep".into()]
 }
@@ -118,5 +123,6 @@ mod tests {
     assert_eq!(config.parallel_workers, 4);
     assert_eq!(config.worker_tools.len(), 6);
     assert_eq!(config.base_branch, "main");
+    assert_eq!(config.max_review_retries, 2);
   }
 }

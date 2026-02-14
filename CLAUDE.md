@@ -46,4 +46,4 @@ cargo test
 - Git worktree でワーカー間のファイルシステム隔離
 - エージェント間データは `.forge/work/*.yaml`（タスク）、`.forge/task.yaml`（worktree 内）、`.forge/review.yaml` で受け渡し（プロンプト埋め込みではなくファイル経由）
 - タスク: `.forge/tasks/*.yaml` に定義
-- コミット前に、変更が CLAUDE.md や docs/ の記述と矛盾しないか確認し、必要なら同じコミットで更新すること
+- コミット前に、変更が CLAUDE.md、README.md や docs/ の記述と矛盾しないか確認し、必要なら同じコミットで更新すること

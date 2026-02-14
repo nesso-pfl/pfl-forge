@@ -49,21 +49,15 @@ After answering, the task is reset to pending and will be re-processed on the ne
 pub fn build_initial_message(_config: &Config, state: &StateTracker) -> Result<String> {
   let summary = state.summary();
 
-  let repo_name = Config::repo_name();
   let repo_path = Config::repo_path();
-  let repos = vec![(repo_name, repo_path)];
-  let repos_ref: Vec<(String, &std::path::Path)> = repos
-    .iter()
-    .map(|(n, p)| (n.clone(), p.as_path()))
-    .collect();
-  let pending = clarification::list_pending_clarifications(&repos_ref)?;
+  let pending = clarification::list_pending_clarifications(&repo_path)?;
 
   let mut msg = format!("Current state: {summary}\n");
 
   if !pending.is_empty() {
     msg.push_str("\nThere are pending clarification questions:\n\n");
     for c in &pending {
-      msg.push_str(&format!("### {} #{}\n", c.repo_name, c.issue_number));
+      msg.push_str(&format!("### #{}\n", c.issue_number));
       let questions = extract_questions(&c.content);
       msg.push_str(&questions);
       msg.push('\n');

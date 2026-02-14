@@ -147,45 +147,41 @@ fn parse_question_file(content: &str) -> (DeepTriageResult, String) {
 }
 
 pub struct PendingClarification {
-  pub repo_name: String,
   pub issue_number: u64,
   pub content: String,
 }
 
-pub fn list_pending_clarifications(repos: &[(String, &Path)]) -> Result<Vec<PendingClarification>> {
+pub fn list_pending_clarifications(repo_path: &Path) -> Result<Vec<PendingClarification>> {
   let mut pending = Vec::new();
 
-  for (repo_name, repo_path) in repos {
-    let dir = clarification_dir(repo_path);
-    if !dir.exists() {
+  let dir = clarification_dir(repo_path);
+  if !dir.exists() {
+    return Ok(pending);
+  }
+  let entries = std::fs::read_dir(&dir)?;
+  for entry in entries {
+    let entry = entry?;
+    let name = entry.file_name().to_string_lossy().to_string();
+    // Match <number>.md but not <number>.answer.md
+    if name.ends_with(".answer.md") || !name.ends_with(".md") {
       continue;
     }
-    let entries = std::fs::read_dir(&dir)?;
-    for entry in entries {
-      let entry = entry?;
-      let name = entry.file_name().to_string_lossy().to_string();
-      // Match <number>.md but not <number>.answer.md
-      if name.ends_with(".answer.md") || !name.ends_with(".md") {
-        continue;
-      }
-      let num_str = name.trim_end_matches(".md");
-      let Ok(issue_number) = num_str.parse::<u64>() else {
-        continue;
-      };
-      // Skip if answer already exists
-      if answer_path(repo_path, issue_number).exists() {
-        continue;
-      }
-      let content = std::fs::read_to_string(entry.path())?;
-      pending.push(PendingClarification {
-        repo_name: repo_name.clone(),
-        issue_number,
-        content,
-      });
+    let num_str = name.trim_end_matches(".md");
+    let Ok(issue_number) = num_str.parse::<u64>() else {
+      continue;
+    };
+    // Skip if answer already exists
+    if answer_path(repo_path, issue_number).exists() {
+      continue;
     }
+    let content = std::fs::read_to_string(entry.path())?;
+    pending.push(PendingClarification {
+      issue_number,
+      content,
+    });
   }
 
-  pending.sort_by_key(|p| (p.repo_name.clone(), p.issue_number));
+  pending.sort_by_key(|p| p.issue_number);
   Ok(pending)
 }
 

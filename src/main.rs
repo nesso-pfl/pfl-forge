@@ -507,15 +507,8 @@ fn cmd_clean(config: &Config) -> Result<()> {
 }
 
 fn cmd_clarifications(_config: &Config) -> Result<()> {
-  let repo_name = Config::repo_name();
   let repo_path = Config::repo_path();
-  let repos = vec![(repo_name, repo_path)];
-  let repos_ref: Vec<(String, &std::path::Path)> = repos
-    .iter()
-    .map(|(n, p)| (n.clone(), p.as_path()))
-    .collect();
-
-  let pending = pipeline::clarification::list_pending_clarifications(&repos_ref)?;
+  let pending = pipeline::clarification::list_pending_clarifications(&repo_path)?;
 
   if pending.is_empty() {
     println!("No pending clarifications.");
@@ -523,7 +516,7 @@ fn cmd_clarifications(_config: &Config) -> Result<()> {
   }
 
   for c in &pending {
-    println!("=== {} #{} ===", c.repo_name, c.issue_number);
+    println!("=== #{} ===", c.issue_number);
     println!("{}", c.content);
     println!();
   }

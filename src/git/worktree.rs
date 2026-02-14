@@ -3,7 +3,7 @@ use std::process::Command;
 
 use tracing::{debug, info};
 
-use crate::error::{ForgeError, Result};
+use crate::error::{self, ForgeError, Result};
 
 pub fn create(
   repo_path: &Path,
@@ -109,4 +109,19 @@ pub fn list(repo_path: &Path) -> Result<Vec<String>> {
     .collect();
 
   Ok(worktrees)
+}
+
+pub fn ensure_gitignore_forge(worktree_path: &Path) -> error::Result<()> {
+  let gitignore = worktree_path.join(".gitignore");
+  if gitignore.exists() {
+    let content = std::fs::read_to_string(&gitignore)?;
+    if content.lines().any(|line| line.trim() == ".forge/") {
+      return Ok(());
+    }
+    let suffix = if content.ends_with('\n') { "" } else { "\n" };
+    std::fs::write(&gitignore, format!("{content}{suffix}.forge/\n"))?;
+  } else {
+    std::fs::write(&gitignore, ".forge/\n")?;
+  }
+  Ok(())
 }

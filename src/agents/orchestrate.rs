@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::error::Result;
-use crate::pipeline::clarification;
+use crate::task::clarification;
 use crate::prompt;
 use crate::state::tracker::StateTracker;
 

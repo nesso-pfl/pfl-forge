@@ -108,3 +108,11 @@ pub fn set_task_status(path: &Path, status: WorkStatus) -> Result<()> {
   std::fs::write(path, content)?;
   Ok(())
 }
+
+pub fn write_task_yaml(worktree_path: &Path, task: &Task) -> Result<()> {
+  let forge_dir = worktree_path.join(".forge");
+  std::fs::create_dir_all(&forge_dir)?;
+  let content = serde_yaml::to_string(task)?;
+  std::fs::write(forge_dir.join("task.yaml"), content)?;
+  Ok(())
+}

@@ -5,14 +5,14 @@ Multi-agent task processor powered by Claude Code.
 ## Architecture
 
 - `src/agents/` — Claude Code 呼び出し（プロンプト組み立て・CLI 実行・出力パース）
-- `src/pipeline/` — エージェント間のインフラ（データ変換・worktree 準備・rebase・ファイル I/O）。エージェントは呼ばない
+- `src/task/` — タスク定義・読み込み・work YAML・clarification 管理
 - `src/claude/` — Claude Code CLI (`claude -p`) のラッパー
-- `src/git/` — worktree/branch 操作
-- `src/task.rs` — `ForgeTask` 定義（ローカルタスク）
+- `src/git/` — worktree/branch 操作（rebase・gitignore 管理を含む）
 - `src/state/` — YAML ファイルベースの状態管理
 - `src/prompt/` — 各エージェントの system prompt（`.md` ファイル、`include_str!` で埋め込み）
+- `src/main.rs` — CLI・フロー制御（`process_task()` + prepare/report ヘルパー）
 
-すべてのエージェント呼び出しは `process_task()` から行う。pipeline はその前後のインフラ処理のみ。
+すべてのエージェント呼び出しは `process_task()` から行う。`task/` はタスクデータの読み書き・変換のみ。
 エージェント間通信は `.forge/` ディレクトリの YAML ファイルで行う。analyze は `.forge/work/*.yaml` にタスクを書き出し、prepare は worktree 内 `.forge/task.yaml` で implement agent に渡す。review 結果は `.forge/review.yaml`。
 タスクは `.forge/tasks/*.yaml` に配置する。
 

@@ -7,7 +7,7 @@ use crate::claude::model;
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
-use crate::pipeline::clarification::ClarificationContext;
+use crate::task::clarification::ClarificationContext;
 use crate::prompt;
 use crate::task::ForgeTask;
 

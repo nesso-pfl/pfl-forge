@@ -3,12 +3,11 @@ mod claude;
 mod config;
 mod error;
 mod git;
-mod pipeline;
 mod prompt;
 mod state;
 mod task;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
@@ -22,9 +21,8 @@ use crate::agents::{analyze, implement, review};
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
-use crate::pipeline::execute::ExecuteResult;
-use crate::pipeline::work::{self, WorkStatus};
 use crate::state::tracker::{SharedState, StateTracker, TaskStatus};
+use crate::task::work::{self, WorkStatus};
 use crate::task::ForgeTask;
 
 #[derive(Parser)]
@@ -82,6 +80,52 @@ enum Commands {
   },
 }
 
+#[derive(Debug)]
+enum ExecuteResult {
+  Success { commits: u32 },
+  Unclear(String),
+  Error(String),
+}
+
+struct PrepareResult {
+  worktree_path: PathBuf,
+  selected_model: String,
+}
+
+fn prepare(
+  forge_task: &ForgeTask,
+  task: &work::Task,
+  config: &Config,
+  worktree_dir: &str,
+) -> Result<PrepareResult> {
+  let branch = forge_task.branch_name();
+  let repo_path = Config::repo_path();
+
+  let worktree_path =
+    git::worktree::create(&repo_path, worktree_dir, &branch, &config.base_branch)?;
+
+  info!("prepared worktree: {}", worktree_path.display());
+
+  work::write_task_yaml(&worktree_path, task)?;
+  git::worktree::ensure_gitignore_forge(&worktree_path)?;
+
+  let complexity = task.complexity();
+  let selected_model = complexity.select_model(&config.models).to_string();
+
+  Ok(PrepareResult {
+    worktree_path,
+    selected_model,
+  })
+}
+
+fn write_review_yaml(worktree_path: &Path, result: &ReviewResult) -> Result<()> {
+  let forge_dir = worktree_path.join(".forge");
+  std::fs::create_dir_all(&forge_dir)?;
+  let content = serde_yaml::to_string(result)?;
+  std::fs::write(forge_dir.join("review.yaml"), content)?;
+  Ok(())
+}
+
 #[tokio::main]
 async fn main() {
   tracing_subscriber::fmt()
@@ -123,7 +167,7 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
 
   let tasks = {
     let s = state.lock().unwrap();
-    pipeline::fetch::fetch_tasks(config, &s)?
+    task::fetch::fetch_tasks(config, &s)?
   };
 
   if tasks.is_empty() {
@@ -181,7 +225,7 @@ async fn process_task(
     let _permit = semaphore.acquire().await.expect("semaphore closed");
 
     let clarification_ctx =
-      pipeline::clarification::check_clarification(&repo_path, &forge_task.id)?;
+      task::clarification::check_clarification(&repo_path, &forge_task.id)?;
 
     let analyze_runner = ClaudeRunner::new(config.triage_tools.clone());
     let task_clone = forge_task.clone();
@@ -229,7 +273,7 @@ async fn process_task(
             &forge_task.title,
             TaskStatus::NeedsClarification,
           )?;
-          if let Err(e) = pipeline::clarification::write_clarification(
+          if let Err(e) = task::clarification::write_clarification(
             &repo_path,
             &forge_task,
             &analysis,
@@ -249,16 +293,16 @@ async fn process_task(
   let task_path = &task_paths[0];
 
   let content = std::fs::read_to_string(task_path)?;
-  let task: work::Task = serde_yaml::from_str(&content)?;
+  let wtask: work::Task = serde_yaml::from_str(&content)?;
 
   // --- Prepare worktree ---
   let prepare_result = {
     let forge_task_clone = forge_task.clone();
-    let task_clone = task.clone();
+    let task_clone = wtask.clone();
     let config_clone = config.clone();
     let worktree_dir = config.worktree_dir.clone();
     tokio::task::spawn_blocking(move || {
-      pipeline::execute::prepare(&forge_task_clone, &task_clone, &config_clone, &worktree_dir)
+      prepare(&forge_task_clone, &task_clone, &config_clone, &worktree_dir)
     })
     .await
     .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??
@@ -327,13 +371,18 @@ async fn process_task(
         Err(e) => ExecuteResult::Error(e.to_string()),
       };
 
-      match exec_result {
+      match &exec_result {
         ExecuteResult::Success { .. } => {}
-        _ => {
+        ExecuteResult::Unclear(reason) => {
           let _ = work::set_task_status(task_path, WorkStatus::Failed);
-          if let Err(e) = pipeline::report::report(&forge_task, &exec_result, state) {
-            error!("report failed for {forge_task}: {e}");
-          }
+          info!("unclear result: {forge_task}: {reason}");
+          state.lock().unwrap().set_error(&forge_task.id, reason)?;
+          return Ok(());
+        }
+        ExecuteResult::Error(err) => {
+          let _ = work::set_task_status(task_path, WorkStatus::Failed);
+          info!("error: {forge_task}: {err}");
+          state.lock().unwrap().set_error(&forge_task.id, err)?;
           return Ok(());
         }
       }
@@ -343,9 +392,9 @@ async fn process_task(
     {
       let wt = prepare_result.worktree_path.clone();
       let bb = config.base_branch.clone();
-      let forge_task_clone = forge_task.clone();
+      let label = forge_task.to_string();
       let rebase_ok = tokio::task::spawn_blocking(move || {
-        pipeline::integrate::rebase(&forge_task_clone, &wt, &bb)
+        git::branch::try_rebase(&wt, &bb, &label)
       })
       .await
       .map_err(|e| crate::error::ForgeError::Git(format!("spawn_blocking: {e}")))??;
@@ -371,7 +420,7 @@ async fn process_task(
 
       let review_runner = ClaudeRunner::new(config.triage_tools.clone());
       let forge_task_clone = forge_task.clone();
-      let task_clone = task.clone();
+      let task_clone = wtask.clone();
       let config_clone = config.clone();
       let wt = prepare_result.worktree_path.clone();
       let bb = config.base_branch.clone();
@@ -391,9 +440,7 @@ async fn process_task(
       // permit released here
 
       if let Ok(ref result) = review_result {
-        if let Err(e) =
-          pipeline::integrate::write_review_yaml(&prepare_result.worktree_path, result)
-        {
+        if let Err(e) = write_review_yaml(&prepare_result.worktree_path, result) {
           warn!("failed to write review.yaml: {e}");
         }
       }
@@ -410,7 +457,7 @@ async fn process_task(
             &forge_task.title,
             TaskStatus::Success,
           )?;
-          let _ = pipeline::clarification::cleanup_clarification(&repo_path, &forge_task.id);
+          let _ = task::clarification::cleanup_clarification(&repo_path, &forge_task.id);
           return Ok(());
         }
         Ok(result) => {
@@ -437,7 +484,7 @@ async fn process_task(
             &forge_task.title,
             TaskStatus::Success,
           )?;
-          let _ = pipeline::clarification::cleanup_clarification(&repo_path, &forge_task.id);
+          let _ = task::clarification::cleanup_clarification(&repo_path, &forge_task.id);
           return Ok(());
         }
       }
@@ -533,7 +580,7 @@ fn cmd_clean(config: &Config) -> Result<()> {
 
 fn cmd_clarifications(_config: &Config) -> Result<()> {
   let repo_path = Config::repo_path();
-  let pending = pipeline::clarification::list_pending_clarifications(&repo_path)?;
+  let pending = task::clarification::list_pending_clarifications(&repo_path)?;
 
   if pending.is_empty() {
     println!("No pending clarifications.");
@@ -552,7 +599,7 @@ fn cmd_clarifications(_config: &Config) -> Result<()> {
 fn cmd_answer(config: &Config, id: &str, text: &str) -> Result<()> {
   let repo_path = Config::repo_path();
 
-  pipeline::clarification::write_answer(&repo_path, id, text)?;
+  task::clarification::write_answer(&repo_path, id, text)?;
 
   let mut state = StateTracker::load(&config.state_file)?;
   state.reset_to_pending(id)?;

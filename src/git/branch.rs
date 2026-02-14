@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::error::{ForgeError, Result};
 
@@ -55,4 +55,16 @@ pub fn rebase(worktree_path: &Path, base_branch: &str) -> Result<()> {
   }
 
   Ok(())
+}
+
+/// Rebase onto base branch. Returns Ok(true) on success, Ok(false) on conflict.
+pub fn try_rebase(worktree_path: &Path, base_branch: &str, label: &str) -> Result<bool> {
+  info!("rebasing {label} onto {base_branch}");
+  match rebase(worktree_path, base_branch) {
+    Ok(()) => Ok(true),
+    Err(e) => {
+      warn!("rebase conflict for {label}: {e}");
+      Ok(false)
+    }
+  }
 }

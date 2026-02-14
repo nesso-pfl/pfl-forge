@@ -4,7 +4,7 @@ pfl-forge は複数の Claude Code エージェントを使い分けてタスク
 
 各エージェントの呼び出しロジック（プロンプト組み立て・Claude CLI 実行・出力パース）は `src/agents/` に、system prompt は `src/prompt/*.md` に定義されている。
 
-すべてのエージェント呼び出しは `process_task()` から直接行われる。`src/pipeline/` はエージェント間を繋ぐインフラ（worktree 準備・rebase・ファイル I/O・state 管理）のみを担当する。
+すべてのエージェント呼び出しは `process_task()` から直接行われる。`src/task/` はタスクデータの読み書き・変換のみを担当し、`src/git/` は worktree 準備・rebase 等の Git 操作を担当する。
 
 ## Orchestrate Agent
 
@@ -59,8 +59,8 @@ Implement Agent の成果物を検証するコードレビューエージェン�
 エージェント間のデータ受け渡しは `.forge/` ディレクトリを介して行われる:
 
 - `.forge/work/{id}-{NNN}.yaml` — analyze の結果をタスク YAML としてリポジトリルートに書き出す。`status` フィールド（pending → executing → completed/failed）でロック管理。
-- `.forge/task.yaml` — execute ステージが worktree 内に書き出し、Implement Agent が読み取る。
-- `.forge/review.yaml` — Review Agent の結果（approved, issues, suggestions）。integrate ステージで書き出し、監査ログとして機能。
+- `.forge/task.yaml` — prepare ヘルパーが worktree 内に書き出し、Implement Agent が読み取る。
+- `.forge/review.yaml` — Review Agent の結果（approved, issues, suggestions）。write_review_yaml で書き出し、監査ログとして機能。
 
 `.forge/` は `.gitignore` に自動追加されるため、コミットには含まれない。
 

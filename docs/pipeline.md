@@ -7,15 +7,18 @@ pfl-forge のパイプラインフローとエージェント間通信の全体�
 pfl-forge のコードは3つのレイヤーに分かれる:
 
 - **`agents/`** — Claude Code の呼び出し（プロンプト組み立て・CLI 実行・出力パース）
-- **`pipeline/`** — エージェント間を繋ぐインフラ（データ変換・worktree 準備・rebase・ファイル I/O）
+- **`task/`** — タスクデータの読み書き・変換（fetch・work YAML・clarification）
+- **`git/`** — Git 操作（worktree 作成・rebase・gitignore 管理）
 - **`process_task()`** — フロー制御。すべてのエージェント呼び出しはここから行う
 
-`pipeline` はエージェントを呼ばない。エージェントの前後処理（データ準備・結果保存・git 操作）のみを担当する。
+`task/` と `git/` はエージェントを呼ばない。エージェントの前後処理（データ準備・結果保存・git 操作）のみを担当する。
 
 ```
 process_task が呼ぶもの:
   agents:   analyze → architect → implement → review
-  pipeline: fetch, work, execute(prepare), integrate(rebase), report, clarification
+  task:     fetch, work, clarification
+  git:      worktree(create, ensure_gitignore_forge), branch(try_rebase, commit_count)
+  main.rs:  prepare, write_review_yaml
 ```
 
 ## フロー概要
@@ -35,7 +38,7 @@ process_task (タスク単位で独立並列実行):
          └─ .forge/work/{id}-001.yaml 書き出し
   // permit released
 
-  execute::prepare()
+  prepare()
     git worktree 作成, .forge/task.yaml 書き出し, モデル選択
 
   loop (max_review_retries + 1):
@@ -43,12 +46,12 @@ process_task (タスク単位で独立並列実行):
       Implement Agent 実行（worktree 内で実装・コミット）
     // permit released
 
-    integrate::rebase()
+    git::branch::try_rebase()
       base branch に rebase
 
     {permit} review::review()
       Review Agent 実行
-      integrate::write_review_yaml()
+      write_review_yaml()
     // permit released
 
     if approved → Success, return
@@ -56,16 +59,17 @@ process_task (タスク単位で独立並列実行):
     if rejected && no retries → Error, return
 ```
 
-## Pipeline モジュールの役割
+## モジュールの役割
 
 | モジュール | 役割 | エージェント呼び出し |
 |-----------|------|-------------------|
-| `fetch` | タスク YAML 読み込み | なし |
-| `work` | `AnalysisResult` → `Task` YAML 変換・書き出し | なし |
-| `execute` | worktree 作成・タスクファイル配置・モデル選択 | なし |
-| `integrate` | rebase・review.yaml 書き出し | なし |
-| `report` | state へのエラー記録 | なし |
-| `clarification` | clarification ファイルの読み書き | なし |
+| `task/fetch` | タスク YAML 読み込み | なし |
+| `task/work` | `AnalysisResult` → `Task` YAML 変換・書き出し | なし |
+| `task/clarification` | clarification ファイルの読み書き | なし |
+| `git/worktree` | worktree 作成・削除・gitignore 管理 | なし |
+| `git/branch` | commit 数カウント・rebase | なし |
+| `main.rs (prepare)` | worktree 作成・タスクファイル配置・モデル選択 | なし |
+| `main.rs (write_review_yaml)` | review.yaml 書き出し | なし |
 
 ## エージェント間通信
 

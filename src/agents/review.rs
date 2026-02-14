@@ -9,7 +9,7 @@ use crate::claude::model;
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::{ForgeError, Result};
-use crate::pipeline::work::Task;
+use crate::task::work::Task;
 use crate::prompt;
 use crate::task::ForgeTask;
 

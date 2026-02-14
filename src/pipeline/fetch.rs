@@ -5,14 +5,6 @@ use crate::error::Result;
 use crate::state::tracker::StateTracker;
 use crate::task::ForgeTask;
 
-#[derive(serde::Deserialize)]
-struct Task {
-  title: String,
-  body: String,
-  #[serde(default)]
-  labels: Vec<String>,
-}
-
 pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeTask>> {
   let repo_path = Config::repo_path();
   let tasks_dir = repo_path.join(".forge/tasks");
@@ -49,15 +41,10 @@ pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeTa
     }
 
     let content = std::fs::read_to_string(&path)?;
-    let task: Task = serde_yaml::from_str(&content)?;
+    let mut task: ForgeTask = serde_yaml::from_str(&content)?;
+    task.id = id;
 
-    tasks.push(ForgeTask {
-      id,
-      title: task.title,
-      body: task.body,
-      labels: task.labels,
-      created_at: chrono::Utc::now(),
-    });
+    tasks.push(task);
   }
 
   info!("local tasks: {}", tasks.len());

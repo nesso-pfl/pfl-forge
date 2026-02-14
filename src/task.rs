@@ -3,10 +3,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ForgeTask {
+  #[serde(skip_serializing, default)]
   pub id: String,
   pub title: String,
   pub body: String,
+  #[serde(default)]
   pub labels: Vec<String>,
+  #[serde(skip_serializing, default = "Utc::now")]
   pub created_at: DateTime<Utc>,
 }
 

@@ -498,22 +498,17 @@ fn cmd_answer(config: &Config, id: &str, text: &str) -> Result<()> {
 }
 
 fn cmd_create(title: &str, body: &str, labels: &[String]) -> Result<()> {
-  #[derive(serde::Serialize)]
-  struct TaskFile {
-    title: String,
-    body: String,
-    labels: Vec<String>,
-  }
-
   let repo_path = Config::repo_path();
   let tasks_dir = repo_path.join(".forge/tasks");
   std::fs::create_dir_all(&tasks_dir)?;
 
   let id = uuid::Uuid::new_v4().to_string();
-  let task = TaskFile {
+  let task = ForgeTask {
+    id: id.clone(),
     title: title.to_string(),
     body: body.to_string(),
     labels: labels.to_vec(),
+    created_at: chrono::Utc::now(),
   };
 
   let path = tasks_dir.join(format!("{id}.yaml"));

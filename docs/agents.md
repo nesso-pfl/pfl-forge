@@ -3,7 +3,8 @@
 pfl-forge は複数の Claude Code エージェントを使い分けてタスクを処理する。
 
 各エージェントの呼び出しロジック（プロンプト組み立て・Claude CLI 実行・出力パース）は `src/agents/` に、system prompt は `src/prompt/*.md` に定義されている。
-オーケストレーション（ファイル I/O、state 管理、worktree 操作）は `src/pipeline/` に分離されている。
+
+すべてのエージェント呼び出しは `process_task()` から直接行われる。`src/pipeline/` はエージェント間を繋ぐインフラ（worktree 準備・rebase・ファイル I/O・state 管理）のみを担当する。
 
 ## Orchestrate Agent
 
@@ -40,7 +41,7 @@ Analyze Agent で十分な分析ができなかった場合に呼ばれる補助
 - ツール: `worker_tools` (default: Bash, Read, Write, Edit, Glob, Grep)
 - worktree 内の `.forge/task.yaml` から実装計画・関連ファイル・ステップ・コンテキストを読み取る
 - worktree 内でタスクの実装を行い、コミットを作成
-- 出力: `ExecuteResult` (Success, Unclear, Error)
+- 出力: CLI stdout（成功/失敗は `process_task` がコミット数で判定）
 
 ## Review Agent
 
@@ -50,7 +51,7 @@ Implement Agent の成果物を検証するコードレビューエージェン�
 - ツール: `triage_tools` (default: Read, Glob, Grep)
 - base branch との diff をレビューし、タスクの要件を満たしているか判定
 - 出力: `ReviewResult` (approved, issues, suggestions)
-- integrate フロー内で呼ばれ、rejected の場合は review feedback を付けて Implement Agent を再実行（`max_review_retries` 回まで）
+- `process_task` から直接呼ばれ、rejected の場合は review feedback を付けて Implement Agent を再実行（`max_review_retries` 回まで）
 - 全リトライ後も rejected なら Error 状態にする
 
 ## Agent 間の YAML 通信

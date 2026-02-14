@@ -4,7 +4,7 @@ Multi-agent task processor powered by Claude Code.
 
 ## Architecture
 
-- `src/pipeline/` — fetch → triage (deep → consult) → work (task YAML) → execute → integrate (rebase → test → review) / report の各ステージ
+- `src/pipeline/` — fetch → triage (deep → consult) → work (task YAML) → execute → integrate (rebase → review) / report の各ステージ
 - `src/claude/` — Claude Code CLI (`claude -p`) のラッパー
 - `src/git/` — worktree/branch 操作
 - `src/task.rs` — `ForgeTask` 定義（ローカルタスク）

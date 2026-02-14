@@ -17,8 +17,8 @@ pfl-forge は複数の Claude Code エージェントを使い分けてタスク
 
 タスクの詳細分析を行う読み取り専用エージェント。`claude -p` で非対話実行。
 
-- モデル: `settings.models.triage_deep` (default: sonnet)
-- ツール: `settings.triage_tools` (default: Read, Glob, Grep)
+- モデル: `models.triage_deep` (default: sonnet)
+- ツール: `triage_tools` (default: Read, Glob, Grep)
 - 出力: `DeepTriageResult` (complexity, plan, relevant_files, implementation_steps, context)
 - 分析が不十分な場合は Consultation Agent にエスカレート
 
@@ -26,8 +26,8 @@ pfl-forge は複数の Claude Code エージェントを使い分けてタスク
 
 Deep Triage で十分な分析ができなかった場合に呼ばれる補助エージェント。
 
-- モデル: `settings.models.triage_deep` (default: sonnet)
-- ツール: `settings.triage_tools` (default: Read, Glob, Grep)
+- モデル: `models.triage_deep` (default: sonnet)
+- ツール: `triage_tools` (default: Read, Glob, Grep)
 - 出力: `ConsultationOutcome::Resolved(DeepTriageResult)` または `ConsultationOutcome::NeedsClarification(String)`
 - NeedsClarification の場合、`.forge/clarifications/<id>.md` にファイルを作成
 
@@ -35,18 +35,18 @@ Deep Triage で十分な分析ができなかった場合に呼ばれる補助�
 
 実際のコード変更を行うエージェント。Git worktree 内で動作する。
 
-- モデル: complexity に応じて `settings.models.default` (low/medium) または `settings.models.complex` (high)
-- ツール: `settings.worker_tools` + `extra_tools` (default: Bash, Read, Write, Edit, Glob, Grep)
+- モデル: complexity に応じて `models.default` (low/medium) または `models.complex` (high)
+- ツール: `worker_tools` (default: Bash, Read, Write, Edit, Glob, Grep)
 - worktree 内の `.forge/task.yaml` から実装計画・関連ファイル・ステップ・コンテキストを読み取る
 - worktree 内でタスクの実装を行い、コミットを作成
-- 出力: `ExecuteResult` (Success, TestFailure, Unclear, Error)
+- 出力: `ExecuteResult` (Success, Unclear, Error)
 
 ## Review Agent
 
 Worker の成果物を検証するコードレビューエージェント。
 
-- モデル: `settings.models.default` (default: sonnet)
-- ツール: `settings.triage_tools` (default: Read, Glob, Grep)
+- モデル: `models.default` (default: sonnet)
+- ツール: `triage_tools` (default: Read, Glob, Grep)
 - base branch との diff をレビューし、タスクの要件を満たしているか判定
 - 出力: `ReviewResult` (approved, issues, suggestions)
 - integrate フロー内で呼ばれ、approved でなければブランチを残してエラー状態にする

@@ -23,10 +23,9 @@ PHASE 2: EXECUTE (並列 per task)
   git worktree 作成
   <worktree>/.forge/task.yaml 書き出し
   Worker 実行（worktree 内で実装・コミット）
-  テスト実行
 
 PHASE 3: INTEGRATE (streaming per result)
-  rebase → テスト再実行 → review → report
+  rebase → review → report
   <worktree>/.forge/review.yaml 書き出し
 ```
 
@@ -67,7 +66,6 @@ Triaging
   ├─→ NeedsClarification → (ユーザー回答) → Pending → Triaging
   └─→ Executing
        ├─→ Success (terminal)
-       ├─→ TestFailure (自動再試行)
        └─→ Error (自動再試行)
 ```
 
@@ -76,4 +74,4 @@ Triaging
 - Phase 1 (triage): `JoinSet` + `Semaphore` で issue 単位の並列処理
 - Phase 2 (execute): 同上、task 単位の並列処理
 - Phase 3 (integrate): ストリーミング（完了順に逐次処理）
-- 並列数: `settings.parallel_workers` で制御
+- 並列数: `parallel_workers` で制御

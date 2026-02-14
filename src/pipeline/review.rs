@@ -15,25 +15,25 @@ use crate::prompt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewResult {
-    pub approved: bool,
-    pub issues: Vec<String>,
-    pub suggestions: Vec<String>,
+  pub approved: bool,
+  pub issues: Vec<String>,
+  pub suggestions: Vec<String>,
 }
 
 pub fn review(
-    issue: &ForgeIssue,
-    deep: &DeepTriageResult,
-    config: &Config,
-    runner: &ClaudeRunner,
-    worktree_path: &Path,
-    base_branch: &str,
+  issue: &ForgeIssue,
+  deep: &DeepTriageResult,
+  config: &Config,
+  runner: &ClaudeRunner,
+  worktree_path: &Path,
+  base_branch: &str,
 ) -> Result<ReviewResult> {
-    let review_model = model::resolve(&config.settings.models.default);
+  let review_model = model::resolve(&config.settings.models.default);
 
-    let diff = get_diff(worktree_path, base_branch)?;
+  let diff = get_diff(worktree_path, base_branch)?;
 
-    let prompt = format!(
-        r#"## Issue #{number}: {title}
+  let prompt = format!(
+    r#"## Issue #{number}: {title}
 
 {body}
 
@@ -46,47 +46,52 @@ pub fn review(
 ```
 {diff}
 ```"#,
-        number = issue.number,
-        title = issue.title,
-        body = issue.body,
-        plan = deep.plan,
-        diff = truncate_diff(&diff, 50000),
-    );
+    number = issue.number,
+    title = issue.title,
+    body = issue.body,
+    plan = deep.plan,
+    diff = truncate_diff(&diff, 50000),
+  );
 
-    let timeout = Some(Duration::from_secs(config.settings.triage_timeout_secs));
+  let timeout = Some(Duration::from_secs(config.settings.triage_timeout_secs));
 
-    info!("reviewing: {issue}");
-    let result: ReviewResult =
-        runner.run_json(&prompt, prompt::REVIEW, review_model, worktree_path, timeout)?;
+  info!("reviewing: {issue}");
+  let result: ReviewResult = runner.run_json(
+    &prompt,
+    prompt::REVIEW,
+    review_model,
+    worktree_path,
+    timeout,
+  )?;
 
-    info!(
-        "review: approved={}, {} issues, {} suggestions",
-        result.approved,
-        result.issues.len(),
-        result.suggestions.len(),
-    );
+  info!(
+    "review: approved={}, {} issues, {} suggestions",
+    result.approved,
+    result.issues.len(),
+    result.suggestions.len(),
+  );
 
-    Ok(result)
+  Ok(result)
 }
 
 fn get_diff(worktree_path: &Path, base_branch: &str) -> Result<String> {
-    let output = Command::new("git")
-        .args(["diff", &format!("origin/{base_branch}...HEAD")])
-        .current_dir(worktree_path)
-        .output()?;
+  let output = Command::new("git")
+    .args(["diff", &format!("origin/{base_branch}...HEAD")])
+    .current_dir(worktree_path)
+    .output()?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(ForgeError::Git(format!("diff failed: {stderr}")));
-    }
+  if !output.status.success() {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    return Err(ForgeError::Git(format!("diff failed: {stderr}")));
+  }
 
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+  Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
 fn truncate_diff(diff: &str, max_len: usize) -> &str {
-    if diff.len() <= max_len {
-        diff
-    } else {
-        &diff[..max_len]
-    }
+  if diff.len() <= max_len {
+    diff
+  } else {
+    &diff[..max_len]
+  }
 }

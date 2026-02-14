@@ -1,9 +1,34 @@
 use crate::config::Config;
 use crate::error::Result;
 use crate::pipeline::clarification;
+use crate::prompt;
 use crate::state::tracker::StateTracker;
 
-pub fn build_initial_message(_config: &Config, state: &StateTracker) -> Result<String> {
+pub fn launch(config: &Config, model: Option<&str>) -> Result<()> {
+  let state = StateTracker::load(&config.state_file)?;
+  let initial_message = build_initial_message(config, &state)?;
+
+  let mut cmd = std::process::Command::new("claude");
+  cmd
+    .arg("--append-system-prompt")
+    .arg(prompt::PARENT)
+    .arg("--allowedTools")
+    .arg("Bash");
+
+  if let Some(m) = model {
+    cmd.arg("--model").arg(m);
+  }
+
+  cmd.arg(&initial_message);
+
+  use std::os::unix::process::CommandExt;
+  let err = cmd.exec();
+  Err(crate::error::ForgeError::Claude(format!(
+    "exec failed: {err}"
+  )))
+}
+
+fn build_initial_message(_config: &Config, state: &StateTracker) -> Result<String> {
   let summary = state.summary();
 
   let repo_path = Config::repo_path();

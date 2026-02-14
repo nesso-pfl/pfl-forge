@@ -3,7 +3,6 @@ mod claude;
 mod config;
 mod error;
 mod git;
-mod parent_prompt;
 mod pipeline;
 mod prompt;
 mod state;
@@ -120,7 +119,7 @@ async fn run(cli: Cli) -> Result<()> {
     Commands::Clean => cmd_clean(&config),
     Commands::Clarifications => cmd_clarifications(&config),
     Commands::Answer { id, text } => cmd_answer(&config, &id, &text),
-    Commands::Parent { model } => cmd_parent(&config, model.as_deref()),
+    Commands::Parent { model } => agents::parent::launch(&config, model.as_deref()),
     Commands::Create {
       title,
       body,
@@ -521,30 +520,4 @@ fn cmd_create(title: &str, body: &str, labels: &[String]) -> Result<()> {
   println!("{}", path.display());
 
   Ok(())
-}
-
-fn cmd_parent(config: &Config, model: Option<&str>) -> Result<()> {
-  let state = StateTracker::load(&config.state_file)?;
-
-  let system_prompt = crate::prompt::PARENT;
-  let initial_message = parent_prompt::build_initial_message(config, &state)?;
-
-  let mut cmd = std::process::Command::new("claude");
-  cmd
-    .arg("--append-system-prompt")
-    .arg(&system_prompt)
-    .arg("--allowedTools")
-    .arg("Bash");
-
-  if let Some(m) = model {
-    cmd.arg("--model").arg(m);
-  }
-
-  cmd.arg(&initial_message);
-
-  use std::os::unix::process::CommandExt;
-  let err = cmd.exec();
-  Err(crate::error::ForgeError::Claude(format!(
-    "exec failed: {err}"
-  )))
 }

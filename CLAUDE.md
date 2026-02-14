@@ -4,14 +4,13 @@ Multi-agent task processor powered by Claude Code.
 
 ## Architecture
 
-- `src/agents/` — 各エージェントの呼び出しロジック（triage, consult, worker, review）
+- `src/agents/` — 各エージェントの呼び出しロジック（parent, triage, consult, worker, review）
 - `src/pipeline/` — オーケストレーション: fetch → work → execute → integrate / report
 - `src/claude/` — Claude Code CLI (`claude -p`) のラッパー
 - `src/git/` — worktree/branch 操作
 - `src/task.rs` — `ForgeTask` 定義（ローカルタスク）
 - `src/state/` — YAML ファイルベースの状態管理
 - `src/prompt/` — 各エージェントの system prompt（`.md` ファイル、`include_str!` で埋め込み）
-- `src/parent_prompt.rs` — 親エージェント用 prompt 生成
 
 エージェント間通信は `.forge/` ディレクトリの YAML ファイルで行う。triage は `.forge/work/*.yaml` にタスクを書き出し、execute は worktree 内 `.forge/task.yaml` で Worker に渡す。review 結果は `.forge/review.yaml`。
 タスクは `.forge/tasks/*.yaml` に配置する。

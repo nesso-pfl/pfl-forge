@@ -1,6 +1,13 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub enum TaskSource {
+  #[default]
+  GitHub,
+  Local,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ForgeIssue {
   pub number: u64,
@@ -11,6 +18,8 @@ pub struct ForgeIssue {
   pub owner: String,
   pub repo: String,
   pub created_at: DateTime<Utc>,
+  #[serde(default)]
+  pub source: TaskSource,
 }
 
 impl ForgeIssue {

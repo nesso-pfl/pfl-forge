@@ -186,6 +186,20 @@ async fn cmd_run(
     }
   }
 
+  // Fetch local tasks
+  {
+    let s = state.lock().unwrap();
+    let local = pipeline::fetch::fetch_local_tasks(config, &s)?;
+    for issue in local {
+      if !issues
+        .iter()
+        .any(|i| i.number == issue.number && i.full_repo() == issue.full_repo())
+      {
+        issues.push(issue);
+      }
+    }
+  }
+
   // Apply repo filter
   if let Some(filter) = repo_filter {
     issues.retain(|i| i.repo_name == filter);

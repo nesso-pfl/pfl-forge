@@ -11,6 +11,29 @@ use crate::github::issue::ForgeIssue;
 use crate::pipeline::triage::DeepTriageResult;
 use crate::prompt;
 
+pub fn write_triage_yaml(worktree_path: &Path, deep: &DeepTriageResult) -> Result<()> {
+  let forge_dir = worktree_path.join(".forge");
+  std::fs::create_dir_all(&forge_dir)?;
+  let content = serde_yaml::to_string(deep)?;
+  std::fs::write(forge_dir.join("triage.yaml"), content)?;
+  Ok(())
+}
+
+pub fn ensure_gitignore_forge(worktree_path: &Path) -> Result<()> {
+  let gitignore = worktree_path.join(".gitignore");
+  if gitignore.exists() {
+    let content = std::fs::read_to_string(&gitignore)?;
+    if content.lines().any(|line| line.trim() == ".forge/") {
+      return Ok(());
+    }
+    let suffix = if content.ends_with('\n') { "" } else { "\n" };
+    std::fs::write(&gitignore, format!("{content}{suffix}.forge/\n"))?;
+  } else {
+    std::fs::write(&gitignore, ".forge/\n")?;
+  }
+  Ok(())
+}
+
 #[derive(Debug)]
 pub enum ExecuteResult {
   Success { commits: u32 },
@@ -37,6 +60,10 @@ pub fn execute(
 
   info!("executing in worktree: {}", worktree_path.display());
 
+  // Write triage data and ensure .gitignore
+  write_triage_yaml(&worktree_path, deep)?;
+  ensure_gitignore_forge(&worktree_path)?;
+
   // Check Docker if required
   if repo_config.docker_required {
     if let Err(e) = check_docker(&worktree_path) {
@@ -50,7 +77,7 @@ pub fn execute(
   let selected_model = complexity.select_model(model_settings);
 
   // Build the worker prompt
-  let prompt = build_worker_prompt(issue, deep, repo_config);
+  let prompt = build_worker_prompt(issue, repo_config);
 
   // Run Claude Code Worker
   let timeout = Some(Duration::from_secs(worker_timeout_secs));
@@ -91,46 +118,11 @@ pub fn execute(
   }
 }
 
-fn build_worker_prompt(
-  issue: &ForgeIssue,
-  deep: &DeepTriageResult,
-  repo_config: &RepoConfig,
-) -> String {
-  let files = deep
-    .relevant_files
-    .iter()
-    .map(|f| format!("- {f}"))
-    .collect::<Vec<_>>()
-    .join("\n");
-
-  let steps = deep
-    .implementation_steps
-    .iter()
-    .enumerate()
-    .map(|(i, s)| format!("{}. {s}", i + 1))
-    .collect::<Vec<_>>()
-    .join("\n");
-
+fn build_worker_prompt(issue: &ForgeIssue, repo_config: &RepoConfig) -> String {
   format!(
     r#"## Issue #{number}: {title}
 
 {body}
-
-## Implementation Plan
-
-{plan}
-
-## Relevant Files
-
-{files}
-
-## Implementation Steps
-
-{steps}
-
-## Codebase Context
-
-{context}
 
 ## Test Command
 
@@ -138,10 +130,6 @@ fn build_worker_prompt(
     number = issue.number,
     title = issue.title,
     body = issue.body,
-    plan = deep.plan,
-    files = files,
-    steps = steps,
-    context = deep.context,
     test_command = repo_config.test_command,
   )
 }

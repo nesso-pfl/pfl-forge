@@ -2,7 +2,7 @@ use octocrab::Octocrab;
 use tracing::info;
 
 use crate::error::{ForgeError, Result};
-use crate::github::issue::ForgeIssue;
+use crate::github::issue::{ForgeIssue, TaskSource};
 
 pub struct GitHubClient {
   octocrab: Octocrab,
@@ -52,6 +52,7 @@ impl GitHubClient {
         owner: owner.to_string(),
         repo: repo.to_string(),
         created_at: i.created_at,
+        source: TaskSource::GitHub,
       })
       .collect();
 
@@ -148,6 +149,7 @@ impl GitHubClient {
       owner: owner.to_string(),
       repo: repo.to_string(),
       created_at: issue.created_at,
+      source: TaskSource::GitHub,
     })
   }
 

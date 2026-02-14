@@ -14,7 +14,7 @@ struct LocalTask {
   labels: Vec<String>,
 }
 
-pub fn fetch_local_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeIssue>> {
+pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeIssue>> {
   let repo_path = Config::repo_path();
   let tasks_dir = repo_path.join(".forge/tasks");
   if !tasks_dir.exists() {

@@ -10,7 +10,7 @@ fetch → deep_triage → (consult) → work → execute → integrate → repor
 
 ```
 PHASE 1: TRIAGE (並列 per issue)
-  fetch_local_tasks()
+  fetch_tasks()
     └─ .forge/tasks/{id}.yaml を読み取り → Vec<ForgeIssue>
   deep_triage()
     └─ [分析不十分] → consult()

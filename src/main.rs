@@ -122,7 +122,7 @@ async fn cmd_run(config: &Config, dry_run: bool, resume: bool) -> Result<()> {
   // Fetch local tasks
   let mut issues = {
     let s = state.lock().unwrap();
-    pipeline::fetch::fetch_local_tasks(config, &s)?
+    pipeline::fetch::fetch_tasks(config, &s)?
   };
 
   // Fetch resumable tasks if --resume

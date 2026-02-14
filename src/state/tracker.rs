@@ -32,7 +32,6 @@ pub struct IssueState {
 pub enum IssueStatus {
   Pending,
   Triaging,
-  Skipped,
   NeedsClarification,
   Executing,
   Success,
@@ -42,10 +41,7 @@ pub enum IssueStatus {
 
 impl IssueStatus {
   pub fn is_terminal(&self) -> bool {
-    matches!(
-      self,
-      IssueStatus::Success | IssueStatus::Skipped | IssueStatus::NeedsClarification
-    )
+    matches!(self, IssueStatus::Success | IssueStatus::NeedsClarification)
   }
 }
 
@@ -91,7 +87,7 @@ impl StateTracker {
   pub fn is_processed(&self, id: &str) -> bool {
     self
       .get(id)
-      .is_some_and(|s| matches!(s.status, IssueStatus::Success | IssueStatus::Skipped))
+      .is_some_and(|s| matches!(s.status, IssueStatus::Success))
   }
 
   pub fn is_terminal(&self, id: &str) -> bool {
@@ -161,7 +157,7 @@ impl StateTracker {
         IssueStatus::Pending => summary.pending += 1,
         IssueStatus::Triaging | IssueStatus::Executing => summary.in_progress += 1,
         IssueStatus::Success => summary.completed += 1,
-        IssueStatus::Skipped | IssueStatus::NeedsClarification => summary.skipped += 1,
+        IssueStatus::NeedsClarification => summary.skipped += 1,
         IssueStatus::TestFailure | IssueStatus::Error => summary.failed += 1,
       }
     }
@@ -217,7 +213,6 @@ mod tests {
   #[test]
   fn test_is_terminal() {
     assert!(IssueStatus::Success.is_terminal());
-    assert!(IssueStatus::Skipped.is_terminal());
     assert!(IssueStatus::NeedsClarification.is_terminal());
     assert!(!IssueStatus::TestFailure.is_terminal());
     assert!(!IssueStatus::Error.is_terminal());

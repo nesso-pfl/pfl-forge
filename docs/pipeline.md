@@ -68,8 +68,7 @@ Triaging
   └─→ Executing
        ├─→ Success (terminal)
        ├─→ TestFailure (自動再試行)
-       ├─→ Error (自動再試行)
-       └─→ Skipped (terminal)
+       └─→ Error (自動再試行)
 ```
 
 ## 並列実行

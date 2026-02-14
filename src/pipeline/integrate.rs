@@ -1,9 +1,7 @@
-use std::path::Path;
-
 use tracing::{info, warn};
 
 use crate::claude::runner::ClaudeRunner;
-use crate::config::{Config, RepoConfig};
+use crate::config::Config;
 use crate::error::Result;
 use crate::git;
 use crate::pipeline::execute::ExecuteResult;
@@ -12,7 +10,7 @@ use crate::pipeline::triage::Task;
 use crate::state::tracker::{IssueStatus, SharedState};
 use crate::task::ForgeIssue;
 
-fn write_review_yaml(worktree_path: &Path, result: &ReviewResult) -> Result<()> {
+fn write_review_yaml(worktree_path: &std::path::Path, result: &ReviewResult) -> Result<()> {
   let forge_dir = worktree_path.join(".forge");
   std::fs::create_dir_all(&forge_dir)?;
   let content = serde_yaml::to_string(result)?;
@@ -23,14 +21,12 @@ fn write_review_yaml(worktree_path: &Path, result: &ReviewResult) -> Result<()> 
 pub struct WorkerOutput {
   pub issue: ForgeIssue,
   pub result: ExecuteResult,
-  pub repo_config_name: String,
   pub task: Task,
   pub task_path: std::path::PathBuf,
 }
 
 pub async fn integrate_one(
   output: &WorkerOutput,
-  repo_config: &RepoConfig,
   config: &Config,
   state: &SharedState,
 ) -> Result<()> {
@@ -38,7 +34,7 @@ pub async fn integrate_one(
   let repo_name = &issue.repo_name;
   let branch = issue.branch_name();
   let worktree_path = issue.worktree_path(&config.settings.worktree_dir);
-  let base_branch = repo_config.base_branch.clone();
+  let base_branch = config.base_branch.clone();
 
   // Rebase onto latest base branch
   info!("rebasing {issue} onto {base_branch}");
@@ -61,13 +57,13 @@ pub async fn integrate_one(
   // Re-run tests after rebase
   info!("re-running tests for {issue}");
   let wt = worktree_path.clone();
-  let test_cmd = repo_config.test_command.clone();
+  let test_cmd = config.test_command.clone();
   let test_passed =
     tokio::task::spawn_blocking(move || crate::pipeline::execute::run_tests(&wt, &test_cmd))
       .await
-      .map_err(|e| crate::error::ForgeError::Git(format!("spawn_blocking: {e}")))??;
+      .map_err(|e| crate::error::ForgeError::Git(format!("spawn_blocking: {e}")))?;
 
-  if !test_passed {
+  if !test_passed? {
     info!("task {issue}: tests failed after rebase, branch {branch} left as-is");
     state.lock().unwrap().set_status(
       repo_name,

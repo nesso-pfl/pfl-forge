@@ -17,6 +17,10 @@ Multi-agent task processor powered by Claude Code.
 
 エージェント構成の詳細は [docs/agents.md](docs/agents.md) を参照。
 
+## Config
+
+`pfl-forge.yaml` をリポジトリルートに配置。CWD ベースの単一リポモデルで、`repo_name` は CWD のディレクトリ名から自動導出。
+
 ## CLI subcommands
 
 - `run` — タスク処理 (fetch → triage → execute → integrate)

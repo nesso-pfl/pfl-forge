@@ -198,18 +198,6 @@ pub fn write_answer(repo_path: &Path, issue_number: u64, text: &str) -> Result<(
   Ok(())
 }
 
-pub fn find_repo_for_issue<'a>(
-  repos: &[(&'a str, &'a Path)],
-  issue_number: u64,
-) -> Option<(&'a str, &'a Path)> {
-  for &(name, path) in repos {
-    if question_path(path, issue_number).exists() {
-      return Some((name, path));
-    }
-  }
-  None
-}
-
 pub fn cleanup_clarification(repo_path: &Path, issue_number: u64) -> Result<()> {
   let q_path = question_path(repo_path, issue_number);
   let a_path = answer_path(repo_path, issue_number);

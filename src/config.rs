@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
@@ -6,15 +6,6 @@ use crate::error::{ForgeError, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-  pub repos: Vec<RepoConfig>,
-  #[serde(default)]
-  pub settings: Settings,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RepoConfig {
-  pub name: String,
-  pub path: PathBuf,
   #[serde(default = "default_test_command")]
   pub test_command: String,
   #[serde(default)]
@@ -23,6 +14,8 @@ pub struct RepoConfig {
   pub base_branch: String,
   #[serde(default)]
   pub extra_tools: Vec<String>,
+  #[serde(default)]
+  pub settings: Settings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -141,39 +134,28 @@ fn default_complex_model() -> String {
 }
 
 impl Config {
-  pub fn load(path: &Path) -> Result<Self> {
+  pub fn load(path: &std::path::Path) -> Result<Self> {
     if !path.exists() {
       return Err(ForgeError::ConfigNotFound(path.to_path_buf()));
     }
     let content = std::fs::read_to_string(path)?;
     let config: Config = serde_yaml::from_str(&content)?;
-    config.validate()?;
     Ok(config)
   }
 
-  fn validate(&self) -> Result<()> {
-    if self.repos.is_empty() {
-      return Err(ForgeError::Config("no repos configured".into()));
-    }
-    for repo in &self.repos {
-      if !repo.path.exists() {
-        return Err(ForgeError::Config(format!(
-          "repo path does not exist: {}",
-          repo.path.display()
-        )));
-      }
-    }
-    Ok(())
+  pub fn repo_name() -> String {
+    std::env::current_dir()
+      .ok()
+      .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+      .unwrap_or_else(|| "unknown".to_string())
   }
 
-  pub fn find_repo(&self, name: &str) -> Option<&RepoConfig> {
-    self.repos.iter().find(|r| r.name == name)
+  pub fn repo_path() -> PathBuf {
+    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
   }
-}
 
-impl RepoConfig {
-  pub fn all_tools(&self, base_tools: &[String]) -> Vec<String> {
-    let mut tools: Vec<String> = base_tools.to_vec();
+  pub fn all_tools(&self) -> Vec<String> {
+    let mut tools: Vec<String> = self.settings.worker_tools.clone();
     for tool in &self.extra_tools {
       if !tools.contains(tool) {
         tools.push(tool.clone());
@@ -195,17 +177,16 @@ mod tests {
   }
 
   #[test]
-  fn test_repo_all_tools() {
-    let repo = RepoConfig {
-      name: "test".into(),
-      path: PathBuf::from("/tmp"),
+  fn test_all_tools() {
+    let config = Config {
       test_command: "cargo test".into(),
       docker_required: false,
       base_branch: "main".into(),
       extra_tools: vec!["WebSearch".into()],
+      settings: Settings::default(),
     };
-    let base = vec!["Bash".into(), "Read".into()];
-    let all = repo.all_tools(&base);
-    assert_eq!(all, vec!["Bash", "Read", "WebSearch"]);
+    let all = config.all_tools();
+    assert_eq!(all.len(), 7);
+    assert!(all.contains(&"WebSearch".to_string()));
   }
 }

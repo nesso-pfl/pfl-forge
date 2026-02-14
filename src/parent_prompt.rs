@@ -4,19 +4,8 @@ use crate::pipeline::clarification;
 use crate::state::tracker::StateTracker;
 
 pub fn build_system_prompt(config: &Config) -> String {
-  let repos_info: Vec<String> = config
-    .repos
-    .iter()
-    .map(|r| {
-      format!(
-        "- {name}: path={path}, test=`{test}`, base={base}",
-        name = r.name,
-        path = r.path.display(),
-        test = r.test_command,
-        base = r.base_branch,
-      )
-    })
-    .collect();
+  let repo_name = Config::repo_name();
+  let repo_path = Config::repo_path();
 
   format!(
     r#"You are the parent agent for pfl-forge, a multi-agent task processor.
@@ -25,13 +14,11 @@ You manage task processing by running pfl-forge CLI commands via Bash.
 ## Available commands
 
 - `pfl-forge run` — Process pending tasks (fetch, triage, execute, integrate)
-  - `--repo <name>` — Process only a specific repo
   - `--resume` — Resume failed/interrupted tasks
   - `--dry-run` — Triage only, don't execute
 - `pfl-forge status` — Show current processing state
 - `pfl-forge clarifications` — List unanswered clarification questions
 - `pfl-forge answer <number> "<text>"` — Answer a clarification question
-  - `--repo <name>` — Specify repo (auto-detected if omitted)
 - `pfl-forge clean` — Clean up worktrees for completed tasks
 - `pfl-forge watch` — Daemon mode: poll and process periodically
 
@@ -42,9 +29,9 @@ Use `pfl-forge clarifications` to see pending questions, then discuss with the u
 use `pfl-forge answer <number> "<text>"` to record the answer.
 After answering, the task is reset to pending and will be re-processed on the next `pfl-forge run`.
 
-## Configured repos
+## Current repo
 
-{repos}
+- {name}: path={path}, test=`{test}`, base={base}
 
 ## Guidelines
 
@@ -52,19 +39,24 @@ After answering, the task is reset to pending and will be re-processed on the ne
 - Present clarification questions to the user in a clear, conversational way.
 - After the user answers, record it with `pfl-forge answer` and run processing again.
 - Report results back to the user clearly."#,
-    repos = repos_info.join("\n"),
+    name = repo_name,
+    path = repo_path.display(),
+    test = config.test_command,
+    base = config.base_branch,
   )
 }
 
-pub fn build_initial_message(config: &Config, state: &StateTracker) -> Result<String> {
+pub fn build_initial_message(_config: &Config, state: &StateTracker) -> Result<String> {
   let summary = state.summary();
 
-  let repos: Vec<(String, &std::path::Path)> = config
-    .repos
+  let repo_name = Config::repo_name();
+  let repo_path = Config::repo_path();
+  let repos = vec![(repo_name, repo_path)];
+  let repos_ref: Vec<(String, &std::path::Path)> = repos
     .iter()
-    .map(|r| (r.name.clone(), r.path.as_path()))
+    .map(|(n, p)| (n.clone(), p.as_path()))
     .collect();
-  let pending = clarification::list_pending_clarifications(&repos)?;
+  let pending = clarification::list_pending_clarifications(&repos_ref)?;
 
   let mut msg = format!("Current state: {summary}\n");
 
@@ -79,8 +71,8 @@ pub fn build_initial_message(config: &Config, state: &StateTracker) -> Result<St
     msg.push_str("\nPlease present these questions to the user and help resolve them.");
   } else {
     msg.push_str(
-			"\nNo pending clarifications. You can run `pfl-forge run` to process new tasks or check status.",
-		);
+      "\nNo pending clarifications. You can run `pfl-forge run` to process new tasks or check status.",
+    );
   }
 
   Ok(msg)

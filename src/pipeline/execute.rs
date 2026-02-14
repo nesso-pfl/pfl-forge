@@ -4,7 +4,7 @@ use std::time::Duration;
 use tracing::{error, info};
 
 use crate::claude::runner::ClaudeRunner;
-use crate::config::RepoConfig;
+use crate::config::Config;
 use crate::error::Result;
 use crate::git;
 use crate::pipeline::triage::Task;
@@ -45,18 +45,18 @@ pub enum ExecuteResult {
 pub fn execute(
   issue: &ForgeIssue,
   task: &Task,
-  repo_config: &RepoConfig,
+  config: &Config,
   runner: &ClaudeRunner,
   model_settings: &crate::config::ModelSettings,
   worktree_dir: &str,
   worker_timeout_secs: u64,
 ) -> Result<ExecuteResult> {
   let branch = issue.branch_name();
-  let repo_path = &repo_config.path;
+  let repo_path = Config::repo_path();
 
   // Create worktree
   let worktree_path =
-    git::worktree::create(repo_path, worktree_dir, &branch, &repo_config.base_branch)?;
+    git::worktree::create(&repo_path, worktree_dir, &branch, &config.base_branch)?;
 
   info!("executing in worktree: {}", worktree_path.display());
 
@@ -65,7 +65,7 @@ pub fn execute(
   ensure_gitignore_forge(&worktree_path)?;
 
   // Check Docker if required
-  if repo_config.docker_required {
+  if config.docker_required {
     if let Err(e) = check_docker(&worktree_path) {
       error!("docker check failed: {e}");
       return Ok(ExecuteResult::Error(format!("Docker not running: {e}")));
@@ -77,7 +77,7 @@ pub fn execute(
   let selected_model = complexity.select_model(model_settings);
 
   // Build the worker prompt
-  let prompt = build_worker_prompt(issue, repo_config);
+  let prompt = build_worker_prompt(issue, &config.test_command);
 
   // Run Claude Code Worker
   let timeout = Some(Duration::from_secs(worker_timeout_secs));
@@ -93,7 +93,7 @@ pub fn execute(
     Ok(output) => {
       // Check if there are commits
       let commits =
-        git::branch::commit_count(&worktree_path, &repo_config.base_branch, "HEAD").unwrap_or(0);
+        git::branch::commit_count(&worktree_path, &config.base_branch, "HEAD").unwrap_or(0);
 
       if commits == 0 {
         info!("no commits produced");
@@ -105,7 +105,7 @@ pub fn execute(
       info!("{commits} commit(s) produced");
 
       // Run tests
-      match run_tests(&worktree_path, &repo_config.test_command) {
+      match run_tests(&worktree_path, &config.test_command) {
         Ok(true) => Ok(ExecuteResult::Success { commits }),
         Ok(false) => Ok(ExecuteResult::TestFailure { commits, output }),
         Err(e) => Ok(ExecuteResult::TestFailure {
@@ -118,7 +118,7 @@ pub fn execute(
   }
 }
 
-fn build_worker_prompt(issue: &ForgeIssue, repo_config: &RepoConfig) -> String {
+fn build_worker_prompt(issue: &ForgeIssue, test_command: &str) -> String {
   format!(
     r#"## Issue #{number}: {title}
 
@@ -130,7 +130,7 @@ fn build_worker_prompt(issue: &ForgeIssue, repo_config: &RepoConfig) -> String {
     number = issue.number,
     title = issue.title,
     body = issue.body,
-    test_command = repo_config.test_command,
+    test_command = test_command,
   )
 }
 

@@ -48,28 +48,16 @@ enum Commands {
     #[arg(long)]
     dry_run: bool,
 
-    /// Process only a specific repo
-    #[arg(long)]
-    repo: Option<String>,
-
     /// Resume failed/interrupted issues
     #[arg(long)]
     resume: bool,
   },
   /// Watch for new issues and process them periodically
-  Watch {
-    /// Process only a specific repo
-    #[arg(long)]
-    repo: Option<String>,
-  },
+  Watch,
   /// Show current processing status
   Status,
   /// Clean up worktrees for completed issues
-  Clean {
-    /// Specific repo to clean
-    #[arg(long)]
-    repo: Option<String>,
-  },
+  Clean,
   /// List pending clarifications
   Clarifications,
   /// Answer a clarification question
@@ -78,15 +66,9 @@ enum Commands {
     number: u64,
     /// Answer text
     text: String,
-    /// Specific repo (auto-detected if omitted)
-    #[arg(long)]
-    repo: Option<String>,
   },
   /// Launch parent agent (interactive Claude Code session)
   Parent {
-    /// Process only a specific repo
-    #[arg(long)]
-    repo: Option<String>,
     /// Claude model to use
     #[arg(long)]
     model: Option<String>,
@@ -94,7 +76,7 @@ enum Commands {
 }
 
 enum TriageOutcome {
-  Tasks(Vec<(PathBuf, ForgeIssue, String)>),
+  Tasks(Vec<(PathBuf, ForgeIssue)>),
   NeedsClarification {
     issue: ForgeIssue,
     message: String,
@@ -124,26 +106,17 @@ async fn run(cli: Cli) -> Result<()> {
   let config = Config::load(&cli.config)?;
 
   match cli.command {
-    Commands::Run {
-      dry_run,
-      repo,
-      resume,
-    } => cmd_run(&config, dry_run, repo.as_deref(), resume).await,
-    Commands::Watch { repo } => cmd_watch(&config, repo.as_deref()).await,
+    Commands::Run { dry_run, resume } => cmd_run(&config, dry_run, resume).await,
+    Commands::Watch => cmd_watch(&config).await,
     Commands::Status => cmd_status(&config),
-    Commands::Clean { repo } => cmd_clean(&config, repo.as_deref()),
+    Commands::Clean => cmd_clean(&config),
     Commands::Clarifications => cmd_clarifications(&config),
-    Commands::Answer { number, text, repo } => cmd_answer(&config, number, repo.as_deref(), &text),
-    Commands::Parent { repo, model } => cmd_parent(&config, repo.as_deref(), model.as_deref()),
+    Commands::Answer { number, text } => cmd_answer(&config, number, &text),
+    Commands::Parent { model } => cmd_parent(&config, model.as_deref()),
   }
 }
 
-async fn cmd_run(
-  config: &Config,
-  dry_run: bool,
-  repo_filter: Option<&str>,
-  resume: bool,
-) -> Result<()> {
+async fn cmd_run(config: &Config, dry_run: bool, resume: bool) -> Result<()> {
   let state = StateTracker::load(&config.settings.state_file)?.into_shared();
 
   // Fetch local tasks
@@ -184,11 +157,6 @@ async fn cmd_run(
     }
   }
 
-  // Apply repo filter
-  if let Some(filter) = repo_filter {
-    issues.retain(|i| i.repo_name == filter);
-  }
-
   if issues.is_empty() {
     info!("no issues to process");
     return Ok(());
@@ -215,7 +183,7 @@ async fn cmd_run(
     });
   }
 
-  let mut task_entries: Vec<(PathBuf, ForgeIssue, String)> = Vec::new();
+  let mut task_entries: Vec<(PathBuf, ForgeIssue)> = Vec::new();
 
   while let Some(result) = triage_set.join_next().await {
     match result {
@@ -251,28 +219,22 @@ async fn cmd_run(
   // Phase 2: Execute (parallel per task) + Phase 3: Streaming integration
   let mut exec_set = JoinSet::new();
 
-  for (task_path, issue, repo_config_name) in task_entries {
+  for (task_path, issue) in task_entries {
     let sem = semaphore.clone();
     let state = state.clone();
     let config = config.clone();
 
     exec_set.spawn(async move {
       let _permit = sem.acquire().await.expect("semaphore closed");
-      execute_task(task_path, issue, repo_config_name, &config, &state).await
+      execute_task(task_path, issue, &config, &state).await
     });
   }
 
   while let Some(result) = exec_set.join_next().await {
     match result {
       Ok(Ok(output)) => {
-        let repo_config = config
-          .find_repo(&output.repo_config_name)
-          .expect("repo config should exist");
-
         if matches!(output.result, ExecuteResult::Success { .. }) {
-          if let Err(e) =
-            pipeline::integrate::integrate_one(&output, repo_config, config, &state).await
-          {
+          if let Err(e) = pipeline::integrate::integrate_one(&output, config, &state).await {
             error!("integration failed for {}: {e}", output.issue);
             let _ = work::set_task_status(&output.task_path, TaskStatus::Failed);
             state.lock().unwrap().set_error(
@@ -306,11 +268,8 @@ async fn triage_issue(
   config: &Config,
   state: &SharedState,
 ) -> Result<TriageOutcome> {
-  let repo_config = config
-    .find_repo(&issue.repo_name)
-    .expect("issue repo should be in config");
   let repo_name = issue.repo_name.clone();
-  let repo_config_name = issue.repo_name.clone();
+  let repo_path = Config::repo_path();
 
   {
     let mut s = state.lock().unwrap();
@@ -323,7 +282,6 @@ async fn triage_issue(
     s.set_started(&repo_name, issue.number)?;
   }
 
-  let repo_path = repo_config.path.clone();
   let clarification_ctx = pipeline::clarification::check_clarification(&repo_path, issue.number)?;
 
   let deep_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
@@ -386,10 +344,8 @@ async fn triage_issue(
   // Write task YAML to .forge/work/
   let task_paths = work::write_tasks(&repo_path, &issue, &deep_result)?;
 
-  let entries: Vec<(PathBuf, ForgeIssue, String)> = task_paths
-    .into_iter()
-    .map(|p| (p, issue.clone(), repo_config_name.clone()))
-    .collect();
+  let entries: Vec<(PathBuf, ForgeIssue)> =
+    task_paths.into_iter().map(|p| (p, issue.clone())).collect();
 
   Ok(TriageOutcome::Tasks(entries))
 }
@@ -397,14 +353,11 @@ async fn triage_issue(
 async fn execute_task(
   task_path: PathBuf,
   issue: ForgeIssue,
-  repo_config_name: String,
   config: &Config,
   state: &SharedState,
 ) -> Result<WorkerOutput> {
-  let repo_config = config
-    .find_repo(&repo_config_name)
-    .expect("repo config should exist");
   let repo_name = issue.repo_name.clone();
+  let repo_path = Config::repo_path();
 
   // Read and lock task
   let content = std::fs::read_to_string(&task_path)?;
@@ -422,11 +375,11 @@ async fn execute_task(
     s.set_branch(&repo_name, issue.number, &issue.branch_name())?;
   }
 
-  let tools = repo_config.all_tools(&config.settings.worker_tools);
+  let tools = config.all_tools();
   let exec_runner = ClaudeRunner::new(tools);
   let issue_clone = issue.clone();
   let task_clone = task.clone();
-  let repo_config_clone = repo_config.clone();
+  let config_clone = config.clone();
   let models = config.settings.models.clone();
   let worktree_dir = config.settings.worktree_dir.clone();
   let worker_timeout_secs = config.settings.worker_timeout_secs;
@@ -435,7 +388,7 @@ async fn execute_task(
     pipeline::execute::execute(
       &issue_clone,
       &task_clone,
-      &repo_config_clone,
+      &config_clone,
       &exec_runner,
       &models,
       &worktree_dir,
@@ -452,13 +405,12 @@ async fn execute_task(
       &issue.title,
       IssueStatus::Success,
     )?;
-    let _ = pipeline::clarification::cleanup_clarification(&repo_config.path, issue.number);
+    let _ = pipeline::clarification::cleanup_clarification(&repo_path, issue.number);
   }
 
   Ok(WorkerOutput {
     issue,
     result: exec_result,
-    repo_config_name,
     task,
     task_path,
   })
@@ -466,13 +418,10 @@ async fn execute_task(
 
 async fn cmd_run_dry(config: &Config, issues: &[ForgeIssue]) -> Result<()> {
   let deep_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
+  let repo_path = Config::repo_path();
 
   for issue in issues {
-    let repo_config = config
-      .find_repo(&issue.repo_name)
-      .expect("issue repo should be in config");
-
-    let deep = triage::deep_triage(issue, config, &deep_runner, &repo_config.path, None)?;
+    let deep = triage::deep_triage(issue, config, &deep_runner, &repo_path, None)?;
 
     println!("--- {} ---", issue);
     println!("Complexity: {}", deep.complexity);
@@ -486,13 +435,13 @@ async fn cmd_run_dry(config: &Config, issues: &[ForgeIssue]) -> Result<()> {
   Ok(())
 }
 
-async fn cmd_watch(config: &Config, repo_filter: Option<&str>) -> Result<()> {
+async fn cmd_watch(config: &Config) -> Result<()> {
   let interval = std::time::Duration::from_secs(config.settings.poll_interval_secs);
 
   loop {
     info!("polling for new tasks...");
 
-    if let Err(e) = cmd_run(config, false, repo_filter, true).await {
+    if let Err(e) = cmd_run(config, false, true).await {
       warn!("run error (will retry): {e}");
     }
 
@@ -528,33 +477,27 @@ fn cmd_status(config: &Config) -> Result<()> {
   Ok(())
 }
 
-fn cmd_clean(config: &Config, repo_filter: Option<&str>) -> Result<()> {
+fn cmd_clean(config: &Config) -> Result<()> {
   let state = StateTracker::load(&config.settings.state_file)?;
+  let repo_name = Config::repo_name();
+  let repo_path = Config::repo_path();
 
-  for repo in &config.repos {
-    if let Some(filter) = repo_filter {
-      if repo.name != filter {
-        continue;
-      }
+  let worktrees = git::worktree::list(&repo_path)?;
+  let worktree_prefix = format!(
+    "{}/forge/",
+    repo_path.join(&config.settings.worktree_dir).display()
+  );
+
+  for wt in &worktrees {
+    if !wt.starts_with(&worktree_prefix) {
+      continue;
     }
 
-    let worktrees = git::worktree::list(&repo.path)?;
-    let worktree_prefix = format!(
-      "{}/forge/",
-      repo.path.join(&config.settings.worktree_dir).display()
-    );
-
-    for wt in &worktrees {
-      if !wt.starts_with(&worktree_prefix) {
-        continue;
-      }
-
-      if let Some(num_str) = wt.rsplit("issue-").next() {
-        if let Ok(num) = num_str.parse::<u64>() {
-          if state.is_processed(&repo.name, num) {
-            info!("cleaning worktree: {wt}");
-            git::worktree::remove(&repo.path, std::path::Path::new(wt))?;
-          }
+    if let Some(num_str) = wt.rsplit("issue-").next() {
+      if let Ok(num) = num_str.parse::<u64>() {
+        if state.is_processed(&repo_name, num) {
+          info!("cleaning worktree: {wt}");
+          git::worktree::remove(&repo_path, std::path::Path::new(wt))?;
         }
       }
     }
@@ -563,14 +506,16 @@ fn cmd_clean(config: &Config, repo_filter: Option<&str>) -> Result<()> {
   Ok(())
 }
 
-fn cmd_clarifications(config: &Config) -> Result<()> {
-  let repos: Vec<(String, &std::path::Path)> = config
-    .repos
+fn cmd_clarifications(_config: &Config) -> Result<()> {
+  let repo_name = Config::repo_name();
+  let repo_path = Config::repo_path();
+  let repos = vec![(repo_name, repo_path)];
+  let repos_ref: Vec<(String, &std::path::Path)> = repos
     .iter()
-    .map(|r| (r.name.clone(), r.path.as_path()))
+    .map(|(n, p)| (n.clone(), p.as_path()))
     .collect();
 
-  let pending = pipeline::clarification::list_pending_clarifications(&repos)?;
+  let pending = pipeline::clarification::list_pending_clarifications(&repos_ref)?;
 
   if pending.is_empty() {
     println!("No pending clarifications.");
@@ -586,34 +531,20 @@ fn cmd_clarifications(config: &Config) -> Result<()> {
   Ok(())
 }
 
-fn cmd_answer(config: &Config, number: u64, repo_filter: Option<&str>, text: &str) -> Result<()> {
-  let repo = if let Some(filter) = repo_filter {
-    config
-      .find_repo(filter)
-      .ok_or_else(|| crate::error::ForgeError::Config(format!("repo not found: {filter}")))?
-  } else {
-    let repos: Vec<(&str, &std::path::Path)> = config
-      .repos
-      .iter()
-      .map(|r| (r.name.as_str(), r.path.as_path()))
-      .collect();
-    let (name, _) =
-      pipeline::clarification::find_repo_for_issue(&repos, number).ok_or_else(|| {
-        crate::error::ForgeError::Config(format!("no clarification found for issue #{number}"))
-      })?;
-    config.find_repo(name).unwrap()
-  };
+fn cmd_answer(config: &Config, number: u64, text: &str) -> Result<()> {
+  let repo_name = Config::repo_name();
+  let repo_path = Config::repo_path();
 
-  pipeline::clarification::write_answer(&repo.path, number, text)?;
+  pipeline::clarification::write_answer(&repo_path, number, text)?;
 
   let mut state = StateTracker::load(&config.settings.state_file)?;
-  state.reset_to_pending(&repo.name, number)?;
+  state.reset_to_pending(&repo_name, number)?;
 
   println!("Answered clarification for #{number} and reset to pending.");
   Ok(())
 }
 
-fn cmd_parent(config: &Config, repo_filter: Option<&str>, model: Option<&str>) -> Result<()> {
+fn cmd_parent(config: &Config, model: Option<&str>) -> Result<()> {
   let state = StateTracker::load(&config.settings.state_file)?;
 
   let system_prompt = parent_prompt::build_system_prompt(config);
@@ -628,13 +559,6 @@ fn cmd_parent(config: &Config, repo_filter: Option<&str>, model: Option<&str>) -
 
   if let Some(m) = model {
     cmd.arg("--model").arg(m);
-  }
-
-  if let Some(filter) = repo_filter {
-    let repo = config
-      .find_repo(filter)
-      .ok_or_else(|| crate::error::ForgeError::Config(format!("repo not found: {filter}")))?;
-    cmd.current_dir(&repo.path);
   }
 
   cmd.arg(&initial_message);

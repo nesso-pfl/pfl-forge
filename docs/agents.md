@@ -36,7 +36,7 @@ Deep Triage で十分な分析ができなかった場合に呼ばれる補助�
 実際のコード変更を行うエージェント。Git worktree 内で動作する。
 
 - モデル: complexity に応じて `settings.models.default` (low/medium) または `settings.models.complex` (high)
-- ツール: `settings.worker_tools` + `repo.extra_tools` (default: Bash, Read, Write, Edit, Glob, Grep)
+- ツール: `settings.worker_tools` + `extra_tools` (default: Bash, Read, Write, Edit, Glob, Grep)
 - worktree 内の `.forge/task.yaml` から実装計画・関連ファイル・ステップ・コンテキストを読み取る
 - worktree 内でタスクの実装を行い、コミットを作成
 - 出力: `ExecuteResult` (Success, TestFailure, Unclear, Error)

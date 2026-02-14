@@ -47,3 +47,4 @@ cargo test
 - エージェント間データは `.forge/work/*.yaml`（タスク）、`.forge/task.yaml`（worktree 内）、`.forge/review.yaml` で受け渡し（プロンプト埋め込みではなくファイル経由）
 - タスク: `.forge/tasks/*.yaml` に定義
 - コミット前に、変更が CLAUDE.md、README.md や docs/ の記述と矛盾しないか確認し、必要なら同じコミットで更新すること
+- 作業前に `.tmp/TODO.md` を確認し、関連する課題があれば意識すること

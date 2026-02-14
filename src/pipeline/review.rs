@@ -26,10 +26,17 @@ pub fn review(
     runner: &ClaudeRunner,
     worktree_path: &Path,
     base_branch: &str,
+    base_tests_passed: bool,
 ) -> Result<ReviewResult> {
     let review_model = model::resolve(&config.settings.models.default);
 
     let diff = get_diff(worktree_path, base_branch)?;
+
+    let base_test_context = if base_tests_passed {
+        "All tests pass on base branch. Any test failure in this diff is a regression introduced by the implementation."
+    } else {
+        "Tests already fail on base branch (pre-existing failures). If tests still fail, evaluate whether the implementation made things worse or is unrelated to the failures. Test fixes by the implementation are a positive signal."
+    };
 
     let prompt = format!(
         r#"You are a code review agent. Review the following diff for a GitHub issue implementation.
@@ -41,6 +48,10 @@ pub fn review(
 ## Implementation Plan
 
 {plan}
+
+## Base Branch Test Status
+
+{base_test_context}
 
 ## Diff
 
@@ -54,6 +65,8 @@ pub fn review(
 2. Does the code follow existing patterns and conventions?
 3. Are there any obvious bugs or security issues?
 4. Is the implementation consistent with the plan?
+5. If new tests are added, are they meaningful and well-structured?
+6. If tests were modified, is the change justified?
 
 Respond with ONLY a JSON object (no markdown, no explanation):
 {{

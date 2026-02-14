@@ -73,6 +73,40 @@ pub fn rebase(worktree_path: &Path, base_branch: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn checkout_detached(worktree_path: &Path, ref_name: &str) -> Result<()> {
+    info!("checkout detached HEAD at {ref_name}");
+    let output = Command::new("git")
+        .args(["checkout", "--detach", ref_name])
+        .current_dir(worktree_path)
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(ForgeError::Git(format!(
+            "checkout --detach {ref_name} failed: {stderr}"
+        )));
+    }
+
+    Ok(())
+}
+
+pub fn checkout_branch(worktree_path: &Path, branch: &str) -> Result<()> {
+    info!("checkout branch {branch}");
+    let output = Command::new("git")
+        .args(["checkout", branch])
+        .current_dir(worktree_path)
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(ForgeError::Git(format!(
+            "checkout {branch} failed: {stderr}"
+        )));
+    }
+
+    Ok(())
+}
+
 pub fn delete_branch(repo_path: &Path, branch: &str) -> Result<()> {
     let output = Command::new("git")
         .args(["branch", "-D", branch])

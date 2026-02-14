@@ -21,7 +21,7 @@ pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeTa
     return Ok(Vec::new());
   }
 
-  let mut issues = Vec::new();
+  let mut tasks = Vec::new();
   let mut entries: Vec<_> = std::fs::read_dir(&tasks_dir)?
     .filter_map(|e| e.ok())
     .collect();
@@ -51,7 +51,7 @@ pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeTa
     let content = std::fs::read_to_string(&path)?;
     let task: LocalTask = serde_yaml::from_str(&content)?;
 
-    issues.push(ForgeTask {
+    tasks.push(ForgeTask {
       id,
       title: task.title,
       body: task.body,
@@ -60,6 +60,6 @@ pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeTa
     });
   }
 
-  info!("local tasks: {}", issues.len());
-  Ok(issues)
+  info!("local tasks: {}", tasks.len());
+  Ok(tasks)
 }

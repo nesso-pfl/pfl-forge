@@ -33,7 +33,7 @@ pub fn review(
   let diff = get_diff(worktree_path, base_branch)?;
 
   let prompt = format!(
-    r#"## Issue {id}: {title}
+    r#"## Task {id}: {title}
 
 {body}
 

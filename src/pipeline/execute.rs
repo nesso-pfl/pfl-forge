@@ -120,7 +120,7 @@ pub fn execute(
 
 fn build_worker_prompt(forge_task: &ForgeTask, test_command: &str) -> String {
   format!(
-    r#"## Issue {id}: {title}
+    r#"## Task {id}: {title}
 
 {body}
 

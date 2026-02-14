@@ -116,7 +116,7 @@ questions from the prior attempt. Update the plan accordingly."#,
   };
 
   let prompt = format!(
-    r#"Issue {id}: {title}
+    r#"Task {id}: {title}
 Labels: {labels}
 
 {body}{clarification_section}"#,
@@ -154,7 +154,7 @@ pub fn consult(
   let complex_model = model::resolve(&config.settings.models.complex);
 
   let prompt = format!(
-    r#"Issue {id}: {title}
+    r#"Task {id}: {title}
 
 {body}
 

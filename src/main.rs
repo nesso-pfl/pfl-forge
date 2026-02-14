@@ -29,7 +29,7 @@ use crate::task::ForgeTask;
 #[derive(Parser)]
 #[command(
   name = "pfl-forge",
-  about = "Multi-agent issue processor powered by Claude Code"
+  about = "Multi-agent task processor powered by Claude Code"
 )]
 struct Cli {
   #[command(subcommand)]
@@ -42,23 +42,23 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-  /// Process issues: fetch, triage, execute, report
+  /// Process tasks: fetch, triage, execute, report
   Run {
     /// Only triage, don't execute
     #[arg(long)]
     dry_run: bool,
   },
-  /// Watch for new issues and process them periodically
+  /// Watch for new tasks and process them periodically
   Watch,
   /// Show current processing status
   Status,
-  /// Clean up worktrees for completed issues
+  /// Clean up worktrees for completed tasks
   Clean,
   /// List pending clarifications
   Clarifications,
   /// Answer a clarification question
   Answer {
-    /// Issue ID
+    /// Task ID
     id: String,
     /// Answer text
     text: String,
@@ -131,7 +131,7 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
     return cmd_run_dry(config, &tasks).await;
   }
 
-  // Phase 1: Triage (parallel per issue)
+  // Phase 1: Triage (parallel per task)
   let semaphore = Arc::new(Semaphore::new(config.settings.parallel_workers));
   let mut triage_set = JoinSet::new();
 
@@ -142,7 +142,7 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
 
     triage_set.spawn(async move {
       let _permit = sem.acquire().await.expect("semaphore closed");
-      triage_issue(forge_task, &config, &state).await
+      triage_task(forge_task, &config, &state).await
     });
   }
 
@@ -228,7 +228,7 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
   Ok(())
 }
 
-async fn triage_issue(
+async fn triage_task(
   forge_task: ForgeTask,
   config: &Config,
   state: &SharedState,

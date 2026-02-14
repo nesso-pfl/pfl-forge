@@ -34,9 +34,9 @@ pub fn write_clarification(
   std::fs::create_dir_all(&dir)?;
 
   let content = format!(
-    r#"# Clarification needed: Issue {id}
+    r#"# Clarification needed: Task {id}
 
-## Issue
+## Task
 {title}
 {body}
 
@@ -85,7 +85,7 @@ pub fn check_clarification(
   let (previous_analysis, questions) = parse_question_file(&q_content);
 
   info!(
-    "found clarification answer for issue {task_id} ({} bytes)",
+    "found clarification answer for task {task_id} ({} bytes)",
     answer.len()
   );
 

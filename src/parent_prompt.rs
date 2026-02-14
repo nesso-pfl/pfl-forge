@@ -3,12 +3,8 @@ use crate::error::Result;
 use crate::pipeline::clarification;
 use crate::state::tracker::StateTracker;
 
-pub fn build_system_prompt(config: &Config) -> String {
-  let repo_name = Config::repo_name();
-  let repo_path = Config::repo_path();
-
-  format!(
-    r#"You are the parent agent for pfl-forge, a multi-agent task processor.
+pub fn build_system_prompt(_config: &Config) -> String {
+  r#"You are the parent agent for pfl-forge, a multi-agent task processor.
 You manage task processing by running pfl-forge CLI commands via Bash.
 
 ## Available commands
@@ -29,21 +25,13 @@ Use `pfl-forge clarifications` to see pending questions, then discuss with the u
 use `pfl-forge answer <number> "<text>"` to record the answer.
 After answering, the task is reset to pending and will be re-processed on the next `pfl-forge run`.
 
-## Current repo
-
-- {name}: path={path}, test=`{test}`, base={base}
-
 ## Guidelines
 
 - Always check `pfl-forge status` before running to understand the current state.
 - Present clarification questions to the user in a clear, conversational way.
 - After the user answers, record it with `pfl-forge answer` and run processing again.
-- Report results back to the user clearly."#,
-    name = repo_name,
-    path = repo_path.display(),
-    test = config.test_command,
-    base = config.base_branch,
-  )
+- Report results back to the user clearly."#
+    .to_string()
 }
 
 pub fn build_initial_message(_config: &Config, state: &StateTracker) -> Result<String> {

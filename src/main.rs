@@ -16,14 +16,15 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tracing::{error, info, warn};
 
-use crate::agents::analyze::{self, AnalysisResult};
+use crate::agents::analyze;
 use crate::agents::architect::ArchitectOutcome;
+use crate::agents::review::ReviewResult;
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
 use crate::pipeline::execute::ExecuteResult;
 use crate::pipeline::integrate::IntegrateResult;
-use crate::pipeline::work::{self, Task, WorkStatus};
+use crate::pipeline::work::{self, WorkStatus};
 use crate::state::tracker::{SharedState, StateTracker, TaskStatus};
 use crate::task::ForgeTask;
 
@@ -82,16 +83,6 @@ enum Commands {
   },
 }
 
-enum AnalyzeOutcome {
-  Tasks(Vec<(PathBuf, ForgeTask)>),
-  NeedsClarification {
-    forge_task: ForgeTask,
-    message: String,
-    analysis: AnalysisResult,
-    repo_path: PathBuf,
-  },
-}
-
 #[tokio::main]
 async fn main() {
   tracing_subscriber::fmt()
@@ -147,120 +138,22 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
     return cmd_run_dry(config, &tasks).await;
   }
 
-  // Phase 1: Analyze (parallel per task)
   let semaphore = Arc::new(Semaphore::new(config.parallel_workers));
-  let mut analyze_set = JoinSet::new();
+  let mut task_set = JoinSet::new();
 
   for forge_task in tasks {
     let sem = semaphore.clone();
     let state = state.clone();
     let config = config.clone();
 
-    analyze_set.spawn(async move {
-      let _permit = sem.acquire().await.expect("semaphore closed");
-      analyze_task(forge_task, &config, &state).await
-    });
+    task_set.spawn(async move { process_task(forge_task, &config, &state, &sem).await });
   }
 
-  let mut task_entries: Vec<(PathBuf, ForgeTask)> = Vec::new();
-
-  while let Some(result) = analyze_set.join_next().await {
+  while let Some(result) = task_set.join_next().await {
     match result {
-      Ok(Ok(AnalyzeOutcome::Tasks(entries))) => {
-        task_entries.extend(entries);
-      }
-      Ok(Ok(AnalyzeOutcome::NeedsClarification {
-        forge_task,
-        message,
-        analysis,
-        repo_path,
-      })) => {
-        if let Err(e) =
-          pipeline::clarification::write_clarification(&repo_path, &forge_task, &analysis, &message)
-        {
-          error!("failed to write clarification for {forge_task}: {e}");
-        }
-      }
-      Ok(Err(e)) => error!("analyze error: {e}"),
-      Err(e) => error!("analyze join error: {e}"),
-    }
-  }
-
-  if task_entries.is_empty() {
-    info!("no tasks to execute");
-    let summary = state.lock().unwrap().summary();
-    info!("run complete: {summary}");
-    return Ok(());
-  }
-
-  info!("executing {} task(s)", task_entries.len());
-
-  // Phase 2: Execute (parallel per task) + Phase 3: Streaming integration
-  let mut exec_set = JoinSet::new();
-
-  for (task_path, forge_task) in task_entries {
-    let sem = semaphore.clone();
-    let state = state.clone();
-    let config = config.clone();
-
-    exec_set.spawn(async move {
-      let _permit = sem.acquire().await.expect("semaphore closed");
-      execute_task(task_path, forge_task, &config, &state).await
-    });
-  }
-
-  while let Some(result) = exec_set.join_next().await {
-    match result {
-      Ok(Ok((forge_task, exec_result, task, task_path))) => {
-        if matches!(exec_result, ExecuteResult::Success { .. }) {
-          match pipeline::integrate::integrate_one(&forge_task, &task, config).await {
-            Ok(IntegrateResult::Approved) => {
-              let _ = work::set_task_status(&task_path, WorkStatus::Completed);
-              state.lock().unwrap().set_status(
-                &forge_task.id,
-                &forge_task.title,
-                TaskStatus::Success,
-              )?;
-            }
-            Ok(IntegrateResult::RebaseConflict) => {
-              let _ = work::set_task_status(&task_path, WorkStatus::Failed);
-              state
-                .lock()
-                .unwrap()
-                .set_error(&forge_task.id, "rebase conflict")?;
-            }
-            Ok(IntegrateResult::ReviewRejected(_)) => {
-              let _ = work::set_task_status(&task_path, WorkStatus::Failed);
-              state
-                .lock()
-                .unwrap()
-                .set_error(&forge_task.id, "review rejected")?;
-            }
-            Ok(IntegrateResult::ReviewFailed(e)) => {
-              let _ = work::set_task_status(&task_path, WorkStatus::Failed);
-              state
-                .lock()
-                .unwrap()
-                .set_error(&forge_task.id, &format!("review failed: {e}"))?;
-            }
-            Err(e) => {
-              error!("integration failed for {forge_task}: {e}");
-              let _ = work::set_task_status(&task_path, WorkStatus::Failed);
-              state
-                .lock()
-                .unwrap()
-                .set_error(&forge_task.id, &e.to_string())?;
-            }
-          }
-        } else {
-          let _ = work::set_task_status(&task_path, WorkStatus::Failed);
-          if let Err(e) = pipeline::report::report(&forge_task, &exec_result, &state) {
-            error!("report failed for {forge_task}: {e}");
-          }
-        }
-      }
-      Ok(Err(e)) => error!("execute error: {e}"),
-      Err(e) => error!("execute join error: {e}"),
+      Ok(Err(e)) => error!("task error: {e}"),
+      Err(e) => error!("task join error: {e}"),
+      Ok(Ok(())) => {}
     }
   }
 
@@ -270,140 +163,222 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
   Ok(())
 }
 
-async fn analyze_task(
+async fn process_task(
   forge_task: ForgeTask,
   config: &Config,
   state: &SharedState,
-) -> Result<AnalyzeOutcome> {
+  semaphore: &Semaphore,
+) -> Result<()> {
   let repo_path = Config::repo_path();
 
+  // --- Analyze phase ---
   {
     let mut s = state.lock().unwrap();
     s.set_status(&forge_task.id, &forge_task.title, TaskStatus::Triaging)?;
     s.set_started(&forge_task.id)?;
   }
 
-  let clarification_ctx = pipeline::clarification::check_clarification(&repo_path, &forge_task.id)?;
+  let analysis = {
+    let _permit = semaphore.acquire().await.expect("semaphore closed");
 
-  let analyze_runner = ClaudeRunner::new(config.triage_tools.clone());
-  let task_clone = forge_task.clone();
-  let config_clone = config.clone();
-  let repo_path_clone = repo_path.clone();
-  let analysis = tokio::task::spawn_blocking(move || {
-    analyze::analyze(
-      &task_clone,
-      &config_clone,
-      &analyze_runner,
-      &repo_path_clone,
-      clarification_ctx.as_ref(),
-    )
-  })
-  .await
-  .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
+    let clarification_ctx =
+      pipeline::clarification::check_clarification(&repo_path, &forge_task.id)?;
 
-  let analysis = if analysis.is_sufficient() {
-    analysis
-  } else {
-    info!("analysis insufficient for {forge_task}, consulting architect...");
-    let architect_runner = ClaudeRunner::new(config.triage_tools.clone());
+    let analyze_runner = ClaudeRunner::new(config.triage_tools.clone());
     let task_clone = forge_task.clone();
-    let analysis_clone = analysis.clone();
     let config_clone = config.clone();
     let repo_path_clone = repo_path.clone();
-    let outcome = tokio::task::spawn_blocking(move || {
-      agents::architect::resolve(
+    let analysis = tokio::task::spawn_blocking(move || {
+      analyze::analyze(
         &task_clone,
-        &analysis_clone,
         &config_clone,
-        &architect_runner,
+        &analyze_runner,
         &repo_path_clone,
+        clarification_ctx.as_ref(),
       )
     })
     .await
     .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
 
-    match outcome {
-      ArchitectOutcome::Resolved(result) => result,
-      ArchitectOutcome::NeedsClarification(message) => {
-        info!("architect needs clarification for {forge_task}");
-        state.lock().unwrap().set_status(
-          &forge_task.id,
-          &forge_task.title,
-          TaskStatus::NeedsClarification,
-        )?;
-        return Ok(AnalyzeOutcome::NeedsClarification {
-          forge_task,
-          message,
-          analysis,
-          repo_path,
-        });
+    if analysis.is_sufficient() {
+      analysis
+    } else {
+      info!("analysis insufficient for {forge_task}, consulting architect...");
+      let architect_runner = ClaudeRunner::new(config.triage_tools.clone());
+      let task_clone = forge_task.clone();
+      let analysis_clone = analysis.clone();
+      let config_clone = config.clone();
+      let repo_path_clone = repo_path.clone();
+      let outcome = tokio::task::spawn_blocking(move || {
+        agents::architect::resolve(
+          &task_clone,
+          &analysis_clone,
+          &config_clone,
+          &architect_runner,
+          &repo_path_clone,
+        )
+      })
+      .await
+      .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
+
+      match outcome {
+        ArchitectOutcome::Resolved(result) => result,
+        ArchitectOutcome::NeedsClarification(message) => {
+          info!("architect needs clarification for {forge_task}");
+          state.lock().unwrap().set_status(
+            &forge_task.id,
+            &forge_task.title,
+            TaskStatus::NeedsClarification,
+          )?;
+          if let Err(e) = pipeline::clarification::write_clarification(
+            &repo_path,
+            &forge_task,
+            &analysis,
+            &message,
+          ) {
+            error!("failed to write clarification for {forge_task}: {e}");
+          }
+          return Ok(());
+        }
       }
     }
+    // permit released here
   };
 
   // Write task YAML to .forge/work/
   let task_paths = work::write_tasks(&repo_path, &forge_task, &analysis)?;
+  let task_path = &task_paths[0];
 
-  let entries: Vec<(PathBuf, ForgeTask)> = task_paths
-    .into_iter()
-    .map(|p| (p, forge_task.clone()))
-    .collect();
+  let content = std::fs::read_to_string(task_path)?;
+  let task: work::Task = serde_yaml::from_str(&content)?;
 
-  Ok(AnalyzeOutcome::Tasks(entries))
-}
+  // --- Execute + Integrate loop with review retries ---
+  let max_attempts = config.max_review_retries + 1;
+  let mut review_feedback: Option<ReviewResult> = None;
 
-async fn execute_task(
-  task_path: PathBuf,
-  forge_task: ForgeTask,
-  config: &Config,
-  state: &SharedState,
-) -> Result<(ForgeTask, ExecuteResult, Task, PathBuf)> {
-  let repo_path = Config::repo_path();
+  for attempt in 0..max_attempts {
+    if attempt > 0 {
+      info!(
+        "re-implementing {forge_task} (attempt {}/{})",
+        attempt + 1,
+        max_attempts
+      );
+    }
 
-  // Read and lock task
-  let content = std::fs::read_to_string(&task_path)?;
-  let task: Task = serde_yaml::from_str(&content)?;
-  work::set_task_status(&task_path, WorkStatus::Executing)?;
+    // Execute phase
+    {
+      work::set_task_status(task_path, WorkStatus::Executing)?;
+      {
+        let mut s = state.lock().unwrap();
+        s.set_status(&forge_task.id, &forge_task.title, TaskStatus::Executing)?;
+        s.set_branch(&forge_task.id, &forge_task.branch_name())?;
+      }
 
-  {
-    let mut s = state.lock().unwrap();
-    s.set_status(&forge_task.id, &forge_task.title, TaskStatus::Executing)?;
-    s.set_branch(&forge_task.id, &forge_task.branch_name())?;
+      let _permit = semaphore.acquire().await.expect("semaphore closed");
+
+      let tools = config.worker_tools.clone();
+      let exec_runner = ClaudeRunner::new(tools);
+      let forge_task_clone = forge_task.clone();
+      let task_clone = task.clone();
+      let config_clone = config.clone();
+      let models = config.models.clone();
+      let worktree_dir = config.worktree_dir.clone();
+      let worker_timeout_secs = config.worker_timeout_secs;
+      let feedback_clone = review_feedback.clone();
+
+      let exec_result = tokio::task::spawn_blocking(move || {
+        pipeline::execute::execute(
+          &forge_task_clone,
+          &task_clone,
+          &config_clone,
+          &exec_runner,
+          &models,
+          &worktree_dir,
+          worker_timeout_secs,
+          feedback_clone.as_ref(),
+        )
+      })
+      .await
+      .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
+
+      // permit released here
+
+      match exec_result {
+        ExecuteResult::Success { .. } => {}
+        _ => {
+          let _ = work::set_task_status(task_path, WorkStatus::Failed);
+          if let Err(e) = pipeline::report::report(&forge_task, &exec_result, state) {
+            error!("report failed for {forge_task}: {e}");
+          }
+          return Ok(());
+        }
+      }
+    }
+
+    // Integrate phase (rebase + review)
+    {
+      state
+        .lock()
+        .unwrap()
+        .set_status(&forge_task.id, &forge_task.title, TaskStatus::Reviewing)?;
+
+      let _permit = semaphore.acquire().await.expect("semaphore closed");
+
+      let integrate_result = pipeline::integrate::integrate_one(&forge_task, &task, config).await?;
+
+      // permit released here
+
+      match integrate_result {
+        IntegrateResult::Approved => {
+          let _ = work::set_task_status(task_path, WorkStatus::Completed);
+          state.lock().unwrap().set_status(
+            &forge_task.id,
+            &forge_task.title,
+            TaskStatus::Success,
+          )?;
+          let _ = pipeline::clarification::cleanup_clarification(&repo_path, &forge_task.id);
+          return Ok(());
+        }
+        IntegrateResult::RebaseConflict => {
+          let _ = work::set_task_status(task_path, WorkStatus::Failed);
+          state
+            .lock()
+            .unwrap()
+            .set_error(&forge_task.id, "rebase conflict")?;
+          return Ok(());
+        }
+        IntegrateResult::ReviewRejected(result) => {
+          if attempt + 1 < max_attempts {
+            info!(
+              "review rejected for {forge_task}, retrying ({} remaining)",
+              max_attempts - attempt - 1
+            );
+            review_feedback = Some(result);
+            continue;
+          }
+          let _ = work::set_task_status(task_path, WorkStatus::Failed);
+          state
+            .lock()
+            .unwrap()
+            .set_error(&forge_task.id, "review rejected after retries")?;
+          return Ok(());
+        }
+        IntegrateResult::ReviewFailed(e) => {
+          warn!("review failed for {forge_task}: {e}, proceeding as approved");
+          let _ = work::set_task_status(task_path, WorkStatus::Completed);
+          state.lock().unwrap().set_status(
+            &forge_task.id,
+            &forge_task.title,
+            TaskStatus::Success,
+          )?;
+          let _ = pipeline::clarification::cleanup_clarification(&repo_path, &forge_task.id);
+          return Ok(());
+        }
+      }
+    }
   }
 
-  let tools = config.worker_tools.clone();
-  let exec_runner = ClaudeRunner::new(tools);
-  let forge_task_clone = forge_task.clone();
-  let task_clone = task.clone();
-  let config_clone = config.clone();
-  let models = config.models.clone();
-  let worktree_dir = config.worktree_dir.clone();
-  let worker_timeout_secs = config.worker_timeout_secs;
-
-  let exec_result = tokio::task::spawn_blocking(move || {
-    pipeline::execute::execute(
-      &forge_task_clone,
-      &task_clone,
-      &config_clone,
-      &exec_runner,
-      &models,
-      &worktree_dir,
-      worker_timeout_secs,
-      None,
-    )
-  })
-  .await
-  .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
-
-  if matches!(exec_result, ExecuteResult::Success { .. }) {
-    state
-      .lock()
-      .unwrap()
-      .set_status(&forge_task.id, &forge_task.title, TaskStatus::Success)?;
-    let _ = pipeline::clarification::cleanup_clarification(&repo_path, &forge_task.id);
-  }
-
-  Ok((forge_task, exec_result, task, task_path))
+  Ok(())
 }
 
 async fn cmd_run_dry(config: &Config, tasks: &[ForgeTask]) -> Result<()> {

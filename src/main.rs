@@ -329,7 +329,7 @@ async fn execute_task(
     s.set_branch(&forge_task.id, &forge_task.branch_name())?;
   }
 
-  let tools = config.all_tools();
+  let tools = config.worker_tools();
   let exec_runner = ClaudeRunner::new(tools);
   let forge_task_clone = forge_task.clone();
   let task_clone = task.clone();

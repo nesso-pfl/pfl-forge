@@ -1,6 +1,5 @@
 # pfl-forge.yaml — リポジトリルートに配置して pfl-forge を実行
 base_branch: main
-extra_tools: []
 
 settings:
   parallel_workers: 4

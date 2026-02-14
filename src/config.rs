@@ -9,8 +9,6 @@ pub struct Config {
   #[serde(default = "default_base_branch")]
   pub base_branch: String,
   #[serde(default)]
-  pub extra_tools: Vec<String>,
-  #[serde(default)]
   pub settings: Settings,
 }
 
@@ -130,14 +128,8 @@ impl Config {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
   }
 
-  pub fn all_tools(&self) -> Vec<String> {
-    let mut tools: Vec<String> = self.settings.worker_tools.clone();
-    for tool in &self.extra_tools {
-      if !tools.contains(tool) {
-        tools.push(tool.clone());
-      }
-    }
-    tools
+  pub fn worker_tools(&self) -> Vec<String> {
+    self.settings.worker_tools.clone()
   }
 }
 
@@ -153,14 +145,13 @@ mod tests {
   }
 
   #[test]
-  fn test_all_tools() {
+  fn test_worker_tools() {
     let config = Config {
       base_branch: "main".into(),
-      extra_tools: vec!["WebSearch".into()],
       settings: Settings::default(),
     };
-    let all = config.all_tools();
-    assert_eq!(all.len(), 7);
-    assert!(all.contains(&"WebSearch".to_string()));
+    let tools = config.worker_tools();
+    assert_eq!(tools.len(), 6);
+    assert!(tools.contains(&"Bash".to_string()));
   }
 }

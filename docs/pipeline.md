@@ -79,7 +79,7 @@ process_task (タスク単位で独立並列実行):
 
 | 区間 | 媒体 | ファイル/構造体 |
 |------|------|-----------------|
-| fetch → analyze | メモリ | `Vec<ForgeIssue>` |
+| fetch → analyze | メモリ | `Vec<Issue>` |
 | analyze → architect | メモリ | `AnalysisResult` |
 | architect → ユーザー | ファイル | `.forge/clarifications/{id}.md` |
 | ユーザー → analyze(再実行) | ファイル | `.forge/clarifications/{id}.answer.md` |

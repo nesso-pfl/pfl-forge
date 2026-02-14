@@ -4,7 +4,7 @@ use tracing::info;
 
 use crate::agents::analyze::AnalysisResult;
 use crate::error::Result;
-use crate::task::ForgeTask;
+use crate::task::Issue;
 
 pub struct ClarificationContext {
   pub previous_analysis: AnalysisResult,
@@ -25,7 +25,7 @@ fn answer_path(repo_path: &Path, task_id: &str) -> std::path::PathBuf {
 
 pub fn write_clarification(
   repo_path: &Path,
-  forge_task: &ForgeTask,
+  issue: &Issue,
   deep_result: &AnalysisResult,
   questions: &str,
 ) -> Result<()> {
@@ -47,16 +47,16 @@ Context: {context}
 ## Questions
 {questions}
 "#,
-    id = forge_task.id,
-    title = forge_task.title,
-    body = forge_task.body,
+    id = issue.id,
+    title = issue.title,
+    body = issue.body,
     files = deep_result.relevant_files.join(", "),
     plan = deep_result.plan,
     context = deep_result.context,
     questions = questions,
   );
 
-  let path = question_path(repo_path, &forge_task.id);
+  let path = question_path(repo_path, &issue.id);
   std::fs::write(&path, &content)?;
   info!("wrote clarification file: {}", path.display());
 

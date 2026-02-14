@@ -6,7 +6,7 @@ use tracing::info;
 use crate::agents::analyze::AnalysisResult;
 use crate::claude::model;
 use crate::error::Result;
-use crate::task::ForgeTask;
+use crate::task::Issue;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -20,9 +20,9 @@ pub enum WorkStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
-  pub task_id: String,
-  pub task_title: String,
-  pub task_body: String,
+  pub id: String,
+  pub title: String,
+  pub body: String,
   #[serde(default)]
   pub status: WorkStatus,
   pub complexity: String,
@@ -33,11 +33,11 @@ pub struct Task {
 }
 
 impl Task {
-  pub fn from_analysis(forge_task: &ForgeTask, deep: &AnalysisResult) -> Self {
+  pub fn from_analysis(issue: &Issue, deep: &AnalysisResult) -> Self {
     Self {
-      task_id: forge_task.id.clone(),
-      task_title: forge_task.title.clone(),
-      task_body: forge_task.body.clone(),
+      id: issue.id.clone(),
+      title: issue.title.clone(),
+      body: issue.body.clone(),
       status: WorkStatus::Pending,
       complexity: deep.complexity.clone(),
       plan: deep.plan.clone(),
@@ -60,16 +60,12 @@ fn task_filename(task_id: &str, index: u32) -> String {
   format!("{task_id}-{index:03}.yaml")
 }
 
-pub fn write_tasks(
-  repo_path: &Path,
-  forge_task: &ForgeTask,
-  deep: &AnalysisResult,
-) -> Result<Vec<PathBuf>> {
+pub fn write_tasks(repo_path: &Path, issue: &Issue, deep: &AnalysisResult) -> Result<Vec<PathBuf>> {
   let dir = work_dir(repo_path);
   std::fs::create_dir_all(&dir)?;
 
-  let task = Task::from_analysis(forge_task, deep);
-  let path = dir.join(task_filename(&forge_task.id, 1));
+  let task = Task::from_analysis(issue, deep);
+  let path = dir.join(task_filename(&issue.id, 1));
   let content = serde_yaml::to_string(&task)?;
   std::fs::write(&path, content)?;
 

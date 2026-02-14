@@ -3,9 +3,9 @@ use tracing::info;
 use crate::config::Config;
 use crate::error::Result;
 use crate::state::tracker::StateTracker;
-use crate::task::ForgeTask;
+use crate::task::Issue;
 
-pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeTask>> {
+pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<Issue>> {
   let repo_path = Config::repo_path();
   let tasks_dir = repo_path.join(".forge/tasks");
   if !tasks_dir.exists() {
@@ -13,7 +13,7 @@ pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeTa
     return Ok(Vec::new());
   }
 
-  let mut tasks = Vec::new();
+  let mut issues = Vec::new();
   let mut entries: Vec<_> = std::fs::read_dir(&tasks_dir)?
     .filter_map(|e| e.ok())
     .collect();
@@ -41,12 +41,12 @@ pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeTa
     }
 
     let content = std::fs::read_to_string(&path)?;
-    let mut task: ForgeTask = serde_yaml::from_str(&content)?;
-    task.id = id;
+    let mut issue: Issue = serde_yaml::from_str(&content)?;
+    issue.id = id;
 
-    tasks.push(task);
+    issues.push(issue);
   }
 
-  info!("local tasks: {}", tasks.len());
-  Ok(tasks)
+  info!("local tasks: {}", issues.len());
+  Ok(issues)
 }

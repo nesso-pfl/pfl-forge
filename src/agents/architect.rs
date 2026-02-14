@@ -8,7 +8,7 @@ use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
 use crate::prompt;
-use crate::task::ForgeTask;
+use crate::task::Issue;
 
 pub enum ArchitectOutcome {
   Resolved(AnalysisResult),
@@ -16,7 +16,7 @@ pub enum ArchitectOutcome {
 }
 
 pub fn resolve(
-  forge_task: &ForgeTask,
+  issue: &Issue,
   analysis: &AnalysisResult,
   config: &Config,
   runner: &ClaudeRunner,
@@ -34,9 +34,9 @@ pub fn resolve(
 - Relevant files: {prev_files}
 - Steps: {prev_steps}
 - Context: {prev_context}"#,
-    id = forge_task.id,
-    title = forge_task.title,
-    body = forge_task.body,
+    id = issue.id,
+    title = issue.title,
+    body = issue.body,
     prev_plan = analysis.plan,
     prev_files = analysis.relevant_files.join(", "),
     prev_steps = analysis.implementation_steps.join("; "),
@@ -45,7 +45,7 @@ pub fn resolve(
 
   let timeout = Some(Duration::from_secs(config.triage_timeout_secs));
 
-  info!("architect resolving: {forge_task}");
+  info!("architect resolving: {issue}");
   let raw: serde_json::Value = runner.run_json(
     &prompt,
     prompt::ARCHITECT,

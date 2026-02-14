@@ -9,9 +9,9 @@ use crate::claude::model;
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::{ForgeError, Result};
-use crate::task::work::Task;
 use crate::prompt;
-use crate::task::ForgeTask;
+use crate::task::work::Task;
+use crate::task::Issue;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewResult {
@@ -21,7 +21,7 @@ pub struct ReviewResult {
 }
 
 pub fn review(
-  forge_task: &ForgeTask,
+  issue: &Issue,
   task: &Task,
   config: &Config,
   runner: &ClaudeRunner,
@@ -46,16 +46,16 @@ pub fn review(
 ```
 {diff}
 ```"#,
-    id = forge_task.id,
-    title = forge_task.title,
-    body = forge_task.body,
+    id = issue.id,
+    title = issue.title,
+    body = issue.body,
     plan = task.plan,
     diff = truncate_diff(&diff, 50000),
   );
 
   let timeout = Some(Duration::from_secs(config.triage_timeout_secs));
 
-  info!("reviewing: {forge_task}");
+  info!("reviewing: {issue}");
   let result: ReviewResult = runner.run_json(
     &prompt,
     prompt::REVIEW,

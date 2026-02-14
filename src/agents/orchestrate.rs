@@ -1,8 +1,8 @@
 use crate::config::Config;
 use crate::error::Result;
-use crate::task::clarification;
 use crate::prompt;
 use crate::state::tracker::StateTracker;
+use crate::task::clarification;
 
 pub fn launch(config: &Config, model: Option<&str>) -> Result<()> {
   let state = StateTracker::load(&config.state_file)?;

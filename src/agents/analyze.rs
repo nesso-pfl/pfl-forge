@@ -9,7 +9,7 @@ use crate::config::Config;
 use crate::error::Result;
 use crate::prompt;
 use crate::task::clarification::ClarificationContext;
-use crate::task::ForgeTask;
+use crate::task::Issue;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisResult {
@@ -29,7 +29,7 @@ impl AnalysisResult {
 }
 
 pub fn analyze(
-  forge_task: &ForgeTask,
+  issue: &Issue,
   config: &Config,
   runner: &ClaudeRunner,
   repo_path: &std::path::Path,
@@ -37,7 +37,7 @@ pub fn analyze(
 ) -> Result<AnalysisResult> {
   let deep_model = model::resolve(&config.models.triage_deep);
 
-  let labels = forge_task.labels.join(", ");
+  let labels = issue.labels.join(", ");
 
   let clarification_section = if let Some(ctx) = clarification {
     format!(
@@ -67,16 +67,16 @@ questions from the prior attempt. Update the plan accordingly."#,
 Labels: {labels}
 
 {body}{clarification_section}"#,
-    id = forge_task.id,
-    title = forge_task.title,
+    id = issue.id,
+    title = issue.title,
     labels = labels,
-    body = forge_task.body,
+    body = issue.body,
     clarification_section = clarification_section,
   );
 
   let timeout = Some(Duration::from_secs(config.triage_timeout_secs));
 
-  info!("analyzing: {forge_task}");
+  info!("analyzing: {issue}");
   let result: AnalysisResult =
     runner.run_json(&prompt, prompt::ANALYZE, deep_model, repo_path, timeout)?;
 

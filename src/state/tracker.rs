@@ -44,10 +44,7 @@ impl IssueStatus {
   pub fn is_terminal(&self) -> bool {
     matches!(
       self,
-      IssueStatus::Success
-        | IssueStatus::Skipped
-        | IssueStatus::NeedsClarification
-        | IssueStatus::TestFailure
+      IssueStatus::Success | IssueStatus::Skipped | IssueStatus::NeedsClarification
     )
   }
 
@@ -256,7 +253,7 @@ mod tests {
     assert!(IssueStatus::Success.is_terminal());
     assert!(IssueStatus::Skipped.is_terminal());
     assert!(IssueStatus::NeedsClarification.is_terminal());
-    assert!(IssueStatus::TestFailure.is_terminal());
+    assert!(!IssueStatus::TestFailure.is_terminal());
     assert!(!IssueStatus::Error.is_terminal());
     assert!(!IssueStatus::Pending.is_terminal());
     assert!(!IssueStatus::Triaging.is_terminal());

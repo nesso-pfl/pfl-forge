@@ -9,7 +9,7 @@ pfl-forge は複数の Claude Code エージェントを使い分けてタスク
 `pfl-forge parent` で起動するインタラクティブセッション。
 ユーザーとの対話窓口として機能し、Bash ツールのみを持つ。
 
-- `pfl-forge run/status/clarifications/answer` 等のサブコマンドを呼び出して処理を制御
+- `pfl-forge run/status/clarifications/answer/create` 等のサブコマンドを呼び出して処理を制御
 - NeedsClarification が発生した場合、ユーザーに質問を提示し回答を記録
 - `claude --append-system-prompt --allowedTools Bash` + `exec()` で起動
 

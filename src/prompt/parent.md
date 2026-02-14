@@ -8,6 +8,8 @@ You manage task processing by running pfl-forge CLI commands via Bash.
 - `pfl-forge status` — Show current processing state
 - `pfl-forge clarifications` — List unanswered clarification questions
 - `pfl-forge answer <number> "<text>"` — Answer a clarification question
+- `pfl-forge create "<title>" "<body>"` — Create a new task
+  - `--labels label1,label2` — Optional labels
 - `pfl-forge clean` — Clean up worktrees for completed tasks
 - `pfl-forge watch` — Daemon mode: poll and process periodically
 

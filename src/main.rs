@@ -69,6 +69,16 @@ enum Commands {
     #[arg(long)]
     model: Option<String>,
   },
+  /// Create a new task in .forge/tasks/
+  Create {
+    /// Task title
+    title: String,
+    /// Task body (description)
+    body: String,
+    /// Labels (comma-separated)
+    #[arg(long, value_delimiter = ',')]
+    labels: Vec<String>,
+  },
 }
 
 enum TriageOutcome {
@@ -109,6 +119,11 @@ async fn run(cli: Cli) -> Result<()> {
     Commands::Clarifications => cmd_clarifications(&config),
     Commands::Answer { id, text } => cmd_answer(&config, &id, &text),
     Commands::Parent { model } => cmd_parent(&config, model.as_deref()),
+    Commands::Create {
+      title,
+      body,
+      labels,
+    } => cmd_create(&title, &body, &labels),
   }
 }
 
@@ -479,6 +494,35 @@ fn cmd_answer(config: &Config, id: &str, text: &str) -> Result<()> {
   state.reset_to_pending(id)?;
 
   println!("Answered clarification for {id} and reset to pending.");
+  Ok(())
+}
+
+fn cmd_create(title: &str, body: &str, labels: &[String]) -> Result<()> {
+  #[derive(serde::Serialize)]
+  struct TaskFile {
+    title: String,
+    body: String,
+    labels: Vec<String>,
+  }
+
+  let repo_path = Config::repo_path();
+  let tasks_dir = repo_path.join(".forge/tasks");
+  std::fs::create_dir_all(&tasks_dir)?;
+
+  let id = uuid::Uuid::new_v4().to_string();
+  let task = TaskFile {
+    title: title.to_string(),
+    body: body.to_string(),
+    labels: labels.to_vec(),
+  };
+
+  let path = tasks_dir.join(format!("{id}.yaml"));
+  let yaml = serde_yaml::to_string(&task)?;
+  std::fs::write(&path, &yaml)?;
+
+  println!("Created task {id}");
+  println!("{}", path.display());
+
   Ok(())
 }
 

@@ -29,6 +29,7 @@ Multi-agent task processor powered by Claude Code.
 - `clean` — 完了済み worktree の削除
 - `clarifications` — 未回答の clarification 一覧
 - `answer <id> "<text>"` — clarification への回答
+- `create "<title>" "<body>"` — タスク作成 (`--labels` オプション)
 - `parent` — 親エージェント (interactive Claude Code session) を起動
 
 ## Development

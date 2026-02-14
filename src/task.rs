@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ForgeIssue {
+pub struct ForgeTask {
   pub id: String,
   pub title: String,
   pub body: String,
@@ -10,7 +10,7 @@ pub struct ForgeIssue {
   pub created_at: DateTime<Utc>,
 }
 
-impl ForgeIssue {
+impl ForgeTask {
   pub fn branch_name(&self) -> String {
     format!("forge/{}", self.id)
   }
@@ -20,7 +20,7 @@ impl ForgeIssue {
   }
 }
 
-impl std::fmt::Display for ForgeIssue {
+impl std::fmt::Display for ForgeTask {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}: {}", self.id, self.title)
   }

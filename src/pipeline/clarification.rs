@@ -4,7 +4,7 @@ use tracing::info;
 
 use crate::error::Result;
 use crate::pipeline::triage::DeepTriageResult;
-use crate::task::ForgeIssue;
+use crate::task::ForgeTask;
 
 pub struct ClarificationContext {
   pub previous_analysis: DeepTriageResult,
@@ -26,7 +26,7 @@ fn answer_path(repo_path: &Path, issue_id: &str) -> std::path::PathBuf {
 
 pub fn write_clarification(
   repo_path: &Path,
-  issue: &ForgeIssue,
+  issue: &ForgeTask,
   deep_result: &DeepTriageResult,
   questions: &str,
 ) -> Result<()> {

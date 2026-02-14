@@ -3,9 +3,9 @@ use tracing::info;
 use crate::error::Result;
 use crate::pipeline::execute::ExecuteResult;
 use crate::state::tracker::{IssueStatus, SharedState};
-use crate::task::ForgeIssue;
+use crate::task::ForgeTask;
 
-pub fn report(issue: &ForgeIssue, result: &ExecuteResult, state: &SharedState) -> Result<()> {
+pub fn report(issue: &ForgeTask, result: &ExecuteResult, state: &SharedState) -> Result<()> {
   let branch = issue.branch_name();
 
   match result {

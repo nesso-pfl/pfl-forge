@@ -4,7 +4,7 @@ use tracing::info;
 
 use crate::error::Result;
 use crate::pipeline::triage::{DeepTriageResult, Task, TaskStatus};
-use crate::task::ForgeIssue;
+use crate::task::ForgeTask;
 
 fn work_dir(repo_path: &Path) -> PathBuf {
   repo_path.join(".forge").join("work")
@@ -16,7 +16,7 @@ fn task_filename(issue_id: &str, index: u32) -> String {
 
 pub fn write_tasks(
   repo_path: &Path,
-  issue: &ForgeIssue,
+  issue: &ForgeTask,
   deep: &DeepTriageResult,
 ) -> Result<Vec<PathBuf>> {
   let dir = work_dir(repo_path);

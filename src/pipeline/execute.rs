@@ -9,7 +9,7 @@ use crate::error::Result;
 use crate::git;
 use crate::pipeline::triage::Task;
 use crate::prompt;
-use crate::task::ForgeIssue;
+use crate::task::ForgeTask;
 
 pub fn write_task_yaml(worktree_path: &Path, task: &Task) -> Result<()> {
   let forge_dir = worktree_path.join(".forge");
@@ -43,7 +43,7 @@ pub enum ExecuteResult {
 }
 
 pub fn execute(
-  issue: &ForgeIssue,
+  issue: &ForgeTask,
   task: &Task,
   config: &Config,
   runner: &ClaudeRunner,
@@ -118,7 +118,7 @@ pub fn execute(
   }
 }
 
-fn build_worker_prompt(issue: &ForgeIssue, test_command: &str) -> String {
+fn build_worker_prompt(issue: &ForgeTask, test_command: &str) -> String {
   format!(
     r#"## Issue {id}: {title}
 

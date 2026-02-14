@@ -8,7 +8,7 @@ use crate::pipeline::execute::ExecuteResult;
 use crate::pipeline::review::{self, ReviewResult};
 use crate::pipeline::triage::Task;
 use crate::state::tracker::{IssueStatus, SharedState};
-use crate::task::ForgeIssue;
+use crate::task::ForgeTask;
 
 fn write_review_yaml(worktree_path: &std::path::Path, result: &ReviewResult) -> Result<()> {
   let forge_dir = worktree_path.join(".forge");
@@ -19,7 +19,7 @@ fn write_review_yaml(worktree_path: &std::path::Path, result: &ReviewResult) -> 
 }
 
 pub struct WorkerOutput {
-  pub issue: ForgeIssue,
+  pub issue: ForgeTask,
   pub result: ExecuteResult,
   pub task: Task,
   pub task_path: std::path::PathBuf,

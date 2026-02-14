@@ -9,7 +9,7 @@ use crate::config::Config;
 use crate::error::Result;
 use crate::pipeline::clarification::ClarificationContext;
 use crate::prompt;
-use crate::task::ForgeIssue;
+use crate::task::ForgeTask;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeepTriageResult {
@@ -45,7 +45,7 @@ pub struct Task {
 }
 
 impl Task {
-  pub fn from_triage(issue: &ForgeIssue, deep: &DeepTriageResult) -> Self {
+  pub fn from_triage(issue: &ForgeTask, deep: &DeepTriageResult) -> Self {
     Self {
       issue_id: issue.id.clone(),
       issue_title: issue.title.clone(),
@@ -82,7 +82,7 @@ pub enum ConsultationOutcome {
 }
 
 pub fn deep_triage(
-  issue: &ForgeIssue,
+  issue: &ForgeTask,
   config: &Config,
   runner: &ClaudeRunner,
   repo_path: &std::path::Path,
@@ -145,7 +145,7 @@ Labels: {labels}
 }
 
 pub fn consult(
-  issue: &ForgeIssue,
+  issue: &ForgeTask,
   deep_result: &DeepTriageResult,
   config: &Config,
   runner: &ClaudeRunner,

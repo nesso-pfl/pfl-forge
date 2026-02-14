@@ -24,7 +24,7 @@ use crate::pipeline::integrate::WorkerOutput;
 use crate::pipeline::triage::{self, ConsultationOutcome, DeepTriageResult, Task, TaskStatus};
 use crate::pipeline::work;
 use crate::state::tracker::{IssueStatus, SharedState, StateTracker};
-use crate::task::ForgeIssue;
+use crate::task::ForgeTask;
 
 #[derive(Parser)]
 #[command(
@@ -72,9 +72,9 @@ enum Commands {
 }
 
 enum TriageOutcome {
-  Tasks(Vec<(PathBuf, ForgeIssue)>),
+  Tasks(Vec<(PathBuf, ForgeTask)>),
   NeedsClarification {
-    issue: ForgeIssue,
+    issue: ForgeTask,
     message: String,
     deep_result: DeepTriageResult,
     repo_path: PathBuf,
@@ -146,7 +146,7 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
     });
   }
 
-  let mut task_entries: Vec<(PathBuf, ForgeIssue)> = Vec::new();
+  let mut task_entries: Vec<(PathBuf, ForgeTask)> = Vec::new();
 
   while let Some(result) = triage_set.join_next().await {
     match result {
@@ -226,7 +226,7 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
 }
 
 async fn triage_issue(
-  issue: ForgeIssue,
+  issue: ForgeTask,
   config: &Config,
   state: &SharedState,
 ) -> Result<TriageOutcome> {
@@ -299,7 +299,7 @@ async fn triage_issue(
   // Write task YAML to .forge/work/
   let task_paths = work::write_tasks(&repo_path, &issue, &deep_result)?;
 
-  let entries: Vec<(PathBuf, ForgeIssue)> =
+  let entries: Vec<(PathBuf, ForgeTask)> =
     task_paths.into_iter().map(|p| (p, issue.clone())).collect();
 
   Ok(TriageOutcome::Tasks(entries))
@@ -307,7 +307,7 @@ async fn triage_issue(
 
 async fn execute_task(
   task_path: PathBuf,
-  issue: ForgeIssue,
+  issue: ForgeTask,
   config: &Config,
   state: &SharedState,
 ) -> Result<WorkerOutput> {
@@ -363,7 +363,7 @@ async fn execute_task(
   })
 }
 
-async fn cmd_run_dry(config: &Config, issues: &[ForgeIssue]) -> Result<()> {
+async fn cmd_run_dry(config: &Config, issues: &[ForgeTask]) -> Result<()> {
   let deep_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
   let repo_path = Config::repo_path();
 

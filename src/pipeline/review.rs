@@ -11,7 +11,7 @@ use crate::config::Config;
 use crate::error::{ForgeError, Result};
 use crate::pipeline::triage::Task;
 use crate::prompt;
-use crate::task::ForgeIssue;
+use crate::task::ForgeTask;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewResult {
@@ -21,7 +21,7 @@ pub struct ReviewResult {
 }
 
 pub fn review(
-  issue: &ForgeIssue,
+  issue: &ForgeTask,
   task: &Task,
   config: &Config,
   runner: &ClaudeRunner,

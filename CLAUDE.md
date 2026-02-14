@@ -7,7 +7,7 @@ Multi-agent task processor powered by Claude Code.
 - `src/pipeline/` — fetch → triage (deep → consult) → work (task YAML) → execute → integrate (rebase → test → review) / report の各ステージ
 - `src/claude/` — Claude Code CLI (`claude -p`) のラッパー
 - `src/git/` — worktree/branch 操作
-- `src/task.rs` — `ForgeIssue` 定義（ローカルタスク）
+- `src/task.rs` — `ForgeTask` 定義（ローカルタスク）
 - `src/state/` — YAML ファイルベースの状態管理
 - `src/prompt/` — 各エージェントの system prompt（`.md` ファイル、`include_str!` で埋め込み）
 - `src/parent_prompt.rs` — 親エージェント用 prompt 生成

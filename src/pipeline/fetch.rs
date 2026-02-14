@@ -3,7 +3,7 @@ use tracing::info;
 use crate::config::Config;
 use crate::error::Result;
 use crate::state::tracker::StateTracker;
-use crate::task::ForgeIssue;
+use crate::task::ForgeTask;
 
 #[derive(serde::Deserialize)]
 struct LocalTask {
@@ -13,7 +13,7 @@ struct LocalTask {
   labels: Vec<String>,
 }
 
-pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeIssue>> {
+pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeTask>> {
   let repo_path = Config::repo_path();
   let tasks_dir = repo_path.join(".forge/tasks");
   if !tasks_dir.exists() {
@@ -51,7 +51,7 @@ pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeIs
     let content = std::fs::read_to_string(&path)?;
     let task: LocalTask = serde_yaml::from_str(&content)?;
 
-    issues.push(ForgeIssue {
+    issues.push(ForgeTask {
       id,
       title: task.title,
       body: task.body,

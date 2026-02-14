@@ -6,7 +6,6 @@ extra_tools: []
 settings:
   parallel_workers: 4
   models:
-    triage: haiku
     triage_deep: sonnet
     default: sonnet
     complex: opus

@@ -40,8 +40,6 @@ pub struct Settings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelSettings {
-  #[serde(default = "default_triage_model")]
-  pub triage: String,
   #[serde(default = "default_triage_deep_model")]
   pub triage_deep: String,
   #[serde(default = "default_model")]
@@ -69,7 +67,6 @@ impl Default for Settings {
 impl Default for ModelSettings {
   fn default() -> Self {
     Self {
-      triage: default_triage_model(),
       triage_deep: default_triage_deep_model(),
       default: default_model(),
       complex: default_complex_model(),
@@ -113,9 +110,6 @@ fn default_triage_timeout() -> u64 {
 }
 fn default_triage_tools() -> Vec<String> {
   vec!["Read".into(), "Glob".into(), "Grep".into()]
-}
-fn default_triage_model() -> String {
-  "haiku".to_string()
 }
 fn default_triage_deep_model() -> String {
   "sonnet".to_string()

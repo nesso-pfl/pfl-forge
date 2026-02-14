@@ -1,10 +1,56 @@
 use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use crate::agents::triage::DeepTriageResult;
+use crate::claude::model;
 use crate::error::Result;
-use crate::pipeline::triage::{DeepTriageResult, Task, WorkStatus};
 use crate::task::ForgeTask;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkStatus {
+  #[default]
+  Pending,
+  Executing,
+  Completed,
+  Failed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Task {
+  pub task_id: String,
+  pub task_title: String,
+  pub task_body: String,
+  #[serde(default)]
+  pub status: WorkStatus,
+  pub complexity: String,
+  pub plan: String,
+  pub relevant_files: Vec<String>,
+  pub implementation_steps: Vec<String>,
+  pub context: String,
+}
+
+impl Task {
+  pub fn from_triage(forge_task: &ForgeTask, deep: &DeepTriageResult) -> Self {
+    Self {
+      task_id: forge_task.id.clone(),
+      task_title: forge_task.title.clone(),
+      task_body: forge_task.body.clone(),
+      status: WorkStatus::Pending,
+      complexity: deep.complexity.clone(),
+      plan: deep.plan.clone(),
+      relevant_files: deep.relevant_files.clone(),
+      implementation_steps: deep.implementation_steps.clone(),
+      context: deep.context.clone(),
+    }
+  }
+
+  pub fn complexity(&self) -> model::Complexity {
+    self.complexity.parse().unwrap_or(model::Complexity::Medium)
+  }
+}
 
 fn work_dir(repo_path: &Path) -> PathBuf {
   repo_path.join(".forge").join("work")

@@ -1,3 +1,4 @@
+mod agents;
 mod claude;
 mod config;
 mod error;
@@ -16,13 +17,14 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tracing::{error, info, warn};
 
+use crate::agents::consult::ConsultationOutcome;
+use crate::agents::triage::{self as agents_triage, DeepTriageResult};
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
 use crate::pipeline::execute::ExecuteResult;
 use crate::pipeline::integrate::WorkerOutput;
-use crate::pipeline::triage::{self, ConsultationOutcome, DeepTriageResult, Task, WorkStatus};
-use crate::pipeline::work;
+use crate::pipeline::work::{self, Task, WorkStatus};
 use crate::state::tracker::{SharedState, StateTracker, TaskStatus};
 use crate::task::ForgeTask;
 
@@ -263,7 +265,7 @@ async fn triage_task(
   let config_clone = config.clone();
   let repo_path_clone = repo_path.clone();
   let deep_result = tokio::task::spawn_blocking(move || {
-    triage::deep_triage(
+    agents_triage::deep_triage(
       &task_clone,
       &config_clone,
       &deep_runner,
@@ -284,7 +286,7 @@ async fn triage_task(
     let config_clone = config.clone();
     let repo_path_clone = repo_path.clone();
     let outcome = tokio::task::spawn_blocking(move || {
-      triage::consult(
+      agents::consult::consult(
         &task_clone,
         &deep_clone,
         &config_clone,
@@ -388,7 +390,7 @@ async fn cmd_run_dry(config: &Config, tasks: &[ForgeTask]) -> Result<()> {
   let repo_path = Config::repo_path();
 
   for forge_task in tasks {
-    let deep = triage::deep_triage(forge_task, config, &deep_runner, &repo_path, None)?;
+    let deep = agents_triage::deep_triage(forge_task, config, &deep_runner, &repo_path, None)?;
 
     println!("--- {} ---", forge_task);
     println!("Complexity: {}", deep.complexity);

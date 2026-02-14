@@ -2,8 +2,8 @@ use std::path::Path;
 
 use tracing::info;
 
+use crate::agents::triage::DeepTriageResult;
 use crate::error::Result;
-use crate::pipeline::triage::DeepTriageResult;
 use crate::task::ForgeTask;
 
 pub struct ClarificationContext {

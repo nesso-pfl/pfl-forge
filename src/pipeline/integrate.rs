@@ -1,12 +1,12 @@
 use tracing::{info, warn};
 
+use crate::agents::review::{self, ReviewResult};
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
 use crate::git;
 use crate::pipeline::execute::ExecuteResult;
-use crate::pipeline::review::{self, ReviewResult};
-use crate::pipeline::triage::Task;
+use crate::pipeline::work::Task;
 use crate::state::tracker::{SharedState, TaskStatus};
 use crate::task::ForgeTask;
 

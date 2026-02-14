@@ -2,7 +2,8 @@
 
 pfl-forge は複数の Claude Code エージェントを使い分けてタスクを処理する。
 
-各エージェントの system prompt は `src/prompt/*.md` に定義されており、`--append-system-prompt` で渡される。
+各エージェントの呼び出しロジック（プロンプト組み立て・Claude CLI 実行・出力パース）は `src/agents/` に、system prompt は `src/prompt/*.md` に定義されている。
+オーケストレーション（ファイル I/O、state 管理、worktree 操作）は `src/pipeline/` に分離されている。
 
 ## Parent Agent
 

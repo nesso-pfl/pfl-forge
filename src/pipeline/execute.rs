@@ -3,12 +3,12 @@ use std::time::Duration;
 
 use tracing::info;
 
+use crate::agents::worker;
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
 use crate::git;
-use crate::pipeline::triage::Task;
-use crate::prompt;
+use crate::pipeline::work::Task;
 use crate::task::ForgeTask;
 
 pub fn write_task_yaml(worktree_path: &Path, task: &Task) -> Result<()> {
@@ -67,22 +67,12 @@ pub fn execute(
   let complexity = task.complexity();
   let selected_model = complexity.select_model(model_settings);
 
-  // Build the worker prompt
-  let prompt = build_worker_prompt(forge_task);
-
   // Run Claude Code Worker
   let timeout = Some(Duration::from_secs(worker_timeout_secs));
-  let result = runner.run_prompt(
-    &prompt,
-    prompt::WORKER,
-    selected_model,
-    &worktree_path,
-    timeout,
-  );
+  let result = worker::run_worker(forge_task, runner, selected_model, &worktree_path, timeout);
 
   match result {
     Ok(_output) => {
-      // Check if there are commits
       let commits =
         git::branch::commit_count(&worktree_path, &config.base_branch, "HEAD").unwrap_or(0);
 
@@ -98,15 +88,4 @@ pub fn execute(
     }
     Err(e) => Ok(ExecuteResult::Error(e.to_string())),
   }
-}
-
-fn build_worker_prompt(forge_task: &ForgeTask) -> String {
-  format!(
-    r#"## Task {id}: {title}
-
-{body}"#,
-    id = forge_task.id,
-    title = forge_task.title,
-    body = forge_task.body,
-  )
 }

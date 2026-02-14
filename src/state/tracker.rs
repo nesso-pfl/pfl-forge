@@ -42,10 +42,7 @@ pub enum IssueStatus {
 
 impl IssueStatus {
   pub fn is_terminal(&self) -> bool {
-    matches!(
-      self,
-      IssueStatus::Success | IssueStatus::Skipped | IssueStatus::NeedsClarification
-    )
+    matches!(self, IssueStatus::Success | IssueStatus::Skipped)
   }
 }
 
@@ -96,16 +93,6 @@ impl StateTracker {
 
   pub fn is_terminal(&self, id: &str) -> bool {
     self.get(id).is_some_and(|s| s.status.is_terminal())
-  }
-
-  pub fn needs_clarification_issues(&self) -> Vec<String> {
-    self
-      .state
-      .issues
-      .values()
-      .filter(|s| s.status == IssueStatus::NeedsClarification)
-      .map(|s| s.id.clone())
-      .collect()
   }
 
   pub fn set_status(&mut self, id: &str, title: &str, status: IssueStatus) -> Result<()> {
@@ -228,7 +215,7 @@ mod tests {
   fn test_is_terminal() {
     assert!(IssueStatus::Success.is_terminal());
     assert!(IssueStatus::Skipped.is_terminal());
-    assert!(IssueStatus::NeedsClarification.is_terminal());
+    assert!(!IssueStatus::NeedsClarification.is_terminal());
     assert!(!IssueStatus::TestFailure.is_terminal());
     assert!(!IssueStatus::Error.is_terminal());
     assert!(!IssueStatus::Pending.is_terminal());

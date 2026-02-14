@@ -115,23 +115,10 @@ async fn run(cli: Cli) -> Result<()> {
 async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
   let state = StateTracker::load(&config.settings.state_file)?.into_shared();
 
-  let mut issues = {
+  let issues = {
     let s = state.lock().unwrap();
     pipeline::fetch::fetch_tasks(config, &s)?
   };
-
-  // Fetch tasks that received clarification answers
-  {
-    let clarified = {
-      let s = state.lock().unwrap();
-      pipeline::fetch::fetch_clarified_tasks(config, &s)?
-    };
-    for issue in clarified {
-      if !issues.iter().any(|i| i.id == issue.id) {
-        issues.push(issue);
-      }
-    }
-  }
 
   if issues.is_empty() {
     info!("no issues to process");

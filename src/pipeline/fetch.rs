@@ -2,7 +2,6 @@ use tracing::info;
 
 use crate::config::Config;
 use crate::error::Result;
-use crate::pipeline::clarification;
 use crate::state::tracker::StateTracker;
 use crate::task::ForgeIssue;
 
@@ -62,37 +61,5 @@ pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeIs
   }
 
   info!("local tasks: {}", issues.len());
-  Ok(issues)
-}
-
-pub fn fetch_clarified_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeIssue>> {
-  let repo_path = Config::repo_path();
-  let needs_clarification = state.needs_clarification_issues();
-  let mut issues = Vec::new();
-
-  for id in needs_clarification {
-    if clarification::check_clarification(&repo_path, &id)?.is_none() {
-      continue;
-    }
-
-    let task_path = repo_path.join(".forge/tasks").join(format!("{id}.yaml"));
-    if !task_path.exists() {
-      continue;
-    }
-
-    let content = std::fs::read_to_string(&task_path)?;
-    let task: LocalTask = serde_yaml::from_str(&content)?;
-
-    info!("clarification answered, re-processing: {id}");
-    issues.push(ForgeIssue {
-      id,
-      title: task.title,
-      body: task.body,
-      labels: task.labels,
-      created_at: chrono::Utc::now(),
-    });
-  }
-
-  info!("clarified tasks: {}", issues.len());
   Ok(issues)
 }

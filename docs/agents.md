@@ -2,6 +2,8 @@
 
 pfl-forge は複数の Claude Code エージェントを使い分けて issue を処理する。
 
+各エージェントの system prompt は `src/prompt/*.md` に定義されており、`--append-system-prompt` で渡される。
+
 ## Parent Agent
 
 `pfl-forge parent` で起動するインタラクティブセッション。

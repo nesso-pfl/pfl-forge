@@ -9,6 +9,7 @@ Multi-agent issue processor powered by Claude Code.
 - `src/git/` — worktree/branch 操作
 - `src/github/` — octocrab による GitHub API 操作
 - `src/state/` — YAML ファイルベースの状態管理
+- `src/prompt/` — 各エージェントの system prompt（`.md` ファイル、`include_str!` で埋め込み）
 - `src/parent_prompt.rs` — 親エージェント用 prompt 生成
 
 エージェント構成の詳細は [docs/agents.md](docs/agents.md) を参照。
@@ -32,7 +33,7 @@ cargo test
 
 ## Key conventions
 
-- Worker は `claude -p --allowedTools` で起動（`--dangerously-skip-permissions` は使わない）
+- Worker は `claude -p --allowedTools --append-system-prompt` で起動（`--dangerously-skip-permissions` は使わない）
 - Parent は `claude --append-system-prompt --allowedTools Bash` + `exec()` で起動
 - `env_remove("CLAUDECODE")` で nested Claude Code 呼び出しを有効化
 - Git worktree でワーカー間のファイルシステム隔離

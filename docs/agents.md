@@ -1,6 +1,6 @@
 # Agents
 
-pfl-forge は複数の Claude Code エージェントを使い分けて issue を処理する。
+pfl-forge は複数の Claude Code エージェントを使い分けてタスクを処理する。
 
 各エージェントの system prompt は `src/prompt/*.md` に定義されており、`--append-system-prompt` で渡される。
 
@@ -15,7 +15,7 @@ pfl-forge は複数の Claude Code エージェントを使い分けて issue �
 
 ## Deep Triage Agent
 
-issue の詳細分析を行う読み取り専用エージェント。`claude -p` で非対話実行。
+タスクの詳細分析を行う読み取り専用エージェント。`claude -p` で非対話実行。
 
 - モデル: `settings.models.triage_deep` (default: sonnet)
 - ツール: `settings.triage_tools` (default: Read, Glob, Grep)
@@ -38,7 +38,7 @@ Deep Triage で十分な分析ができなかった場合に呼ばれる補助�
 - モデル: complexity に応じて `settings.models.default` (low/medium) または `settings.models.complex` (high)
 - ツール: `settings.worker_tools` + `repo.extra_tools` (default: Bash, Read, Write, Edit, Glob, Grep)
 - worktree 内の `.forge/task.yaml` から実装計画・関連ファイル・ステップ・コンテキストを読み取る
-- worktree 内で issue の実装を行い、コミットを作成
+- worktree 内でタスクの実装を行い、コミットを作成
 - 出力: `ExecuteResult` (Success, TestFailure, Unclear, Error)
 
 ## Review Agent
@@ -47,9 +47,9 @@ Worker の成果物を検証するコードレビューエージェント。
 
 - モデル: `settings.models.default` (default: sonnet)
 - ツール: `settings.triage_tools` (default: Read, Glob, Grep)
-- base branch との diff をレビューし、issue の要件を満たしているか判定
+- base branch との diff をレビューし、タスクの要件を満たしているか判定
 - 出力: `ReviewResult` (approved, issues, suggestions)
-- integrate フロー内で呼ばれ、approved でなければ PR 説明に指摘事項を含める
+- integrate フロー内で呼ばれ、approved でなければブランチを残してエラー状態にする
 
 ## Agent 間の YAML 通信
 

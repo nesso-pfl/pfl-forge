@@ -7,7 +7,7 @@ use crate::claude::model;
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
-use crate::github::issue::ForgeIssue;
+use crate::task::ForgeIssue;
 use crate::pipeline::clarification::ClarificationContext;
 use crate::prompt;
 
@@ -121,7 +121,7 @@ Issue #{number}: {title}
 Labels: {labels}
 
 {body}{clarification_section}"#,
-    repo = issue.full_repo(),
+    repo = issue.repo_name,
     number = issue.number,
     title = issue.title,
     labels = labels,
@@ -166,7 +166,7 @@ Issue #{number}: {title}
 - Relevant files: {prev_files}
 - Steps: {prev_steps}
 - Context: {prev_context}"#,
-    repo = issue.full_repo(),
+    repo = issue.repo_name,
     number = issue.number,
     title = issue.title,
     body = issue.body,

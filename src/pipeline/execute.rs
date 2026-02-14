@@ -7,7 +7,7 @@ use crate::claude::runner::ClaudeRunner;
 use crate::config::RepoConfig;
 use crate::error::Result;
 use crate::git;
-use crate::github::issue::ForgeIssue;
+use crate::task::ForgeIssue;
 use crate::pipeline::triage::Task;
 use crate::prompt;
 

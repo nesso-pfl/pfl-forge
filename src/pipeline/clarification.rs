@@ -3,7 +3,7 @@ use std::path::Path;
 use tracing::info;
 
 use crate::error::Result;
-use crate::github::issue::ForgeIssue;
+use crate::task::ForgeIssue;
 use crate::pipeline::triage::DeepTriageResult;
 
 pub struct ClarificationContext {

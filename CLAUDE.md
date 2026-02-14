@@ -38,4 +38,4 @@ cargo test
 - `env_remove("CLAUDECODE")` で nested Claude Code 呼び出しを有効化
 - Git worktree でワーカー間のファイルシステム隔離
 - octocrab で GitHub API 操作（`gh` CLI 不要）
-- 設計変更時は docs/ 配下のドキュメント更新も検討すること
+- コミット前に、変更が CLAUDE.md や docs/ の記述と矛盾しないか確認し、必要なら同じコミットで更新すること

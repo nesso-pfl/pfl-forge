@@ -16,14 +16,13 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tracing::{error, info, warn};
 
-use crate::agents::analyze;
 use crate::agents::architect::ArchitectOutcome;
 use crate::agents::review::ReviewResult;
+use crate::agents::{analyze, implement, review};
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
 use crate::pipeline::execute::ExecuteResult;
-use crate::pipeline::integrate::IntegrateResult;
 use crate::pipeline::work::{self, WorkStatus};
 use crate::state::tracker::{SharedState, StateTracker, TaskStatus};
 use crate::task::ForgeTask;
@@ -252,7 +251,20 @@ async fn process_task(
   let content = std::fs::read_to_string(task_path)?;
   let task: work::Task = serde_yaml::from_str(&content)?;
 
-  // --- Execute + Integrate loop with review retries ---
+  // --- Prepare worktree ---
+  let prepare_result = {
+    let forge_task_clone = forge_task.clone();
+    let task_clone = task.clone();
+    let config_clone = config.clone();
+    let worktree_dir = config.worktree_dir.clone();
+    tokio::task::spawn_blocking(move || {
+      pipeline::execute::prepare(&forge_task_clone, &task_clone, &config_clone, &worktree_dir)
+    })
+    .await
+    .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??
+  };
+
+  // --- Implement + Review loop ---
   let max_attempts = config.max_review_retries + 1;
   let mut review_feedback: Option<ReviewResult> = None;
 
@@ -265,7 +277,7 @@ async fn process_task(
       );
     }
 
-    // Execute phase
+    // --- Implement ---
     {
       work::set_task_status(task_path, WorkStatus::Executing)?;
       {
@@ -276,32 +288,44 @@ async fn process_task(
 
       let _permit = semaphore.acquire().await.expect("semaphore closed");
 
-      let tools = config.worker_tools.clone();
-      let exec_runner = ClaudeRunner::new(tools);
+      let impl_runner = ClaudeRunner::new(config.worker_tools.clone());
       let forge_task_clone = forge_task.clone();
-      let task_clone = task.clone();
-      let config_clone = config.clone();
-      let models = config.models.clone();
-      let worktree_dir = config.worktree_dir.clone();
-      let worker_timeout_secs = config.worker_timeout_secs;
+      let worktree_path = prepare_result.worktree_path.clone();
+      let selected_model = prepare_result.selected_model.clone();
+      let timeout_secs = config.worker_timeout_secs;
       let feedback_clone = review_feedback.clone();
 
-      let exec_result = tokio::task::spawn_blocking(move || {
-        pipeline::execute::execute(
+      let impl_result = tokio::task::spawn_blocking(move || {
+        implement::run(
           &forge_task_clone,
-          &task_clone,
-          &config_clone,
-          &exec_runner,
-          &models,
-          &worktree_dir,
-          worker_timeout_secs,
+          &impl_runner,
+          &selected_model,
+          &worktree_path,
+          Some(std::time::Duration::from_secs(timeout_secs)),
           feedback_clone.as_ref(),
         )
       })
       .await
-      .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
+      .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))?;
 
       // permit released here
+
+      let exec_result = match impl_result {
+        Ok(_output) => {
+          let commits =
+            git::branch::commit_count(&prepare_result.worktree_path, &config.base_branch, "HEAD")
+              .unwrap_or(0);
+
+          if commits == 0 {
+            info!("no commits produced");
+            ExecuteResult::Unclear("Worker completed but produced no commits".into())
+          } else {
+            info!("{commits} commit(s) produced");
+            ExecuteResult::Success { commits }
+          }
+        }
+        Err(e) => ExecuteResult::Error(e.to_string()),
+      };
 
       match exec_result {
         ExecuteResult::Success { .. } => {}
@@ -315,7 +339,28 @@ async fn process_task(
       }
     }
 
-    // Integrate phase (rebase + review)
+    // --- Rebase ---
+    {
+      let wt = prepare_result.worktree_path.clone();
+      let bb = config.base_branch.clone();
+      let forge_task_clone = forge_task.clone();
+      let rebase_ok = tokio::task::spawn_blocking(move || {
+        pipeline::integrate::rebase(&forge_task_clone, &wt, &bb)
+      })
+      .await
+      .map_err(|e| crate::error::ForgeError::Git(format!("spawn_blocking: {e}")))??;
+
+      if !rebase_ok {
+        let _ = work::set_task_status(task_path, WorkStatus::Failed);
+        state
+          .lock()
+          .unwrap()
+          .set_error(&forge_task.id, "rebase conflict")?;
+        return Ok(());
+      }
+    }
+
+    // --- Review ---
     {
       state
         .lock()
@@ -324,12 +369,41 @@ async fn process_task(
 
       let _permit = semaphore.acquire().await.expect("semaphore closed");
 
-      let integrate_result = pipeline::integrate::integrate_one(&forge_task, &task, config).await?;
+      let review_runner = ClaudeRunner::new(config.triage_tools.clone());
+      let forge_task_clone = forge_task.clone();
+      let task_clone = task.clone();
+      let config_clone = config.clone();
+      let wt = prepare_result.worktree_path.clone();
+      let bb = config.base_branch.clone();
+      let review_result = tokio::task::spawn_blocking(move || {
+        review::review(
+          &forge_task_clone,
+          &task_clone,
+          &config_clone,
+          &review_runner,
+          &wt,
+          &bb,
+        )
+      })
+      .await
+      .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))?;
 
       // permit released here
 
-      match integrate_result {
-        IntegrateResult::Approved => {
+      if let Ok(ref result) = review_result {
+        if let Err(e) =
+          pipeline::integrate::write_review_yaml(&prepare_result.worktree_path, result)
+        {
+          warn!("failed to write review.yaml: {e}");
+        }
+      }
+
+      match review_result {
+        Ok(result) if result.approved => {
+          info!(
+            "task {forge_task} completed, branch {} available locally",
+            forge_task.branch_name()
+          );
           let _ = work::set_task_status(task_path, WorkStatus::Completed);
           state.lock().unwrap().set_status(
             &forge_task.id,
@@ -339,15 +413,7 @@ async fn process_task(
           let _ = pipeline::clarification::cleanup_clarification(&repo_path, &forge_task.id);
           return Ok(());
         }
-        IntegrateResult::RebaseConflict => {
-          let _ = work::set_task_status(task_path, WorkStatus::Failed);
-          state
-            .lock()
-            .unwrap()
-            .set_error(&forge_task.id, "rebase conflict")?;
-          return Ok(());
-        }
-        IntegrateResult::ReviewRejected(result) => {
+        Ok(result) => {
           if attempt + 1 < max_attempts {
             info!(
               "review rejected for {forge_task}, retrying ({} remaining)",
@@ -363,7 +429,7 @@ async fn process_task(
             .set_error(&forge_task.id, "review rejected after retries")?;
           return Ok(());
         }
-        IntegrateResult::ReviewFailed(e) => {
+        Err(e) => {
           warn!("review failed for {forge_task}: {e}, proceeding as approved");
           let _ = work::set_task_status(task_path, WorkStatus::Completed);
           state.lock().unwrap().set_status(

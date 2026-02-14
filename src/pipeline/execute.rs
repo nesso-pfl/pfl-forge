@@ -1,11 +1,7 @@
-use std::path::Path;
-use std::time::Duration;
+use std::path::{Path, PathBuf};
 
 use tracing::info;
 
-use crate::agents::implement;
-use crate::agents::review::ReviewResult;
-use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
 use crate::git;
@@ -42,59 +38,34 @@ pub enum ExecuteResult {
   Error(String),
 }
 
-pub fn execute(
+pub struct PrepareResult {
+  pub worktree_path: PathBuf,
+  pub selected_model: String,
+}
+
+/// Prepare worktree for implementation: create worktree, write task YAML, select model.
+pub fn prepare(
   forge_task: &ForgeTask,
   task: &Task,
   config: &Config,
-  runner: &ClaudeRunner,
-  model_settings: &crate::config::ModelSettings,
   worktree_dir: &str,
-  worker_timeout_secs: u64,
-  review_feedback: Option<&ReviewResult>,
-) -> Result<ExecuteResult> {
+) -> Result<PrepareResult> {
   let branch = forge_task.branch_name();
   let repo_path = Config::repo_path();
 
-  // Create worktree
   let worktree_path =
     git::worktree::create(&repo_path, worktree_dir, &branch, &config.base_branch)?;
 
-  info!("executing in worktree: {}", worktree_path.display());
+  info!("prepared worktree: {}", worktree_path.display());
 
-  // Write task data and ensure .gitignore
   write_task_yaml(&worktree_path, task)?;
   ensure_gitignore_forge(&worktree_path)?;
 
-  // Select model based on complexity
   let complexity = task.complexity();
-  let selected_model = complexity.select_model(model_settings);
+  let selected_model = complexity.select_model(&config.models).to_string();
 
-  // Run Claude Code Worker
-  let timeout = Some(Duration::from_secs(worker_timeout_secs));
-  let result = implement::run(
-    forge_task,
-    runner,
+  Ok(PrepareResult {
+    worktree_path,
     selected_model,
-    &worktree_path,
-    timeout,
-    review_feedback,
-  );
-
-  match result {
-    Ok(_output) => {
-      let commits =
-        git::branch::commit_count(&worktree_path, &config.base_branch, "HEAD").unwrap_or(0);
-
-      if commits == 0 {
-        info!("no commits produced");
-        return Ok(ExecuteResult::Unclear(
-          "Worker completed but produced no commits".into(),
-        ));
-      }
-
-      info!("{commits} commit(s) produced");
-      Ok(ExecuteResult::Success { commits })
-    }
-    Err(e) => Ok(ExecuteResult::Error(e.to_string())),
-  }
+  })
 }

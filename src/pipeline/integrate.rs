@@ -1,91 +1,32 @@
+use std::path::Path;
+
 use tracing::{info, warn};
 
-use crate::agents::review::{self, ReviewResult};
-use crate::claude::runner::ClaudeRunner;
-use crate::config::Config;
+use crate::agents::review::ReviewResult;
 use crate::error::Result;
 use crate::git;
-use crate::pipeline::work::Task;
 use crate::task::ForgeTask;
 
-fn write_review_yaml(worktree_path: &std::path::Path, result: &ReviewResult) -> Result<()> {
+/// Rebase the task branch onto the base branch.
+/// Returns Ok(true) on success, Ok(false) on conflict.
+pub fn rebase(forge_task: &ForgeTask, worktree_path: &Path, base_branch: &str) -> Result<bool> {
+  let branch = forge_task.branch_name();
+
+  info!("rebasing {forge_task} onto {base_branch}");
+  match git::branch::rebase(worktree_path, base_branch) {
+    Ok(()) => Ok(true),
+    Err(e) => {
+      warn!("rebase conflict for {forge_task}: {e}");
+      info!("task {forge_task}: rebase conflict, branch {branch} left as-is");
+      Ok(false)
+    }
+  }
+}
+
+pub fn write_review_yaml(worktree_path: &Path, result: &ReviewResult) -> Result<()> {
   let forge_dir = worktree_path.join(".forge");
   std::fs::create_dir_all(&forge_dir)?;
   let content = serde_yaml::to_string(result)?;
   std::fs::write(forge_dir.join("review.yaml"), content)?;
   Ok(())
-}
-
-pub enum IntegrateResult {
-  Approved,
-  RebaseConflict,
-  ReviewRejected(ReviewResult),
-  ReviewFailed(String),
-}
-
-pub async fn integrate_one(
-  forge_task: &ForgeTask,
-  task: &Task,
-  config: &Config,
-) -> Result<IntegrateResult> {
-  let branch = forge_task.branch_name();
-  let worktree_path = forge_task.worktree_path(&config.worktree_dir);
-  let base_branch = config.base_branch.clone();
-
-  // Rebase onto latest base branch
-  info!("rebasing {forge_task} onto {base_branch}");
-  let wt = worktree_path.clone();
-  let bb = base_branch.clone();
-  let rebase_result = tokio::task::spawn_blocking(move || git::branch::rebase(&wt, &bb))
-    .await
-    .map_err(|e| crate::error::ForgeError::Git(format!("spawn_blocking: {e}")))?;
-
-  if let Err(e) = rebase_result {
-    warn!("rebase conflict for {forge_task}: {e}");
-    info!("task {forge_task}: rebase conflict, branch {branch} left as-is");
-    return Ok(IntegrateResult::RebaseConflict);
-  }
-
-  // Review
-  info!("reviewing {forge_task}");
-  let review_runner = ClaudeRunner::new(config.triage_tools.clone());
-  let task_clone2 = forge_task.clone();
-  let task_clone = task.clone();
-  let config_clone = config.clone();
-  let wt = worktree_path.clone();
-  let bb = base_branch.clone();
-  let review_result = tokio::task::spawn_blocking(move || {
-    review::review(
-      &task_clone2,
-      &task_clone,
-      &config_clone,
-      &review_runner,
-      &wt,
-      &bb,
-    )
-  })
-  .await
-  .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))?;
-
-  // Write review result to .forge/review.yaml
-  if let Ok(ref result) = review_result {
-    if let Err(e) = write_review_yaml(&worktree_path, result) {
-      warn!("failed to write review.yaml: {e}");
-    }
-  }
-
-  match review_result {
-    Ok(result) if !result.approved => {
-      info!("task {forge_task}: review rejected, branch {branch}");
-      Ok(IntegrateResult::ReviewRejected(result))
-    }
-    Err(e) => {
-      warn!("review failed for {forge_task}: {e}");
-      Ok(IntegrateResult::ReviewFailed(e.to_string()))
-    }
-    _ => {
-      info!("task {forge_task} completed, branch {branch} available locally");
-      Ok(IntegrateResult::Approved)
-    }
-  }
 }

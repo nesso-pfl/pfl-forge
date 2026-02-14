@@ -1,11 +1,23 @@
 # pfl-forge
 
-GitHub issue を Claude Code Worker で自動処理するマルチエージェントシステム。
+ローカルタスク YAML を Claude Code Worker で自動処理するマルチエージェントシステム。
+
+## Getting Started
+
+対象リポジトリのルートで `pfl-forge.yaml` を配置し、`.forge/tasks/` にタスク YAML を作成してから `pfl-forge run` を実行する。
+
+```sh
+cd /path/to/your-repo
+cp pfl-forge.yaml.example pfl-forge.yaml  # 設定を編集
+pfl-forge run
+```
+
+pfl-forge はリポジトリルート（CWD）単位で動作する。リポジトリ名は CWD のディレクトリ名から自動導出される。
 
 ## Usage
 
 ```sh
-# issue 処理の実行
+# タスク処理の実行
 pfl-forge run
 
 # 親エージェント (interactive) で操作
@@ -24,23 +36,7 @@ pfl-forge watch
 
 ## Configuration
 
-`pfl-forge.yaml` で対象リポジトリと設定を定義する。
-
-```yaml
-repos:
-  - name: my-app
-    path: /home/user/repos/my-app
-    github: owner/my-app
-    test_command: cargo test
-    issue_label: forge
-
-settings:
-  parallel_workers: 4
-  models:
-    triage_deep: sonnet
-    default: sonnet
-    complex: opus
-```
+`pfl-forge.yaml` をリポジトリルートに配置する。設定例は [pfl-forge.yaml.example](pfl-forge.yaml.example) を参照。
 
 ## Pipeline
 

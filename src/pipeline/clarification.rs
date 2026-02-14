@@ -3,8 +3,8 @@ use std::path::Path;
 use tracing::info;
 
 use crate::error::Result;
-use crate::task::ForgeIssue;
 use crate::pipeline::triage::DeepTriageResult;
+use crate::task::ForgeIssue;
 
 pub struct ClarificationContext {
   pub previous_analysis: DeepTriageResult,

@@ -7,9 +7,9 @@ use crate::claude::runner::ClaudeRunner;
 use crate::config::RepoConfig;
 use crate::error::Result;
 use crate::git;
-use crate::task::ForgeIssue;
 use crate::pipeline::triage::Task;
 use crate::prompt;
+use crate::task::ForgeIssue;
 
 pub fn write_task_yaml(worktree_path: &Path, task: &Task) -> Result<()> {
   let forge_dir = worktree_path.join(".forge");

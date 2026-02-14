@@ -9,9 +9,9 @@ use crate::claude::model;
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::{ForgeError, Result};
-use crate::task::ForgeIssue;
 use crate::pipeline::triage::Task;
 use crate::prompt;
+use crate::task::ForgeIssue;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewResult {

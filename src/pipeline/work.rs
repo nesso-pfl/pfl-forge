@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use tracing::info;
 
 use crate::error::Result;
-use crate::task::ForgeIssue;
 use crate::pipeline::triage::{DeepTriageResult, Task, TaskStatus};
+use crate::task::ForgeIssue;
 
 fn work_dir(repo_path: &Path) -> PathBuf {
   repo_path.join(".forge").join("work")

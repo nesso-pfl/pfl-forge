@@ -1,16 +1,13 @@
 repos:
   - name: pokeca-backend
     path: /home/nesso/repos/pokeca-backend
-    github: nesso-pfl/pokeca-backend
     test_command: "just test"
     docker_required: true
-    issue_label: forge
     base_branch: main
     extra_tools: []
 
 settings:
   parallel_workers: 4
-  auto_merge: tests_pass_no_conflict
   models:
     triage: haiku
     default: sonnet

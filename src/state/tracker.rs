@@ -47,7 +47,6 @@ impl IssueStatus {
       IssueStatus::Success
         | IssueStatus::Skipped
         | IssueStatus::NeedsClarification
-        | IssueStatus::Error
         | IssueStatus::TestFailure
     )
   }
@@ -257,8 +256,8 @@ mod tests {
     assert!(IssueStatus::Success.is_terminal());
     assert!(IssueStatus::Skipped.is_terminal());
     assert!(IssueStatus::NeedsClarification.is_terminal());
-    assert!(IssueStatus::Error.is_terminal());
     assert!(IssueStatus::TestFailure.is_terminal());
+    assert!(!IssueStatus::Error.is_terminal());
     assert!(!IssueStatus::Pending.is_terminal());
     assert!(!IssueStatus::Triaging.is_terminal());
     assert!(!IssueStatus::Executing.is_terminal());

@@ -15,7 +15,7 @@ Multi-agent task processor powered by Claude Code.
 エージェント間通信は `.forge/` ディレクトリの YAML ファイルで行う。triage は `.forge/work/*.yaml` にタスクを書き出し、execute は worktree 内 `.forge/task.yaml` で Worker に渡す。review 結果は `.forge/review.yaml`。
 タスクは `.forge/tasks/*.yaml` に配置する。
 
-エージェント構成の詳細は [docs/agents.md](docs/agents.md) を参照。
+エージェント構成の詳細は [docs/agents.md](docs/agents.md)、パイプラインフローは [docs/pipeline.md](docs/pipeline.md) を参照。
 
 ## Config
 

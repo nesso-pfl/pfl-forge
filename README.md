@@ -52,3 +52,4 @@ fetch → deep triage → (consultation) → execute → integrate → report
 ## Docs
 
 - [Agent 構成](docs/agents.md) — 各エージェントの役割・モデル・ツール
+- [Pipeline](docs/pipeline.md) — パイプラインフローとエージェント間通信

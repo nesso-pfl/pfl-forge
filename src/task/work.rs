@@ -6,7 +6,7 @@ use tracing::info;
 use crate::agents::analyze::AnalysisResult;
 use crate::claude::model;
 use crate::error::Result;
-use crate::task::Issue;
+use crate::task::issue::Issue;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]

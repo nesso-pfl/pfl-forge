@@ -4,7 +4,7 @@ use tracing::info;
 
 use crate::agents::analyze::AnalysisResult;
 use crate::error::Result;
-use crate::task::Issue;
+use crate::task::issue::Issue;
 
 pub struct ClarificationContext {
   pub previous_analysis: AnalysisResult,

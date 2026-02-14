@@ -4,6 +4,7 @@ use std::time::Duration;
 use tracing::info;
 
 use crate::agents::implement;
+use crate::agents::review::ReviewResult;
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
@@ -49,6 +50,7 @@ pub fn execute(
   model_settings: &crate::config::ModelSettings,
   worktree_dir: &str,
   worker_timeout_secs: u64,
+  review_feedback: Option<&ReviewResult>,
 ) -> Result<ExecuteResult> {
   let branch = forge_task.branch_name();
   let repo_path = Config::repo_path();
@@ -69,7 +71,14 @@ pub fn execute(
 
   // Run Claude Code Worker
   let timeout = Some(Duration::from_secs(worker_timeout_secs));
-  let result = implement::run(forge_task, runner, selected_model, &worktree_path, timeout);
+  let result = implement::run(
+    forge_task,
+    runner,
+    selected_model,
+    &worktree_path,
+    timeout,
+    review_feedback,
+  );
 
   match result {
     Ok(_output) => {

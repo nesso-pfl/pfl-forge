@@ -22,7 +22,7 @@ use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
 use crate::pipeline::execute::ExecuteResult;
-use crate::pipeline::integrate::ImplementOutput;
+use crate::pipeline::integrate::IntegrateResult;
 use crate::pipeline::work::{self, Task, WorkStatus};
 use crate::state::tracker::{SharedState, StateTracker, TaskStatus};
 use crate::task::ForgeTask;
@@ -211,22 +211,51 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
 
   while let Some(result) = exec_set.join_next().await {
     match result {
-      Ok(Ok(output)) => {
-        if matches!(output.result, ExecuteResult::Success { .. }) {
-          if let Err(e) = pipeline::integrate::integrate_one(&output, config, &state).await {
-            error!("integration failed for {}: {e}", output.forge_task);
-            let _ = work::set_task_status(&output.task_path, WorkStatus::Failed);
-            state
-              .lock()
-              .unwrap()
-              .set_error(&output.forge_task.id, &e.to_string())?;
-          } else {
-            let _ = work::set_task_status(&output.task_path, WorkStatus::Completed);
+      Ok(Ok((forge_task, exec_result, task, task_path))) => {
+        if matches!(exec_result, ExecuteResult::Success { .. }) {
+          match pipeline::integrate::integrate_one(&forge_task, &task, config).await {
+            Ok(IntegrateResult::Approved) => {
+              let _ = work::set_task_status(&task_path, WorkStatus::Completed);
+              state.lock().unwrap().set_status(
+                &forge_task.id,
+                &forge_task.title,
+                TaskStatus::Success,
+              )?;
+            }
+            Ok(IntegrateResult::RebaseConflict) => {
+              let _ = work::set_task_status(&task_path, WorkStatus::Failed);
+              state
+                .lock()
+                .unwrap()
+                .set_error(&forge_task.id, "rebase conflict")?;
+            }
+            Ok(IntegrateResult::ReviewRejected(_)) => {
+              let _ = work::set_task_status(&task_path, WorkStatus::Failed);
+              state
+                .lock()
+                .unwrap()
+                .set_error(&forge_task.id, "review rejected")?;
+            }
+            Ok(IntegrateResult::ReviewFailed(e)) => {
+              let _ = work::set_task_status(&task_path, WorkStatus::Failed);
+              state
+                .lock()
+                .unwrap()
+                .set_error(&forge_task.id, &format!("review failed: {e}"))?;
+            }
+            Err(e) => {
+              error!("integration failed for {forge_task}: {e}");
+              let _ = work::set_task_status(&task_path, WorkStatus::Failed);
+              state
+                .lock()
+                .unwrap()
+                .set_error(&forge_task.id, &e.to_string())?;
+            }
           }
         } else {
-          let _ = work::set_task_status(&output.task_path, WorkStatus::Failed);
-          if let Err(e) = pipeline::report::report(&output.forge_task, &output.result, &state) {
-            error!("report failed for {}: {e}", output.forge_task);
+          let _ = work::set_task_status(&task_path, WorkStatus::Failed);
+          if let Err(e) = pipeline::report::report(&forge_task, &exec_result, &state) {
+            error!("report failed for {forge_task}: {e}");
           }
         }
       }
@@ -328,7 +357,7 @@ async fn execute_task(
   forge_task: ForgeTask,
   config: &Config,
   state: &SharedState,
-) -> Result<ImplementOutput> {
+) -> Result<(ForgeTask, ExecuteResult, Task, PathBuf)> {
   let repo_path = Config::repo_path();
 
   // Read and lock task
@@ -360,6 +389,7 @@ async fn execute_task(
       &models,
       &worktree_dir,
       worker_timeout_secs,
+      None,
     )
   })
   .await
@@ -373,12 +403,7 @@ async fn execute_task(
     let _ = pipeline::clarification::cleanup_clarification(&repo_path, &forge_task.id);
   }
 
-  Ok(ImplementOutput {
-    forge_task,
-    result: exec_result,
-    task,
-    task_path,
-  })
+  Ok((forge_task, exec_result, task, task_path))
 }
 
 async fn cmd_run_dry(config: &Config, tasks: &[ForgeTask]) -> Result<()> {

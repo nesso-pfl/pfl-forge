@@ -5,9 +5,7 @@ use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
 use crate::git;
-use crate::pipeline::execute::ExecuteResult;
 use crate::pipeline::work::Task;
-use crate::state::tracker::{SharedState, TaskStatus};
 use crate::task::ForgeTask;
 
 fn write_review_yaml(worktree_path: &std::path::Path, result: &ReviewResult) -> Result<()> {
@@ -18,19 +16,18 @@ fn write_review_yaml(worktree_path: &std::path::Path, result: &ReviewResult) -> 
   Ok(())
 }
 
-pub struct ImplementOutput {
-  pub forge_task: ForgeTask,
-  pub result: ExecuteResult,
-  pub task: Task,
-  pub task_path: std::path::PathBuf,
+pub enum IntegrateResult {
+  Approved,
+  RebaseConflict,
+  ReviewRejected(ReviewResult),
+  ReviewFailed(String),
 }
 
 pub async fn integrate_one(
-  output: &ImplementOutput,
+  forge_task: &ForgeTask,
+  task: &Task,
   config: &Config,
-  state: &SharedState,
-) -> Result<()> {
-  let forge_task = &output.forge_task;
+) -> Result<IntegrateResult> {
   let branch = forge_task.branch_name();
   let worktree_path = forge_task.worktree_path(&config.worktree_dir);
   let base_branch = config.base_branch.clone();
@@ -46,18 +43,14 @@ pub async fn integrate_one(
   if let Err(e) = rebase_result {
     warn!("rebase conflict for {forge_task}: {e}");
     info!("task {forge_task}: rebase conflict, branch {branch} left as-is");
-    state
-      .lock()
-      .unwrap()
-      .set_status(&forge_task.id, &forge_task.title, TaskStatus::Error)?;
-    return Ok(());
+    return Ok(IntegrateResult::RebaseConflict);
   }
 
   // Review
   info!("reviewing {forge_task}");
   let review_runner = ClaudeRunner::new(config.triage_tools.clone());
   let task_clone2 = forge_task.clone();
-  let task_clone = output.task.clone();
+  let task_clone = task.clone();
   let config_clone = config.clone();
   let wt = worktree_path.clone();
   let bb = base_branch.clone();
@@ -83,21 +76,16 @@ pub async fn integrate_one(
 
   match review_result {
     Ok(result) if !result.approved => {
-      info!("task {forge_task}: review rejected, branch {branch} left for manual review");
-      state
-        .lock()
-        .unwrap()
-        .set_status(&forge_task.id, &forge_task.title, TaskStatus::Error)?;
-      return Ok(());
+      info!("task {forge_task}: review rejected, branch {branch}");
+      Ok(IntegrateResult::ReviewRejected(result))
     }
     Err(e) => {
-      warn!("review failed for {forge_task}, proceeding anyway: {e}");
+      warn!("review failed for {forge_task}: {e}");
+      Ok(IntegrateResult::ReviewFailed(e.to_string()))
     }
     _ => {
-      info!("review approved for {forge_task}");
+      info!("task {forge_task} completed, branch {branch} available locally");
+      Ok(IntegrateResult::Approved)
     }
   }
-
-  info!("task {forge_task} completed, branch {branch} available locally");
-  Ok(())
 }

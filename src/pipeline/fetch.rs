@@ -6,7 +6,7 @@ use crate::state::tracker::StateTracker;
 use crate::task::ForgeTask;
 
 #[derive(serde::Deserialize)]
-struct LocalTask {
+struct Task {
   title: String,
   body: String,
   #[serde(default)]
@@ -49,7 +49,7 @@ pub fn fetch_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeTa
     }
 
     let content = std::fs::read_to_string(&path)?;
-    let task: LocalTask = serde_yaml::from_str(&content)?;
+    let task: Task = serde_yaml::from_str(&content)?;
 
     tasks.push(ForgeTask {
       id,

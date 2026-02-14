@@ -11,7 +11,7 @@ pub fn launch(config: &Config, model: Option<&str>) -> Result<()> {
   let mut cmd = std::process::Command::new("claude");
   cmd
     .arg("--append-system-prompt")
-    .arg(prompt::PARENT)
+    .arg(prompt::ORCHESTRATE)
     .arg("--allowedTools")
     .arg("Bash");
 

@@ -20,7 +20,7 @@ pfl-forge はリポジトリルート（CWD）単位で動作する。タスク 
 # タスク処理の実行
 pfl-forge run
 
-# 親エージェント (interactive) で操作
+# orchestrate agent (interactive) で操作
 pfl-forge parent
 
 # 状態確認
@@ -41,12 +41,12 @@ pfl-forge watch
 ## Pipeline
 
 ```
-fetch → deep triage → (consultation) → execute → integrate → report
-                          ↓
-                   NeedsClarification
-                          ↓
-                   parent agent が
-                   ユーザーに質問
+fetch → analyze → (architect) → execute → integrate → report
+                     ↓
+              NeedsClarification
+                     ↓
+              orchestrate agent が
+              ユーザーに質問
 ```
 
 ## Docs

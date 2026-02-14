@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use tracing::info;
 
-use crate::agents::worker;
+use crate::agents::implement;
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
@@ -69,7 +69,7 @@ pub fn execute(
 
   // Run Claude Code Worker
   let timeout = Some(Duration::from_secs(worker_timeout_secs));
-  let result = worker::run_worker(forge_task, runner, selected_model, &worktree_path, timeout);
+  let result = implement::run(forge_task, runner, selected_model, &worktree_path, timeout);
 
   match result {
     Ok(_output) => {

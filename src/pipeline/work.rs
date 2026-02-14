@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use crate::agents::triage::DeepTriageResult;
+use crate::agents::analyze::AnalysisResult;
 use crate::claude::model;
 use crate::error::Result;
 use crate::task::ForgeTask;
@@ -33,7 +33,7 @@ pub struct Task {
 }
 
 impl Task {
-  pub fn from_triage(forge_task: &ForgeTask, deep: &DeepTriageResult) -> Self {
+  pub fn from_analysis(forge_task: &ForgeTask, deep: &AnalysisResult) -> Self {
     Self {
       task_id: forge_task.id.clone(),
       task_title: forge_task.title.clone(),
@@ -63,12 +63,12 @@ fn task_filename(task_id: &str, index: u32) -> String {
 pub fn write_tasks(
   repo_path: &Path,
   forge_task: &ForgeTask,
-  deep: &DeepTriageResult,
+  deep: &AnalysisResult,
 ) -> Result<Vec<PathBuf>> {
   let dir = work_dir(repo_path);
   std::fs::create_dir_all(&dir)?;
 
-  let task = Task::from_triage(forge_task, deep);
+  let task = Task::from_analysis(forge_task, deep);
   let path = dir.join(task_filename(&forge_task.id, 1));
   let content = serde_yaml::to_string(&task)?;
   std::fs::write(&path, content)?;

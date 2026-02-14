@@ -1,5 +1,5 @@
-pub const DEEP_TRIAGE: &str = include_str!("deep_triage.md");
-pub const CONSULT: &str = include_str!("consult.md");
-pub const WORKER: &str = include_str!("worker.md");
+pub const ANALYZE: &str = include_str!("analyze.md");
+pub const ARCHITECT: &str = include_str!("architect.md");
+pub const IMPLEMENT: &str = include_str!("implement.md");
 pub const REVIEW: &str = include_str!("review.md");
-pub const PARENT: &str = include_str!("parent.md");
+pub const ORCHESTRATE: &str = include_str!("orchestrate.md");

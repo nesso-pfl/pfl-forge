@@ -5,7 +5,7 @@ pfl-forge は複数の Claude Code エージェントを使い分けてタスク
 各エージェントの呼び出しロジック（プロンプト組み立て・Claude CLI 実行・出力パース）は `src/agents/` に、system prompt は `src/prompt/*.md` に定義されている。
 オーケストレーション（ファイル I/O、state 管理、worktree 操作）は `src/pipeline/` に分離されている。
 
-## Parent Agent
+## Orchestrate Agent
 
 `pfl-forge parent` で起動するインタラクティブセッション。
 ユーザーとの対話窓口として機能し、Bash ツールのみを持つ。
@@ -14,25 +14,25 @@ pfl-forge は複数の Claude Code エージェントを使い分けてタスク
 - NeedsClarification が発生した場合、ユーザーに質問を提示し回答を記録
 - `claude --append-system-prompt --allowedTools Bash` + `exec()` で起動
 
-## Deep Triage Agent
+## Analyze Agent
 
 タスクの詳細分析を行う読み取り専用エージェント。`claude -p` で非対話実行。
 
 - モデル: `models.triage_deep` (default: sonnet)
 - ツール: `triage_tools` (default: Read, Glob, Grep)
-- 出力: `DeepTriageResult` (complexity, plan, relevant_files, implementation_steps, context)
-- 分析が不十分な場合は Consultation Agent にエスカレート
+- 出力: `AnalysisResult` (complexity, plan, relevant_files, implementation_steps, context)
+- 分析が不十分な場合は Architect Agent にエスカレート
 
-## Consultation Agent
+## Architect Agent
 
-Deep Triage で十分な分析ができなかった場合に呼ばれる補助エージェント。
+Analyze Agent で十分な分析ができなかった場合に呼ばれる補助エージェント。
 
 - モデル: `models.triage_deep` (default: sonnet)
 - ツール: `triage_tools` (default: Read, Glob, Grep)
-- 出力: `ConsultationOutcome::Resolved(DeepTriageResult)` または `ConsultationOutcome::NeedsClarification(String)`
+- 出力: `ArchitectOutcome::Resolved(AnalysisResult)` または `ArchitectOutcome::NeedsClarification(String)`
 - NeedsClarification の場合、`.forge/clarifications/<id>.md` にファイルを作成
 
-## Execute Agent (Worker)
+## Implement Agent
 
 実際のコード変更を行うエージェント。Git worktree 内で動作する。
 
@@ -44,7 +44,7 @@ Deep Triage で十分な分析ができなかった場合に呼ばれる補助�
 
 ## Review Agent
 
-Worker の成果物を検証するコードレビューエージェント。
+Implement Agent の成果物を検証するコードレビューエージェント。
 
 - モデル: `models.default` (default: sonnet)
 - ツール: `triage_tools` (default: Read, Glob, Grep)
@@ -56,8 +56,8 @@ Worker の成果物を検証するコードレビューエージェント。
 
 エージェント間のデータ受け渡しは `.forge/` ディレクトリを介して行われる:
 
-- `.forge/work/{id}-{NNN}.yaml` — triage の結果をタスク YAML としてリポジトリルートに書き出す。`status` フィールド（pending → executing → completed/failed）でロック管理。
-- `.forge/task.yaml` — execute ステージが worktree 内に書き出し、Worker が読み取る。
+- `.forge/work/{id}-{NNN}.yaml` — analyze の結果をタスク YAML としてリポジトリルートに書き出す。`status` フィールド（pending → executing → completed/failed）でロック管理。
+- `.forge/task.yaml` — execute ステージが worktree 内に書き出し、Implement Agent が読み取る。
 - `.forge/review.yaml` — Review Agent の結果（approved, issues, suggestions）。integrate ステージで書き出し、監査ログとして機能。
 
 `.forge/` は `.gitignore` に自動追加されるため、コミットには含まれない。
@@ -65,13 +65,13 @@ Worker の成果物を検証するコードレビューエージェント。
 ## Agent 間の関係
 
 ```
-Parent Agent (interactive)
+Orchestrate Agent (interactive)
   └─ pfl-forge run (CLI)
-       ├─ Phase 1: Deep Triage Agent (並列)
-       │    └─ Consultation Agent (必要時)
-       │         └─ NeedsClarification → Parent に戻る
+       ├─ Phase 1: Analyze Agent (並列)
+       │    └─ Architect Agent (必要時)
+       │         └─ NeedsClarification → Orchestrate に戻る
        │    → .forge/work/*.yaml にタスク書き出し
-       ├─ Phase 2: Execute Agent (Worker, 並列) ← .forge/task.yaml を読む
+       ├─ Phase 2: Implement Agent (並列) ← .forge/task.yaml を読む
        └─ Phase 3: integrate (streaming)
             └─ Review Agent → .forge/review.yaml を書く
 ```
@@ -80,9 +80,9 @@ Parent Agent (interactive)
 
 | Agent | 設定キー | Default |
 |-------|---------|---------|
-| Deep Triage | `models.triage_deep` | sonnet |
-| Consultation | `models.triage_deep` | sonnet |
-| Execute (low/medium) | `models.default` | sonnet |
-| Execute (high) | `models.complex` | opus |
+| Analyze | `models.triage_deep` | sonnet |
+| Architect | `models.triage_deep` | sonnet |
+| Implement (low/medium) | `models.default` | sonnet |
+| Implement (high) | `models.complex` | opus |
 | Review | `models.default` | sonnet |
-| Parent | `--model` 引数 | (claude default) |
+| Orchestrate | `--model` 引数 | (claude default) |

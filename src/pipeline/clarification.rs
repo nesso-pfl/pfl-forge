@@ -2,12 +2,12 @@ use std::path::Path;
 
 use tracing::info;
 
-use crate::agents::triage::DeepTriageResult;
+use crate::agents::analyze::AnalysisResult;
 use crate::error::Result;
 use crate::task::ForgeTask;
 
 pub struct ClarificationContext {
-  pub previous_analysis: DeepTriageResult,
+  pub previous_analysis: AnalysisResult,
   pub questions: String,
   pub answer: String,
 }
@@ -27,7 +27,7 @@ fn answer_path(repo_path: &Path, task_id: &str) -> std::path::PathBuf {
 pub fn write_clarification(
   repo_path: &Path,
   forge_task: &ForgeTask,
-  deep_result: &DeepTriageResult,
+  deep_result: &AnalysisResult,
   questions: &str,
 ) -> Result<()> {
   let dir = clarification_dir(repo_path);
@@ -96,7 +96,7 @@ pub fn check_clarification(
   }))
 }
 
-fn parse_question_file(content: &str) -> (DeepTriageResult, String) {
+fn parse_question_file(content: &str) -> (AnalysisResult, String) {
   let mut plan = String::new();
   let mut files = Vec::new();
   let mut context = String::new();
@@ -135,7 +135,7 @@ fn parse_question_file(content: &str) -> (DeepTriageResult, String) {
     }
   }
 
-  let result = DeepTriageResult {
+  let result = AnalysisResult {
     complexity: "medium".to_string(),
     plan,
     relevant_files: files,

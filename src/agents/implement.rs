@@ -7,7 +7,7 @@ use crate::claude::runner::ClaudeRunner;
 use crate::prompt;
 use crate::task::ForgeTask;
 
-pub fn run_worker(
+pub fn run(
   forge_task: &ForgeTask,
   runner: &ClaudeRunner,
   selected_model: &str,
@@ -23,10 +23,10 @@ pub fn run_worker(
     body = forge_task.body,
   );
 
-  info!("running worker for: {forge_task}");
+  info!("implementing: {forge_task}");
   runner.run_prompt(
     &prompt,
-    prompt::WORKER,
+    prompt::IMPLEMENT,
     selected_model,
     worktree_path,
     timeout,

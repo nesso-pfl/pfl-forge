@@ -1,5 +1,5 @@
-pub mod consult;
-pub mod parent;
+pub mod analyze;
+pub mod architect;
+pub mod implement;
+pub mod orchestrate;
 pub mod review;
-pub mod triage;
-pub mod worker;

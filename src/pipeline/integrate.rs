@@ -18,7 +18,7 @@ fn write_review_yaml(worktree_path: &std::path::Path, result: &ReviewResult) -> 
   Ok(())
 }
 
-pub struct WorkerOutput {
+pub struct ImplementOutput {
   pub forge_task: ForgeTask,
   pub result: ExecuteResult,
   pub task: Task,
@@ -26,7 +26,7 @@ pub struct WorkerOutput {
 }
 
 pub async fn integrate_one(
-  output: &WorkerOutput,
+  output: &ImplementOutput,
   config: &Config,
   state: &SharedState,
 ) -> Result<()> {

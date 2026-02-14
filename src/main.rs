@@ -16,13 +16,13 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tracing::{error, info, warn};
 
-use crate::agents::consult::ConsultationOutcome;
-use crate::agents::triage::{self as agents_triage, DeepTriageResult};
+use crate::agents::analyze::{self, AnalysisResult};
+use crate::agents::architect::ArchitectOutcome;
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
 use crate::pipeline::execute::ExecuteResult;
-use crate::pipeline::integrate::WorkerOutput;
+use crate::pipeline::integrate::ImplementOutput;
 use crate::pipeline::work::{self, Task, WorkStatus};
 use crate::state::tracker::{SharedState, StateTracker, TaskStatus};
 use crate::task::ForgeTask;
@@ -82,12 +82,12 @@ enum Commands {
   },
 }
 
-enum TriageOutcome {
+enum AnalyzeOutcome {
   Tasks(Vec<(PathBuf, ForgeTask)>),
   NeedsClarification {
     forge_task: ForgeTask,
     message: String,
-    deep_result: DeepTriageResult,
+    analysis: AnalysisResult,
     repo_path: PathBuf,
   },
 }
@@ -119,7 +119,7 @@ async fn run(cli: Cli) -> Result<()> {
     Commands::Clean => cmd_clean(&config),
     Commands::Clarifications => cmd_clarifications(&config),
     Commands::Answer { id, text } => cmd_answer(&config, &id, &text),
-    Commands::Parent { model } => agents::parent::launch(&config, model.as_deref()),
+    Commands::Parent { model } => agents::orchestrate::launch(&config, model.as_deref()),
     Commands::Create {
       title,
       body,
@@ -147,45 +147,42 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
     return cmd_run_dry(config, &tasks).await;
   }
 
-  // Phase 1: Triage (parallel per task)
+  // Phase 1: Analyze (parallel per task)
   let semaphore = Arc::new(Semaphore::new(config.parallel_workers));
-  let mut triage_set = JoinSet::new();
+  let mut analyze_set = JoinSet::new();
 
   for forge_task in tasks {
     let sem = semaphore.clone();
     let state = state.clone();
     let config = config.clone();
 
-    triage_set.spawn(async move {
+    analyze_set.spawn(async move {
       let _permit = sem.acquire().await.expect("semaphore closed");
-      triage_task(forge_task, &config, &state).await
+      analyze_task(forge_task, &config, &state).await
     });
   }
 
   let mut task_entries: Vec<(PathBuf, ForgeTask)> = Vec::new();
 
-  while let Some(result) = triage_set.join_next().await {
+  while let Some(result) = analyze_set.join_next().await {
     match result {
-      Ok(Ok(TriageOutcome::Tasks(entries))) => {
+      Ok(Ok(AnalyzeOutcome::Tasks(entries))) => {
         task_entries.extend(entries);
       }
-      Ok(Ok(TriageOutcome::NeedsClarification {
+      Ok(Ok(AnalyzeOutcome::NeedsClarification {
         forge_task,
         message,
-        deep_result,
+        analysis,
         repo_path,
       })) => {
-        if let Err(e) = pipeline::clarification::write_clarification(
-          &repo_path,
-          &forge_task,
-          &deep_result,
-          &message,
-        ) {
+        if let Err(e) =
+          pipeline::clarification::write_clarification(&repo_path, &forge_task, &analysis, &message)
+        {
           error!("failed to write clarification for {forge_task}: {e}");
         }
       }
-      Ok(Err(e)) => error!("triage error: {e}"),
-      Err(e) => error!("triage join error: {e}"),
+      Ok(Err(e)) => error!("analyze error: {e}"),
+      Err(e) => error!("analyze join error: {e}"),
     }
   }
 
@@ -244,11 +241,11 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
   Ok(())
 }
 
-async fn triage_task(
+async fn analyze_task(
   forge_task: ForgeTask,
   config: &Config,
   state: &SharedState,
-) -> Result<TriageOutcome> {
+) -> Result<AnalyzeOutcome> {
   let repo_path = Config::repo_path();
 
   {
@@ -259,15 +256,15 @@ async fn triage_task(
 
   let clarification_ctx = pipeline::clarification::check_clarification(&repo_path, &forge_task.id)?;
 
-  let deep_runner = ClaudeRunner::new(config.triage_tools.clone());
+  let analyze_runner = ClaudeRunner::new(config.triage_tools.clone());
   let task_clone = forge_task.clone();
   let config_clone = config.clone();
   let repo_path_clone = repo_path.clone();
-  let deep_result = tokio::task::spawn_blocking(move || {
-    agents_triage::deep_triage(
+  let analysis = tokio::task::spawn_blocking(move || {
+    analyze::analyze(
       &task_clone,
       &config_clone,
-      &deep_runner,
+      &analyze_runner,
       &repo_path_clone,
       clarification_ctx.as_ref(),
     )
@@ -275,21 +272,21 @@ async fn triage_task(
   .await
   .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
 
-  let deep_result = if deep_result.is_sufficient() {
-    deep_result
+  let analysis = if analysis.is_sufficient() {
+    analysis
   } else {
-    info!("deep triage insufficient for {forge_task}, consulting...");
-    let consult_runner = ClaudeRunner::new(config.triage_tools.clone());
+    info!("analysis insufficient for {forge_task}, consulting architect...");
+    let architect_runner = ClaudeRunner::new(config.triage_tools.clone());
     let task_clone = forge_task.clone();
-    let deep_clone = deep_result.clone();
+    let analysis_clone = analysis.clone();
     let config_clone = config.clone();
     let repo_path_clone = repo_path.clone();
     let outcome = tokio::task::spawn_blocking(move || {
-      agents::consult::consult(
+      agents::architect::resolve(
         &task_clone,
-        &deep_clone,
+        &analysis_clone,
         &config_clone,
-        &consult_runner,
+        &architect_runner,
         &repo_path_clone,
       )
     })
@@ -297,18 +294,18 @@ async fn triage_task(
     .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
 
     match outcome {
-      ConsultationOutcome::Resolved(result) => result,
-      ConsultationOutcome::NeedsClarification(message) => {
-        info!("consultation needs clarification for {forge_task}");
+      ArchitectOutcome::Resolved(result) => result,
+      ArchitectOutcome::NeedsClarification(message) => {
+        info!("architect needs clarification for {forge_task}");
         state.lock().unwrap().set_status(
           &forge_task.id,
           &forge_task.title,
           TaskStatus::NeedsClarification,
         )?;
-        return Ok(TriageOutcome::NeedsClarification {
+        return Ok(AnalyzeOutcome::NeedsClarification {
           forge_task,
           message,
-          deep_result,
+          analysis,
           repo_path,
         });
       }
@@ -316,14 +313,14 @@ async fn triage_task(
   };
 
   // Write task YAML to .forge/work/
-  let task_paths = work::write_tasks(&repo_path, &forge_task, &deep_result)?;
+  let task_paths = work::write_tasks(&repo_path, &forge_task, &analysis)?;
 
   let entries: Vec<(PathBuf, ForgeTask)> = task_paths
     .into_iter()
     .map(|p| (p, forge_task.clone()))
     .collect();
 
-  Ok(TriageOutcome::Tasks(entries))
+  Ok(AnalyzeOutcome::Tasks(entries))
 }
 
 async fn execute_task(
@@ -331,7 +328,7 @@ async fn execute_task(
   forge_task: ForgeTask,
   config: &Config,
   state: &SharedState,
-) -> Result<WorkerOutput> {
+) -> Result<ImplementOutput> {
   let repo_path = Config::repo_path();
 
   // Read and lock task
@@ -376,7 +373,7 @@ async fn execute_task(
     let _ = pipeline::clarification::cleanup_clarification(&repo_path, &forge_task.id);
   }
 
-  Ok(WorkerOutput {
+  Ok(ImplementOutput {
     forge_task,
     result: exec_result,
     task,
@@ -385,18 +382,18 @@ async fn execute_task(
 }
 
 async fn cmd_run_dry(config: &Config, tasks: &[ForgeTask]) -> Result<()> {
-  let deep_runner = ClaudeRunner::new(config.triage_tools.clone());
+  let analyze_runner = ClaudeRunner::new(config.triage_tools.clone());
   let repo_path = Config::repo_path();
 
   for forge_task in tasks {
-    let deep = agents_triage::deep_triage(forge_task, config, &deep_runner, &repo_path, None)?;
+    let result = analyze::analyze(forge_task, config, &analyze_runner, &repo_path, None)?;
 
     println!("--- {} ---", forge_task);
-    println!("Complexity: {}", deep.complexity);
-    println!("Plan:       {}", deep.plan);
-    println!("Files:      {}", deep.relevant_files.join(", "));
-    println!("Steps:      {}", deep.implementation_steps.len());
-    println!("Sufficient: {}", deep.is_sufficient());
+    println!("Complexity: {}", result.complexity);
+    println!("Plan:       {}", result.plan);
+    println!("Files:      {}", result.relevant_files.join(", "));
+    println!("Steps:      {}", result.implementation_steps.len());
+    println!("Sufficient: {}", result.is_sufficient());
     println!();
   }
 

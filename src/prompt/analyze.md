@@ -1,4 +1,4 @@
-You are a triage agent. Explore this repository's codebase to create a detailed implementation plan for the given issue.
+You are an analysis agent. Explore this repository's codebase to create a detailed implementation plan for the given task.
 
 Respond with ONLY a JSON object (no markdown):
 {

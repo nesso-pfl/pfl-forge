@@ -12,7 +12,7 @@ use crate::prompt;
 use crate::task::ForgeTask;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeepTriageResult {
+pub struct AnalysisResult {
   pub complexity: String,
   pub plan: String,
   pub relevant_files: Vec<String>,
@@ -20,7 +20,7 @@ pub struct DeepTriageResult {
   pub context: String,
 }
 
-impl DeepTriageResult {
+impl AnalysisResult {
   pub fn is_sufficient(&self) -> bool {
     !self.relevant_files.is_empty()
       && !self.implementation_steps.is_empty()
@@ -32,13 +32,13 @@ impl DeepTriageResult {
   }
 }
 
-pub fn deep_triage(
+pub fn analyze(
   forge_task: &ForgeTask,
   config: &Config,
   runner: &ClaudeRunner,
   repo_path: &std::path::Path,
   clarification: Option<&ClarificationContext>,
-) -> Result<DeepTriageResult> {
+) -> Result<AnalysisResult> {
   let deep_model = model::resolve(&config.models.triage_deep);
 
   let labels = forge_task.labels.join(", ");
@@ -47,7 +47,7 @@ pub fn deep_triage(
     format!(
       r#"
 
-## Previous Analysis (from prior triage attempt)
+## Previous Analysis (from prior analysis attempt)
 Relevant files: {files}
 Plan: {plan}
 Context: {context}
@@ -80,12 +80,12 @@ Labels: {labels}
 
   let timeout = Some(Duration::from_secs(config.triage_timeout_secs));
 
-  info!("deep triaging: {forge_task}");
-  let result: DeepTriageResult =
-    runner.run_json(&prompt, prompt::DEEP_TRIAGE, deep_model, repo_path, timeout)?;
+  info!("analyzing: {forge_task}");
+  let result: AnalysisResult =
+    runner.run_json(&prompt, prompt::ANALYZE, deep_model, repo_path, timeout)?;
 
   info!(
-    "deep triage: complexity={}, {} relevant files, {} steps, sufficient={}",
+    "analysis: complexity={}, {} relevant files, {} steps, sufficient={}",
     result.complexity,
     result.relevant_files.len(),
     result.implementation_steps.len(),

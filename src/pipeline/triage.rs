@@ -20,6 +20,50 @@ pub struct DeepTriageResult {
   pub context: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskStatus {
+  #[default]
+  Pending,
+  Executing,
+  Completed,
+  Failed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Task {
+  pub issue_number: u64,
+  pub issue_title: String,
+  pub issue_body: String,
+  #[serde(default)]
+  pub status: TaskStatus,
+  pub complexity: String,
+  pub plan: String,
+  pub relevant_files: Vec<String>,
+  pub implementation_steps: Vec<String>,
+  pub context: String,
+}
+
+impl Task {
+  pub fn from_triage(issue: &ForgeIssue, deep: &DeepTriageResult) -> Self {
+    Self {
+      issue_number: issue.number,
+      issue_title: issue.title.clone(),
+      issue_body: issue.body.clone(),
+      status: TaskStatus::Pending,
+      complexity: deep.complexity.clone(),
+      plan: deep.plan.clone(),
+      relevant_files: deep.relevant_files.clone(),
+      implementation_steps: deep.implementation_steps.clone(),
+      context: deep.context.clone(),
+    }
+  }
+
+  pub fn complexity(&self) -> model::Complexity {
+    self.complexity.parse().unwrap_or(model::Complexity::Medium)
+  }
+}
+
 impl DeepTriageResult {
   pub fn is_sufficient(&self) -> bool {
     !self.relevant_files.is_empty()

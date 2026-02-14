@@ -8,14 +8,14 @@ use crate::config::RepoConfig;
 use crate::error::Result;
 use crate::git;
 use crate::github::issue::ForgeIssue;
-use crate::pipeline::triage::DeepTriageResult;
+use crate::pipeline::triage::Task;
 use crate::prompt;
 
-pub fn write_triage_yaml(worktree_path: &Path, deep: &DeepTriageResult) -> Result<()> {
+pub fn write_task_yaml(worktree_path: &Path, task: &Task) -> Result<()> {
   let forge_dir = worktree_path.join(".forge");
   std::fs::create_dir_all(&forge_dir)?;
-  let content = serde_yaml::to_string(deep)?;
-  std::fs::write(forge_dir.join("triage.yaml"), content)?;
+  let content = serde_yaml::to_string(task)?;
+  std::fs::write(forge_dir.join("task.yaml"), content)?;
   Ok(())
 }
 
@@ -44,7 +44,7 @@ pub enum ExecuteResult {
 
 pub fn execute(
   issue: &ForgeIssue,
-  deep: &DeepTriageResult,
+  task: &Task,
   repo_config: &RepoConfig,
   runner: &ClaudeRunner,
   model_settings: &crate::config::ModelSettings,
@@ -60,8 +60,8 @@ pub fn execute(
 
   info!("executing in worktree: {}", worktree_path.display());
 
-  // Write triage data and ensure .gitignore
-  write_triage_yaml(&worktree_path, deep)?;
+  // Write task data and ensure .gitignore
+  write_task_yaml(&worktree_path, task)?;
   ensure_gitignore_forge(&worktree_path)?;
 
   // Check Docker if required
@@ -73,7 +73,7 @@ pub fn execute(
   }
 
   // Select model based on complexity
-  let complexity = deep.complexity();
+  let complexity = task.complexity();
   let selected_model = complexity.select_model(model_settings);
 
   // Build the worker prompt

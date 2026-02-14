@@ -10,7 +10,7 @@ use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::{ForgeError, Result};
 use crate::github::issue::ForgeIssue;
-use crate::pipeline::triage::DeepTriageResult;
+use crate::pipeline::triage::Task;
 use crate::prompt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,7 +22,7 @@ pub struct ReviewResult {
 
 pub fn review(
   issue: &ForgeIssue,
-  deep: &DeepTriageResult,
+  task: &Task,
   config: &Config,
   runner: &ClaudeRunner,
   worktree_path: &Path,
@@ -49,7 +49,7 @@ pub fn review(
     number = issue.number,
     title = issue.title,
     body = issue.body,
-    plan = deep.plan,
+    plan = task.plan,
     diff = truncate_diff(&diff, 50000),
   );
 

@@ -23,7 +23,8 @@ use crate::github::client::GitHubClient;
 use crate::github::issue::ForgeIssue;
 use crate::pipeline::execute::ExecuteResult;
 use crate::pipeline::integrate::WorkerOutput;
-use crate::pipeline::triage::{self, ConsultationOutcome, DeepTriageResult};
+use crate::pipeline::triage::{self, ConsultationOutcome, DeepTriageResult, Task, TaskStatus};
+use crate::pipeline::work;
 use crate::state::tracker::{IssueStatus, SharedState, StateTracker};
 
 #[derive(Parser)]
@@ -93,8 +94,8 @@ enum Commands {
   },
 }
 
-enum ProcessOutcome {
-  Output(WorkerOutput),
+enum TriageOutcome {
+  Tasks(Vec<(PathBuf, ForgeIssue, String)>),
   Skipped,
   NeedsClarification {
     issue: ForgeIssue,
@@ -216,25 +217,72 @@ async fn cmd_run(
     return cmd_run_dry(config, &issues).await;
   }
 
-  // Parallel phase: triage → execute
+  // Phase 1: Triage (parallel per issue)
   let semaphore = Arc::new(Semaphore::new(config.settings.parallel_workers));
-  let mut join_set = JoinSet::new();
+  let mut triage_set = JoinSet::new();
 
   for issue in issues {
     let sem = semaphore.clone();
     let state = state.clone();
     let config = config.clone();
 
-    join_set.spawn(async move {
+    triage_set.spawn(async move {
       let _permit = sem.acquire().await.expect("semaphore closed");
-      process_issue(issue, &config, &state).await
+      triage_issue(issue, &config, &state).await
     });
   }
 
-  // Streaming integration: process each result as it completes
-  while let Some(result) = join_set.join_next().await {
+  let mut task_entries: Vec<(PathBuf, ForgeIssue, String)> = Vec::new();
+
+  while let Some(result) = triage_set.join_next().await {
     match result {
-      Ok(Ok(ProcessOutcome::Output(output))) => {
+      Ok(Ok(TriageOutcome::Tasks(entries))) => {
+        task_entries.extend(entries);
+      }
+      Ok(Ok(TriageOutcome::NeedsClarification {
+        issue,
+        message,
+        deep_result,
+        repo_path,
+      })) => {
+        if let Err(e) =
+          pipeline::clarification::write_clarification(&repo_path, &issue, &deep_result, &message)
+        {
+          error!("failed to write clarification for {issue}: {e}");
+        }
+      }
+      Ok(Ok(TriageOutcome::Skipped)) => {}
+      Ok(Err(e)) => error!("triage error: {e}"),
+      Err(e) => error!("triage join error: {e}"),
+    }
+  }
+
+  if task_entries.is_empty() {
+    info!("no tasks to execute");
+    let summary = state.lock().unwrap().summary();
+    info!("run complete: {summary}");
+    return Ok(());
+  }
+
+  info!("executing {} task(s)", task_entries.len());
+
+  // Phase 2: Execute (parallel per task) + Phase 3: Streaming integration
+  let mut exec_set = JoinSet::new();
+
+  for (task_path, issue, repo_config_name) in task_entries {
+    let sem = semaphore.clone();
+    let state = state.clone();
+    let config = config.clone();
+
+    exec_set.spawn(async move {
+      let _permit = sem.acquire().await.expect("semaphore closed");
+      execute_task(task_path, issue, repo_config_name, &config, &state).await
+    });
+  }
+
+  while let Some(result) = exec_set.join_next().await {
+    match result {
+      Ok(Ok(output)) => {
         let repo_config = config
           .find_repo(&output.repo_config_name)
           .expect("repo config should exist");
@@ -244,13 +292,17 @@ async fn cmd_run(
             pipeline::integrate::integrate_one(&output, repo_config, config, &github, &state).await
           {
             error!("integration failed for {}: {e}", output.issue);
+            let _ = work::set_task_status(&output.task_path, TaskStatus::Failed);
             state.lock().unwrap().set_error(
               &output.issue.full_repo(),
               output.issue.number,
               &e.to_string(),
             )?;
+          } else {
+            let _ = work::set_task_status(&output.task_path, TaskStatus::Completed);
           }
         } else {
+          let _ = work::set_task_status(&output.task_path, TaskStatus::Failed);
           if let Err(e) = pipeline::report::report(
             &output.issue,
             &output.result,
@@ -265,21 +317,8 @@ async fn cmd_run(
           }
         }
       }
-      Ok(Ok(ProcessOutcome::NeedsClarification {
-        issue,
-        message,
-        deep_result,
-        repo_path,
-      })) => {
-        if let Err(e) =
-          pipeline::clarification::write_clarification(&repo_path, &issue, &deep_result, &message)
-        {
-          error!("failed to write clarification for {issue}: {e}");
-        }
-      }
-      Ok(Ok(ProcessOutcome::Skipped)) => {}
-      Ok(Err(e)) => error!("worker error: {e}"),
-      Err(e) => error!("task join error: {e}"),
+      Ok(Err(e)) => error!("execute error: {e}"),
+      Err(e) => error!("execute join error: {e}"),
     }
   }
 
@@ -289,11 +328,11 @@ async fn cmd_run(
   Ok(())
 }
 
-async fn process_issue(
+async fn triage_issue(
   issue: ForgeIssue,
   config: &Config,
   state: &SharedState,
-) -> Result<ProcessOutcome> {
+) -> Result<TriageOutcome> {
   let repo_config = config
     .find_repo(&issue.repo_name)
     .expect("issue repo should be in config");
@@ -311,11 +350,9 @@ async fn process_issue(
     s.set_started(&full_repo, issue.number)?;
   }
 
-  // Check for clarification context from previous NeedsClarification
   let repo_path = repo_config.path.clone();
   let clarification_ctx = pipeline::clarification::check_clarification(&repo_path, issue.number)?;
 
-  // Deep Triage (sonnet, read-only tools)
   let deep_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
   let issue_clone = issue.clone();
   let config_clone = config.clone();
@@ -332,7 +369,6 @@ async fn process_issue(
   .await
   .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
 
-  // If deep triage is insufficient, consult
   let deep_result = if deep_result.is_sufficient() {
     deep_result
   } else {
@@ -364,7 +400,7 @@ async fn process_issue(
           &issue.title,
           IssueStatus::NeedsClarification,
         )?;
-        return Ok(ProcessOutcome::NeedsClarification {
+        return Ok(TriageOutcome::NeedsClarification {
           issue,
           message,
           deep_result,
@@ -374,7 +410,34 @@ async fn process_issue(
     }
   };
 
-  // Execute
+  // Write task YAML to .forge/work/
+  let task_paths = work::write_tasks(&repo_path, &issue, &deep_result)?;
+
+  let entries: Vec<(PathBuf, ForgeIssue, String)> = task_paths
+    .into_iter()
+    .map(|p| (p, issue.clone(), repo_config_name.clone()))
+    .collect();
+
+  Ok(TriageOutcome::Tasks(entries))
+}
+
+async fn execute_task(
+  task_path: PathBuf,
+  issue: ForgeIssue,
+  repo_config_name: String,
+  config: &Config,
+  state: &SharedState,
+) -> Result<WorkerOutput> {
+  let repo_config = config
+    .find_repo(&repo_config_name)
+    .expect("repo config should exist");
+  let full_repo = issue.full_repo();
+
+  // Read and lock task
+  let content = std::fs::read_to_string(&task_path)?;
+  let task: Task = serde_yaml::from_str(&content)?;
+  work::set_task_status(&task_path, TaskStatus::Executing)?;
+
   {
     let mut s = state.lock().unwrap();
     s.set_status(
@@ -389,17 +452,16 @@ async fn process_issue(
   let tools = repo_config.all_tools(&config.settings.worker_tools);
   let exec_runner = ClaudeRunner::new(tools);
   let issue_clone = issue.clone();
-  let deep_clone = deep_result.clone();
+  let task_clone = task.clone();
   let repo_config_clone = repo_config.clone();
   let models = config.settings.models.clone();
   let worktree_dir = config.settings.worktree_dir.clone();
-
   let worker_timeout_secs = config.settings.worker_timeout_secs;
 
   let exec_result = tokio::task::spawn_blocking(move || {
     pipeline::execute::execute(
       &issue_clone,
-      &deep_clone,
+      &task_clone,
       &repo_config_clone,
       &exec_runner,
       &models,
@@ -410,7 +472,6 @@ async fn process_issue(
   .await
   .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
 
-  // Update state for success and clean up clarification files
   if matches!(exec_result, ExecuteResult::Success { .. }) {
     state.lock().unwrap().set_status(
       &full_repo,
@@ -418,15 +479,16 @@ async fn process_issue(
       &issue.title,
       IssueStatus::Success,
     )?;
-    let _ = pipeline::clarification::cleanup_clarification(&repo_path, issue.number);
+    let _ = pipeline::clarification::cleanup_clarification(&repo_config.path, issue.number);
   }
 
-  Ok(ProcessOutcome::Output(WorkerOutput {
+  Ok(WorkerOutput {
     issue,
     result: exec_result,
     repo_config_name,
-    deep_triage: deep_result,
-  }))
+    task,
+    task_path,
+  })
 }
 
 async fn cmd_run_dry(config: &Config, issues: &[ForgeIssue]) -> Result<()> {

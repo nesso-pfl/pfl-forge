@@ -37,7 +37,7 @@ Deep Triage で十分な分析ができなかった場合に呼ばれる補助�
 
 - モデル: complexity に応じて `settings.models.default` (low/medium) または `settings.models.complex` (high)
 - ツール: `settings.worker_tools` + `repo.extra_tools` (default: Bash, Read, Write, Edit, Glob, Grep)
-- worktree 内の `.forge/triage.yaml` から実装計画・関連ファイル・ステップ・コンテキストを読み取る
+- worktree 内の `.forge/task.yaml` から実装計画・関連ファイル・ステップ・コンテキストを読み取る
 - worktree 内で issue の実装を行い、コミットを作成
 - 出力: `ExecuteResult` (Success, TestFailure, Unclear, Error)
 
@@ -53,9 +53,10 @@ Worker の成果物を検証するコードレビューエージェント。
 
 ## Agent 間の YAML 通信
 
-エージェント間のデータ受け渡しは worktree 内の `.forge/` ディレクトリを介して行われる:
+エージェント間のデータ受け渡しは `.forge/` ディレクトリを介して行われる:
 
-- `.forge/triage.yaml` — Deep Triage の結果（plan, relevant_files, implementation_steps, context）。execute ステージで書き出し、Worker が読み取る。
+- `.forge/work/issue-{N}-{NNN}.yaml` — triage の結果をタスク YAML としてリポジトリルートに書き出す。`status` フィールド（pending → executing → completed/failed）でロック管理。
+- `.forge/task.yaml` — execute ステージが worktree 内に書き出し、Worker が読み取る。
 - `.forge/review.yaml` — Review Agent の結果（approved, issues, suggestions）。integrate ステージで書き出し、監査ログとして機能。
 
 `.forge/` は `.gitignore` に自動追加されるため、コミットには含まれない。
@@ -65,11 +66,12 @@ Worker の成果物を検証するコードレビューエージェント。
 ```
 Parent Agent (interactive)
   └─ pfl-forge run (CLI)
-       ├─ Deep Triage Agent
+       ├─ Phase 1: Deep Triage Agent (並列)
        │    └─ Consultation Agent (必要時)
        │         └─ NeedsClarification → Parent に戻る
-       ├─ Execute Agent (Worker)  ← .forge/triage.yaml を読む
-       └─ integrate
+       │    → .forge/work/*.yaml にタスク書き出し
+       ├─ Phase 2: Execute Agent (Worker, 並列) ← .forge/task.yaml を読む
+       └─ Phase 3: integrate (streaming)
             └─ Review Agent → .forge/review.yaml を書く
 ```
 

@@ -10,7 +10,7 @@ use crate::github::client::GitHubClient;
 use crate::github::issue::{ForgeIssue, TaskSource};
 use crate::pipeline::execute::ExecuteResult;
 use crate::pipeline::review::{self, ReviewResult};
-use crate::pipeline::triage::DeepTriageResult;
+use crate::pipeline::triage::Task;
 use crate::state::tracker::{IssueStatus, SharedState};
 
 fn write_review_yaml(worktree_path: &Path, result: &ReviewResult) -> Result<()> {
@@ -25,7 +25,8 @@ pub struct WorkerOutput {
   pub issue: ForgeIssue,
   pub result: ExecuteResult,
   pub repo_config_name: String,
-  pub deep_triage: DeepTriageResult,
+  pub task: Task,
+  pub task_path: std::path::PathBuf,
 }
 
 pub async fn integrate_one(
@@ -128,14 +129,14 @@ pub async fn integrate_one(
   info!("reviewing {issue}");
   let review_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
   let issue_clone = issue.clone();
-  let deep_clone = output.deep_triage.clone();
+  let task_clone = output.task.clone();
   let config_clone = config.clone();
   let wt = worktree_path.clone();
   let bb = base_branch.clone();
   let review_result = tokio::task::spawn_blocking(move || {
     review::review(
       &issue_clone,
-      &deep_clone,
+      &task_clone,
       &config_clone,
       &review_runner,
       &wt,

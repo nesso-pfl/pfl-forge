@@ -89,9 +89,7 @@ pub async fn report(
             owner,
             repo,
             issue.number,
-            &format!(
-              "pfl-forge could not resolve this issue automatically.\n\nReason: {reason}"
-            ),
+            &format!("pfl-forge could not resolve this issue automatically.\n\nReason: {reason}"),
           )
           .await?;
 

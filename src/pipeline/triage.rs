@@ -9,6 +9,7 @@ use crate::config::Config;
 use crate::error::Result;
 use crate::github::issue::ForgeIssue;
 use crate::pipeline::clarification::ClarificationContext;
+use crate::prompt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeepTriageResult {
@@ -70,17 +71,6 @@ questions from the prior attempt. Update the plan accordingly."#,
         String::new()
     };
 
-    let system_prompt = r#"You are a triage agent. Explore this repository's codebase to create a detailed implementation plan for the given issue.
-
-Respond with ONLY a JSON object (no markdown):
-{
-  "complexity": "<low|medium|high>",
-  "plan": "<detailed implementation plan>",
-  "relevant_files": ["<file paths that need modification>"],
-  "implementation_steps": ["<ordered list of concrete implementation steps>"],
-  "context": "<relevant codebase context: patterns, conventions, dependencies>"
-}"#;
-
     let prompt = format!(
         r#"Repository: {repo}
 Issue #{number}: {title}
@@ -99,7 +89,7 @@ Labels: {labels}
 
     info!("deep triaging: {issue}");
     let result: DeepTriageResult =
-        runner.run_json(&prompt, system_prompt, deep_model, repo_path, timeout)?;
+        runner.run_json(&prompt, prompt::DEEP_TRIAGE, deep_model, repo_path, timeout)?;
 
     info!(
         "deep triage: complexity={}, {} relevant files, {} steps, sufficient={}",
@@ -120,16 +110,6 @@ pub fn consult(
     repo_path: &std::path::Path,
 ) -> Result<ConsultationOutcome> {
     let complex_model = model::resolve(&config.settings.models.complex);
-
-    let system_prompt = r#"You are a senior consulting agent. A triage agent produced insufficient results for the given issue. Explore the codebase yourself, fill in the gaps, and produce a complete implementation plan. If the issue is genuinely unclear, respond with "needs_clarification".
-
-Respond with ONLY a JSON object (no markdown):
-
-If resolved:
-{ "status": "resolved", "complexity": "...", "plan": "...", "relevant_files": [...], "implementation_steps": [...], "context": "..." }
-
-If needs clarification:
-{ "status": "needs_clarification", "message": "..." }"#;
 
     let prompt = format!(
         r#"Repository: {repo}
@@ -156,7 +136,7 @@ Issue #{number}: {title}
 
     info!("consulting on: {issue}");
     let raw: serde_json::Value =
-        runner.run_json(&prompt, system_prompt, complex_model, repo_path, timeout)?;
+        runner.run_json(&prompt, prompt::CONSULT, complex_model, repo_path, timeout)?;
 
     let status = raw
         .get("status")

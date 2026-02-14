@@ -9,6 +9,7 @@ use crate::error::Result;
 use crate::git;
 use crate::github::issue::ForgeIssue;
 use crate::pipeline::triage::DeepTriageResult;
+use crate::prompt;
 
 #[derive(Debug)]
 pub enum ExecuteResult {
@@ -49,11 +50,11 @@ pub fn execute(
     let selected_model = complexity.select_model(model_settings);
 
     // Build the worker prompt
-    let (system_prompt, prompt) = build_worker_prompt(issue, deep, repo_config);
+    let prompt = build_worker_prompt(issue, deep, repo_config);
 
     // Run Claude Code Worker
     let timeout = Some(Duration::from_secs(worker_timeout_secs));
-    let result = runner.run_prompt(&prompt, &system_prompt, selected_model, &worktree_path, timeout);
+    let result = runner.run_prompt(&prompt, prompt::WORKER, selected_model, &worktree_path, timeout);
 
     match result {
         Ok(output) => {
@@ -95,7 +96,7 @@ fn build_worker_prompt(
     issue: &ForgeIssue,
     deep: &DeepTriageResult,
     repo_config: &RepoConfig,
-) -> (String, String) {
+) -> String {
     let files = deep
         .relevant_files
         .iter()
@@ -111,16 +112,7 @@ fn build_worker_prompt(
         .collect::<Vec<_>>()
         .join("\n");
 
-    let system_prompt = format!(
-        r#"You are a coding agent. Implement the given GitHub issue according to the provided plan.
-
-- Commit with a message referencing the issue number (e.g. "fix #N: ..." or "add #N: ...")
-- Run tests with: `{test_command}`
-- Do NOT push to remote"#,
-        test_command = repo_config.test_command,
-    );
-
-    let user_prompt = format!(
+    format!(
         r#"## Issue #{number}: {title}
 
 {body}
@@ -139,7 +131,11 @@ fn build_worker_prompt(
 
 ## Codebase Context
 
-{context}"#,
+{context}
+
+## Test Command
+
+`{test_command}`"#,
         number = issue.number,
         title = issue.title,
         body = issue.body,
@@ -147,9 +143,8 @@ fn build_worker_prompt(
         files = files,
         steps = steps,
         context = deep.context,
-    );
-
-    (system_prompt, user_prompt)
+        test_command = repo_config.test_command,
+    )
 }
 
 fn check_docker(worktree_path: &Path) -> Result<()> {

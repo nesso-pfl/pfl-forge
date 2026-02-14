@@ -11,6 +11,7 @@ use crate::config::Config;
 use crate::error::{ForgeError, Result};
 use crate::github::issue::ForgeIssue;
 use crate::pipeline::triage::DeepTriageResult;
+use crate::prompt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewResult {
@@ -28,19 +29,6 @@ pub fn review(
     base_branch: &str,
 ) -> Result<ReviewResult> {
     let review_model = model::resolve(&config.settings.models.default);
-
-    let system_prompt = r#"You are a code review agent.
-
-Review criteria:
-1. Does the implementation satisfy the issue requirements?
-2. Does the code follow existing patterns and conventions?
-3. Are there any obvious bugs or security issues?
-4. Is the implementation consistent with the plan?
-5. If new tests are added, are they meaningful and well-structured?
-6. If tests were modified, is the change justified?
-
-Respond with ONLY a JSON object (no markdown):
-{ "approved": <bool>, "issues": [...], "suggestions": [...] }"#;
 
     let diff = get_diff(worktree_path, base_branch)?;
 
@@ -69,7 +57,7 @@ Respond with ONLY a JSON object (no markdown):
 
     info!("reviewing: {issue}");
     let result: ReviewResult =
-        runner.run_json(&prompt, system_prompt, review_model, worktree_path, timeout)?;
+        runner.run_json(&prompt, prompt::REVIEW, review_model, worktree_path, timeout)?;
 
     info!(
         "review: approved={}, {} issues, {} suggestions",

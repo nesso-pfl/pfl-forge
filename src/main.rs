@@ -5,6 +5,7 @@ mod git;
 mod github;
 mod parent_prompt;
 mod pipeline;
+mod prompt;
 mod state;
 
 use std::path::PathBuf;

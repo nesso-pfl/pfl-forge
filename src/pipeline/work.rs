@@ -10,8 +10,8 @@ fn work_dir(repo_path: &Path) -> PathBuf {
   repo_path.join(".forge").join("work")
 }
 
-fn task_filename(issue_id: &str, index: u32) -> String {
-  format!("{issue_id}-{index:03}.yaml")
+fn task_filename(task_id: &str, index: u32) -> String {
+  format!("{task_id}-{index:03}.yaml")
 }
 
 pub fn write_tasks(

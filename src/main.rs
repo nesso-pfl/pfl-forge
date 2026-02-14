@@ -460,7 +460,7 @@ fn cmd_clarifications(_config: &Config) -> Result<()> {
   }
 
   for c in &pending {
-    println!("=== {} ===", c.issue_id);
+    println!("=== {} ===", c.task_id);
     println!("{}", c.content);
     println!();
   }

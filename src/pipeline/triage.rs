@@ -32,9 +32,9 @@ pub enum WorkStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
-  pub issue_id: String,
-  pub issue_title: String,
-  pub issue_body: String,
+  pub task_id: String,
+  pub task_title: String,
+  pub task_body: String,
   #[serde(default)]
   pub status: WorkStatus,
   pub complexity: String,
@@ -47,9 +47,9 @@ pub struct Task {
 impl Task {
   pub fn from_triage(issue: &ForgeTask, deep: &DeepTriageResult) -> Self {
     Self {
-      issue_id: issue.id.clone(),
-      issue_title: issue.title.clone(),
-      issue_body: issue.body.clone(),
+      task_id: issue.id.clone(),
+      task_title: issue.title.clone(),
+      task_body: issue.body.clone(),
       status: WorkStatus::Pending,
       complexity: deep.complexity.clone(),
       plan: deep.plan.clone(),

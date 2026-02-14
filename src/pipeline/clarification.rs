@@ -16,12 +16,12 @@ fn clarification_dir(repo_path: &Path) -> std::path::PathBuf {
   repo_path.join(".forge").join("clarifications")
 }
 
-fn question_path(repo_path: &Path, issue_id: &str) -> std::path::PathBuf {
-  clarification_dir(repo_path).join(format!("{issue_id}.md"))
+fn question_path(repo_path: &Path, task_id: &str) -> std::path::PathBuf {
+  clarification_dir(repo_path).join(format!("{task_id}.md"))
 }
 
-fn answer_path(repo_path: &Path, issue_id: &str) -> std::path::PathBuf {
-  clarification_dir(repo_path).join(format!("{issue_id}.answer.md"))
+fn answer_path(repo_path: &Path, task_id: &str) -> std::path::PathBuf {
+  clarification_dir(repo_path).join(format!("{task_id}.answer.md"))
 }
 
 pub fn write_clarification(
@@ -66,10 +66,10 @@ Context: {context}
 
 pub fn check_clarification(
   repo_path: &Path,
-  issue_id: &str,
+  task_id: &str,
 ) -> Result<Option<ClarificationContext>> {
-  let q_path = question_path(repo_path, issue_id);
-  let a_path = answer_path(repo_path, issue_id);
+  let q_path = question_path(repo_path, task_id);
+  let a_path = answer_path(repo_path, task_id);
 
   if !a_path.exists() {
     return Ok(None);
@@ -85,7 +85,7 @@ pub fn check_clarification(
   let (previous_analysis, questions) = parse_question_file(&q_content);
 
   info!(
-    "found clarification answer for issue {issue_id} ({} bytes)",
+    "found clarification answer for issue {task_id} ({} bytes)",
     answer.len()
   );
 
@@ -147,7 +147,7 @@ fn parse_question_file(content: &str) -> (DeepTriageResult, String) {
 }
 
 pub struct PendingClarification {
-  pub issue_id: String,
+  pub task_id: String,
   pub content: String,
 }
 
@@ -165,21 +165,21 @@ pub fn list_pending_clarifications(repo_path: &Path) -> Result<Vec<PendingClarif
     if name.ends_with(".answer.md") || !name.ends_with(".md") {
       continue;
     }
-    let issue_id = name.trim_end_matches(".md").to_string();
+    let task_id = name.trim_end_matches(".md").to_string();
     // Skip if answer already exists
-    if answer_path(repo_path, &issue_id).exists() {
+    if answer_path(repo_path, &task_id).exists() {
       continue;
     }
     let content = std::fs::read_to_string(entry.path())?;
-    pending.push(PendingClarification { issue_id, content });
+    pending.push(PendingClarification { task_id, content });
   }
 
-  pending.sort_by(|a, b| a.issue_id.cmp(&b.issue_id));
+  pending.sort_by(|a, b| a.task_id.cmp(&b.task_id));
   Ok(pending)
 }
 
-pub fn write_answer(repo_path: &Path, issue_id: &str, text: &str) -> Result<()> {
-  let path = answer_path(repo_path, issue_id);
+pub fn write_answer(repo_path: &Path, task_id: &str, text: &str) -> Result<()> {
+  let path = answer_path(repo_path, task_id);
   let dir = clarification_dir(repo_path);
   std::fs::create_dir_all(&dir)?;
   std::fs::write(&path, text)?;
@@ -187,9 +187,9 @@ pub fn write_answer(repo_path: &Path, issue_id: &str, text: &str) -> Result<()> 
   Ok(())
 }
 
-pub fn cleanup_clarification(repo_path: &Path, issue_id: &str) -> Result<()> {
-  let q_path = question_path(repo_path, issue_id);
-  let a_path = answer_path(repo_path, issue_id);
+pub fn cleanup_clarification(repo_path: &Path, task_id: &str) -> Result<()> {
+  let q_path = question_path(repo_path, task_id);
+  let a_path = answer_path(repo_path, task_id);
 
   if q_path.exists() {
     std::fs::remove_file(&q_path)?;

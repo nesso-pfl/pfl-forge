@@ -19,7 +19,7 @@ Multi-agent task processor powered by Claude Code.
 
 ## Config
 
-`pfl-forge.yaml` をリポジトリルートに配置。CWD ベースの単一リポモデルで、`repo_name` は CWD のディレクトリ名から自動導出。
+`pfl-forge.yaml` をリポジトリルートに配置。CWD ベースの単一リポモデル。状態は `.forge/state.yaml` に保存。タスク ID はファイル名（UUID 等の任意文字列）。
 
 ## CLI subcommands
 
@@ -28,7 +28,7 @@ Multi-agent task processor powered by Claude Code.
 - `status` — 処理状態の表示
 - `clean` — 完了済み worktree の削除
 - `clarifications` — 未回答の clarification 一覧
-- `answer <number> "<text>"` — clarification への回答
+- `answer <id> "<text>"` — clarification への回答
 - `parent` — 親エージェント (interactive Claude Code session) を起動
 
 ## Development

@@ -15,7 +15,6 @@ struct LocalTask {
 }
 
 pub fn fetch_local_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeIssue>> {
-  let repo_name = Config::repo_name();
   let repo_path = Config::repo_path();
   let tasks_dir = repo_path.join(".forge/tasks");
   if !tasks_dir.exists() {
@@ -35,17 +34,18 @@ pub fn fetch_local_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<F
       continue;
     }
 
-    let stem = path
+    let id = path
       .file_stem()
       .and_then(|s| s.to_str())
-      .unwrap_or_default();
-    let number: u64 = match stem.parse() {
-      Ok(n) => n,
-      Err(_) => continue,
-    };
+      .unwrap_or_default()
+      .to_string();
 
-    if state.is_terminal(&repo_name, number) {
-      info!("skipping terminal local task: {repo_name}#{number}");
+    if id.is_empty() {
+      continue;
+    }
+
+    if state.is_terminal(&id) {
+      info!("skipping terminal local task: {id}");
       continue;
     }
 
@@ -53,11 +53,10 @@ pub fn fetch_local_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<F
     let task: LocalTask = serde_yaml::from_str(&content)?;
 
     issues.push(ForgeIssue {
-      number,
+      id,
       title: task.title,
       body: task.body,
       labels: task.labels,
-      repo_name: repo_name.clone(),
       created_at: chrono::Utc::now(),
     });
   }
@@ -67,35 +66,26 @@ pub fn fetch_local_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<F
 }
 
 pub fn fetch_resumable_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeIssue>> {
-  let repo_name = Config::repo_name();
   let repo_path = Config::repo_path();
   let resumable = state.resumable_issues();
   let mut issues = Vec::new();
 
-  for (r_name, number) in resumable {
-    if r_name != repo_name {
-      info!("skipping resumable task {r_name}#{number}: different repo");
-      continue;
-    }
-
-    let task_path = repo_path
-      .join(".forge/tasks")
-      .join(format!("{number}.yaml"));
+  for id in resumable {
+    let task_path = repo_path.join(".forge/tasks").join(format!("{id}.yaml"));
     if !task_path.exists() {
-      info!("skipping resumable task {r_name}#{number}: task file not found");
+      info!("skipping resumable task {id}: task file not found");
       continue;
     }
 
     let content = std::fs::read_to_string(&task_path)?;
     let task: LocalTask = serde_yaml::from_str(&content)?;
 
-    info!("resuming: {r_name}#{number}");
+    info!("resuming: {id}");
     issues.push(ForgeIssue {
-      number,
+      id,
       title: task.title,
       body: task.body,
       labels: task.labels,
-      repo_name: repo_name.clone(),
       created_at: chrono::Utc::now(),
     });
   }
@@ -105,23 +95,16 @@ pub fn fetch_resumable_tasks(_config: &Config, state: &StateTracker) -> Result<V
 }
 
 pub fn fetch_clarified_tasks(_config: &Config, state: &StateTracker) -> Result<Vec<ForgeIssue>> {
-  let repo_name = Config::repo_name();
   let repo_path = Config::repo_path();
   let needs_clarification = state.needs_clarification_issues();
   let mut issues = Vec::new();
 
-  for (r_name, number) in needs_clarification {
-    if r_name != repo_name {
+  for id in needs_clarification {
+    if clarification::check_clarification(&repo_path, &id)?.is_none() {
       continue;
     }
 
-    if clarification::check_clarification(&repo_path, number)?.is_none() {
-      continue;
-    }
-
-    let task_path = repo_path
-      .join(".forge/tasks")
-      .join(format!("{number}.yaml"));
+    let task_path = repo_path.join(".forge/tasks").join(format!("{id}.yaml"));
     if !task_path.exists() {
       continue;
     }
@@ -129,13 +112,12 @@ pub fn fetch_clarified_tasks(_config: &Config, state: &StateTracker) -> Result<V
     let content = std::fs::read_to_string(&task_path)?;
     let task: LocalTask = serde_yaml::from_str(&content)?;
 
-    info!("clarification answered, re-processing: {r_name}#{number}");
+    info!("clarification answered, re-processing: {id}");
     issues.push(ForgeIssue {
-      number,
+      id,
       title: task.title,
       body: task.body,
       labels: task.labels,
-      repo_name: repo_name.clone(),
       created_at: chrono::Utc::now(),
     });
   }

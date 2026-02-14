@@ -29,7 +29,7 @@ Deep Triage で十分な分析ができなかった場合に呼ばれる補助�
 - モデル: `settings.models.triage_deep` (default: sonnet)
 - ツール: `settings.triage_tools` (default: Read, Glob, Grep)
 - 出力: `ConsultationOutcome::Resolved(DeepTriageResult)` または `ConsultationOutcome::NeedsClarification(String)`
-- NeedsClarification の場合、`.forge/clarifications/<number>.md` にファイルを作成
+- NeedsClarification の場合、`.forge/clarifications/<id>.md` にファイルを作成
 
 ## Execute Agent (Worker)
 
@@ -55,7 +55,7 @@ Worker の成果物を検証するコードレビューエージェント。
 
 エージェント間のデータ受け渡しは `.forge/` ディレクトリを介して行われる:
 
-- `.forge/work/issue-{N}-{NNN}.yaml` — triage の結果をタスク YAML としてリポジトリルートに書き出す。`status` フィールド（pending → executing → completed/failed）でロック管理。
+- `.forge/work/{id}-{NNN}.yaml` — triage の結果をタスク YAML としてリポジトリルートに書き出す。`status` フィールド（pending → executing → completed/failed）でロック管理。
 - `.forge/task.yaml` — execute ステージが worktree 内に書き出し、Worker が読み取る。
 - `.forge/review.yaml` — Review Agent の結果（approved, issues, suggestions）。integrate ステージで書き出し、監査ログとして機能。
 

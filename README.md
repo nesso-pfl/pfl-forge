@@ -12,7 +12,7 @@ cp pfl-forge.yaml.example pfl-forge.yaml  # 設定を編集
 pfl-forge run
 ```
 
-pfl-forge はリポジトリルート（CWD）単位で動作する。リポジトリ名は CWD のディレクトリ名から自動導出される。
+pfl-forge はリポジトリルート（CWD）単位で動作する。タスク ID はファイル名（UUID 等の任意文字列）で、状態は `.forge/state.yaml` に保存される。
 
 ## Usage
 
@@ -28,7 +28,7 @@ pfl-forge status
 
 # 未回答の clarification を確認・回答
 pfl-forge clarifications
-pfl-forge answer 42 "Use OAuth2 for authentication"
+pfl-forge answer my-task-id "Use OAuth2 for authentication"
 
 # daemon モード
 pfl-forge watch

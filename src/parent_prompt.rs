@@ -14,7 +14,7 @@ pub fn build_initial_message(_config: &Config, state: &StateTracker) -> Result<S
   if !pending.is_empty() {
     msg.push_str("\nThere are pending clarification questions:\n\n");
     for c in &pending {
-      msg.push_str(&format!("### #{}\n", c.issue_number));
+      msg.push_str(&format!("### {}\n", c.issue_id));
       let questions = extract_questions(&c.content);
       msg.push_str(&questions);
       msg.push('\n');

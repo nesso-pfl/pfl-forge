@@ -31,7 +31,6 @@ pub async fn integrate_one(
   state: &SharedState,
 ) -> Result<()> {
   let issue = &output.issue;
-  let repo_name = &issue.repo_name;
   let branch = issue.branch_name();
   let worktree_path = issue.worktree_path(&config.settings.worktree_dir);
   let base_branch = config.base_branch.clone();
@@ -50,7 +49,7 @@ pub async fn integrate_one(
     state
       .lock()
       .unwrap()
-      .set_status(repo_name, issue.number, &issue.title, IssueStatus::Error)?;
+      .set_status(&issue.id, &issue.title, IssueStatus::Error)?;
     return Ok(());
   }
 
@@ -65,12 +64,10 @@ pub async fn integrate_one(
 
   if !test_passed? {
     info!("task {issue}: tests failed after rebase, branch {branch} left as-is");
-    state.lock().unwrap().set_status(
-      repo_name,
-      issue.number,
-      &issue.title,
-      IssueStatus::TestFailure,
-    )?;
+    state
+      .lock()
+      .unwrap()
+      .set_status(&issue.id, &issue.title, IssueStatus::TestFailure)?;
     return Ok(());
   }
 
@@ -105,12 +102,10 @@ pub async fn integrate_one(
   match review_result {
     Ok(result) if !result.approved => {
       info!("task {issue}: review rejected, branch {branch} left for manual review");
-      state.lock().unwrap().set_status(
-        repo_name,
-        issue.number,
-        &issue.title,
-        IssueStatus::Error,
-      )?;
+      state
+        .lock()
+        .unwrap()
+        .set_status(&issue.id, &issue.title, IssueStatus::Error)?;
       return Ok(());
     }
     Err(e) => {

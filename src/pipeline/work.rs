@@ -10,8 +10,8 @@ fn work_dir(repo_path: &Path) -> PathBuf {
   repo_path.join(".forge").join("work")
 }
 
-fn task_filename(issue_number: u64, index: u32) -> String {
-  format!("issue-{issue_number}-{index:03}.yaml")
+fn task_filename(issue_id: &str, index: u32) -> String {
+  format!("{issue_id}-{index:03}.yaml")
 }
 
 pub fn write_tasks(
@@ -23,7 +23,7 @@ pub fn write_tasks(
   std::fs::create_dir_all(&dir)?;
 
   let task = Task::from_triage(issue, deep);
-  let path = dir.join(task_filename(issue.number, 1));
+  let path = dir.join(task_filename(&issue.id, 1));
   let content = serde_yaml::to_string(&task)?;
   std::fs::write(&path, content)?;
 

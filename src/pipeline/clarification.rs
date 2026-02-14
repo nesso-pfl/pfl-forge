@@ -16,12 +16,12 @@ fn clarification_dir(repo_path: &Path) -> std::path::PathBuf {
   repo_path.join(".forge").join("clarifications")
 }
 
-fn question_path(repo_path: &Path, issue_number: u64) -> std::path::PathBuf {
-  clarification_dir(repo_path).join(format!("{issue_number}.md"))
+fn question_path(repo_path: &Path, issue_id: &str) -> std::path::PathBuf {
+  clarification_dir(repo_path).join(format!("{issue_id}.md"))
 }
 
-fn answer_path(repo_path: &Path, issue_number: u64) -> std::path::PathBuf {
-  clarification_dir(repo_path).join(format!("{issue_number}.answer.md"))
+fn answer_path(repo_path: &Path, issue_id: &str) -> std::path::PathBuf {
+  clarification_dir(repo_path).join(format!("{issue_id}.answer.md"))
 }
 
 pub fn write_clarification(
@@ -34,7 +34,7 @@ pub fn write_clarification(
   std::fs::create_dir_all(&dir)?;
 
   let content = format!(
-    r#"# Clarification needed: Issue #{number}
+    r#"# Clarification needed: Issue {id}
 
 ## Issue
 {title}
@@ -48,7 +48,7 @@ Context: {context}
 ## Questions
 {questions}
 "#,
-    number = issue.number,
+    id = issue.id,
     title = issue.title,
     body = issue.body,
     files = deep_result.relevant_files.join(", "),
@@ -57,7 +57,7 @@ Context: {context}
     questions = questions,
   );
 
-  let path = question_path(repo_path, issue.number);
+  let path = question_path(repo_path, &issue.id);
   std::fs::write(&path, &content)?;
   info!("wrote clarification file: {}", path.display());
 
@@ -66,10 +66,10 @@ Context: {context}
 
 pub fn check_clarification(
   repo_path: &Path,
-  issue_number: u64,
+  issue_id: &str,
 ) -> Result<Option<ClarificationContext>> {
-  let q_path = question_path(repo_path, issue_number);
-  let a_path = answer_path(repo_path, issue_number);
+  let q_path = question_path(repo_path, issue_id);
+  let a_path = answer_path(repo_path, issue_id);
 
   if !a_path.exists() {
     return Ok(None);
@@ -85,7 +85,7 @@ pub fn check_clarification(
   let (previous_analysis, questions) = parse_question_file(&q_content);
 
   info!(
-    "found clarification answer for issue #{issue_number} ({} bytes)",
+    "found clarification answer for issue {issue_id} ({} bytes)",
     answer.len()
   );
 
@@ -147,7 +147,7 @@ fn parse_question_file(content: &str) -> (DeepTriageResult, String) {
 }
 
 pub struct PendingClarification {
-  pub issue_number: u64,
+  pub issue_id: String,
   pub content: String,
 }
 
@@ -162,31 +162,24 @@ pub fn list_pending_clarifications(repo_path: &Path) -> Result<Vec<PendingClarif
   for entry in entries {
     let entry = entry?;
     let name = entry.file_name().to_string_lossy().to_string();
-    // Match <number>.md but not <number>.answer.md
     if name.ends_with(".answer.md") || !name.ends_with(".md") {
       continue;
     }
-    let num_str = name.trim_end_matches(".md");
-    let Ok(issue_number) = num_str.parse::<u64>() else {
-      continue;
-    };
+    let issue_id = name.trim_end_matches(".md").to_string();
     // Skip if answer already exists
-    if answer_path(repo_path, issue_number).exists() {
+    if answer_path(repo_path, &issue_id).exists() {
       continue;
     }
     let content = std::fs::read_to_string(entry.path())?;
-    pending.push(PendingClarification {
-      issue_number,
-      content,
-    });
+    pending.push(PendingClarification { issue_id, content });
   }
 
-  pending.sort_by_key(|p| p.issue_number);
+  pending.sort_by(|a, b| a.issue_id.cmp(&b.issue_id));
   Ok(pending)
 }
 
-pub fn write_answer(repo_path: &Path, issue_number: u64, text: &str) -> Result<()> {
-  let path = answer_path(repo_path, issue_number);
+pub fn write_answer(repo_path: &Path, issue_id: &str, text: &str) -> Result<()> {
+  let path = answer_path(repo_path, issue_id);
   let dir = clarification_dir(repo_path);
   std::fs::create_dir_all(&dir)?;
   std::fs::write(&path, text)?;
@@ -194,9 +187,9 @@ pub fn write_answer(repo_path: &Path, issue_number: u64, text: &str) -> Result<(
   Ok(())
 }
 
-pub fn cleanup_clarification(repo_path: &Path, issue_number: u64) -> Result<()> {
-  let q_path = question_path(repo_path, issue_number);
-  let a_path = answer_path(repo_path, issue_number);
+pub fn cleanup_clarification(repo_path: &Path, issue_id: &str) -> Result<()> {
+  let q_path = question_path(repo_path, issue_id);
+  let a_path = answer_path(repo_path, issue_id);
 
   if q_path.exists() {
     std::fs::remove_file(&q_path)?;

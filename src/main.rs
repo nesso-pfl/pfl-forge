@@ -62,8 +62,8 @@ enum Commands {
   Clarifications,
   /// Answer a clarification question
   Answer {
-    /// Issue number
-    number: u64,
+    /// Issue ID
+    id: String,
     /// Answer text
     text: String,
   },
@@ -111,7 +111,7 @@ async fn run(cli: Cli) -> Result<()> {
     Commands::Status => cmd_status(&config),
     Commands::Clean => cmd_clean(&config),
     Commands::Clarifications => cmd_clarifications(&config),
-    Commands::Answer { number, text } => cmd_answer(&config, number, &text),
+    Commands::Answer { id, text } => cmd_answer(&config, &id, &text),
     Commands::Parent { model } => cmd_parent(&config, model.as_deref()),
   }
 }
@@ -132,10 +132,7 @@ async fn cmd_run(config: &Config, dry_run: bool, resume: bool) -> Result<()> {
       pipeline::fetch::fetch_resumable_tasks(config, &s)?
     };
     for issue in resumable {
-      if !issues
-        .iter()
-        .any(|i| i.number == issue.number && i.repo_name == issue.repo_name)
-      {
+      if !issues.iter().any(|i| i.id == issue.id) {
         issues.push(issue);
       }
     }
@@ -148,10 +145,7 @@ async fn cmd_run(config: &Config, dry_run: bool, resume: bool) -> Result<()> {
       pipeline::fetch::fetch_clarified_tasks(config, &s)?
     };
     for issue in clarified {
-      if !issues
-        .iter()
-        .any(|i| i.number == issue.number && i.repo_name == issue.repo_name)
-      {
+      if !issues.iter().any(|i| i.id == issue.id) {
         issues.push(issue);
       }
     }
@@ -237,11 +231,10 @@ async fn cmd_run(config: &Config, dry_run: bool, resume: bool) -> Result<()> {
           if let Err(e) = pipeline::integrate::integrate_one(&output, config, &state).await {
             error!("integration failed for {}: {e}", output.issue);
             let _ = work::set_task_status(&output.task_path, TaskStatus::Failed);
-            state.lock().unwrap().set_error(
-              &output.issue.repo_name,
-              output.issue.number,
-              &e.to_string(),
-            )?;
+            state
+              .lock()
+              .unwrap()
+              .set_error(&output.issue.id, &e.to_string())?;
           } else {
             let _ = work::set_task_status(&output.task_path, TaskStatus::Completed);
           }
@@ -268,21 +261,15 @@ async fn triage_issue(
   config: &Config,
   state: &SharedState,
 ) -> Result<TriageOutcome> {
-  let repo_name = issue.repo_name.clone();
   let repo_path = Config::repo_path();
 
   {
     let mut s = state.lock().unwrap();
-    s.set_status(
-      &repo_name,
-      issue.number,
-      &issue.title,
-      IssueStatus::Triaging,
-    )?;
-    s.set_started(&repo_name, issue.number)?;
+    s.set_status(&issue.id, &issue.title, IssueStatus::Triaging)?;
+    s.set_started(&issue.id)?;
   }
 
-  let clarification_ctx = pipeline::clarification::check_clarification(&repo_path, issue.number)?;
+  let clarification_ctx = pipeline::clarification::check_clarification(&repo_path, &issue.id)?;
 
   let deep_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
   let issue_clone = issue.clone();
@@ -326,8 +313,7 @@ async fn triage_issue(
       ConsultationOutcome::NeedsClarification(message) => {
         info!("consultation needs clarification for {issue}");
         state.lock().unwrap().set_status(
-          &repo_name,
-          issue.number,
+          &issue.id,
           &issue.title,
           IssueStatus::NeedsClarification,
         )?;
@@ -356,7 +342,6 @@ async fn execute_task(
   config: &Config,
   state: &SharedState,
 ) -> Result<WorkerOutput> {
-  let repo_name = issue.repo_name.clone();
   let repo_path = Config::repo_path();
 
   // Read and lock task
@@ -366,13 +351,8 @@ async fn execute_task(
 
   {
     let mut s = state.lock().unwrap();
-    s.set_status(
-      &repo_name,
-      issue.number,
-      &issue.title,
-      IssueStatus::Executing,
-    )?;
-    s.set_branch(&repo_name, issue.number, &issue.branch_name())?;
+    s.set_status(&issue.id, &issue.title, IssueStatus::Executing)?;
+    s.set_branch(&issue.id, &issue.branch_name())?;
   }
 
   let tools = config.all_tools();
@@ -399,13 +379,11 @@ async fn execute_task(
   .map_err(|e| crate::error::ForgeError::Claude(format!("spawn_blocking: {e}")))??;
 
   if matches!(exec_result, ExecuteResult::Success { .. }) {
-    state.lock().unwrap().set_status(
-      &repo_name,
-      issue.number,
-      &issue.title,
-      IssueStatus::Success,
-    )?;
-    let _ = pipeline::clarification::cleanup_clarification(&repo_path, issue.number);
+    state
+      .lock()
+      .unwrap()
+      .set_status(&issue.id, &issue.title, IssueStatus::Success)?;
+    let _ = pipeline::clarification::cleanup_clarification(&repo_path, &issue.id);
   }
 
   Ok(WorkerOutput {
@@ -479,7 +457,6 @@ fn cmd_status(config: &Config) -> Result<()> {
 
 fn cmd_clean(config: &Config) -> Result<()> {
   let state = StateTracker::load(&config.settings.state_file)?;
-  let repo_name = Config::repo_name();
   let repo_path = Config::repo_path();
 
   let worktrees = git::worktree::list(&repo_path)?;
@@ -493,12 +470,10 @@ fn cmd_clean(config: &Config) -> Result<()> {
       continue;
     }
 
-    if let Some(num_str) = wt.rsplit("issue-").next() {
-      if let Ok(num) = num_str.parse::<u64>() {
-        if state.is_processed(&repo_name, num) {
-          info!("cleaning worktree: {wt}");
-          git::worktree::remove(&repo_path, std::path::Path::new(wt))?;
-        }
+    if let Some(id) = wt.strip_prefix(&worktree_prefix) {
+      if state.is_processed(id) {
+        info!("cleaning worktree: {wt}");
+        git::worktree::remove(&repo_path, std::path::Path::new(wt))?;
       }
     }
   }
@@ -516,7 +491,7 @@ fn cmd_clarifications(_config: &Config) -> Result<()> {
   }
 
   for c in &pending {
-    println!("=== #{} ===", c.issue_number);
+    println!("=== {} ===", c.issue_id);
     println!("{}", c.content);
     println!();
   }
@@ -524,16 +499,15 @@ fn cmd_clarifications(_config: &Config) -> Result<()> {
   Ok(())
 }
 
-fn cmd_answer(config: &Config, number: u64, text: &str) -> Result<()> {
-  let repo_name = Config::repo_name();
+fn cmd_answer(config: &Config, id: &str, text: &str) -> Result<()> {
   let repo_path = Config::repo_path();
 
-  pipeline::clarification::write_answer(&repo_path, number, text)?;
+  pipeline::clarification::write_answer(&repo_path, id, text)?;
 
   let mut state = StateTracker::load(&config.settings.state_file)?;
-  state.reset_to_pending(&repo_name, number)?;
+  state.reset_to_pending(id)?;
 
-  println!("Answered clarification for #{number} and reset to pending.");
+  println!("Answered clarification for {id} and reset to pending.");
   Ok(())
 }
 

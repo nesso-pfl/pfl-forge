@@ -120,14 +120,14 @@ pub fn execute(
 
 fn build_worker_prompt(issue: &ForgeIssue, test_command: &str) -> String {
   format!(
-    r#"## Issue #{number}: {title}
+    r#"## Issue {id}: {title}
 
 {body}
 
 ## Test Command
 
 `{test_command}`"#,
-    number = issue.number,
+    id = issue.id,
     title = issue.title,
     body = issue.body,
     test_command = test_command,

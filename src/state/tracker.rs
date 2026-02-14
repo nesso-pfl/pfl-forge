@@ -18,8 +18,7 @@ pub struct StateFile {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueState {
-  pub repo: String,
-  pub number: u64,
+  pub id: String,
   pub title: String,
   pub status: IssueStatus,
   pub branch: Option<String>,
@@ -95,92 +94,78 @@ impl StateTracker {
     Ok(())
   }
 
-  fn issue_key(repo: &str, number: u64) -> String {
-    format!("{repo}#{number}")
-  }
-
-  pub fn get(&self, repo: &str, number: u64) -> Option<&IssueState> {
-    self.state.issues.get(&Self::issue_key(repo, number))
+  pub fn get(&self, id: &str) -> Option<&IssueState> {
+    self.state.issues.get(id)
   }
 
   pub fn into_shared(self) -> SharedState {
     Arc::new(Mutex::new(self))
   }
 
-  pub fn is_processed(&self, repo: &str, number: u64) -> bool {
+  pub fn is_processed(&self, id: &str) -> bool {
     self
-      .get(repo, number)
+      .get(id)
       .is_some_and(|s| matches!(s.status, IssueStatus::Success | IssueStatus::Skipped))
   }
 
-  pub fn is_terminal(&self, repo: &str, number: u64) -> bool {
-    self
-      .get(repo, number)
-      .is_some_and(|s| s.status.is_terminal())
+  pub fn is_terminal(&self, id: &str) -> bool {
+    self.get(id).is_some_and(|s| s.status.is_terminal())
   }
 
-  pub fn is_resumable(&self, repo: &str, number: u64) -> bool {
-    self
-      .get(repo, number)
-      .is_some_and(|s| s.status.is_resumable())
+  pub fn is_resumable(&self, id: &str) -> bool {
+    self.get(id).is_some_and(|s| s.status.is_resumable())
   }
 
-  pub fn resumable_issues(&self) -> Vec<(String, u64)> {
+  pub fn resumable_issues(&self) -> Vec<String> {
     self
       .state
       .issues
       .values()
       .filter(|s| s.status.is_resumable())
-      .map(|s| (s.repo.clone(), s.number))
+      .map(|s| s.id.clone())
       .collect()
   }
 
-  pub fn needs_clarification_issues(&self) -> Vec<(String, u64)> {
+  pub fn needs_clarification_issues(&self) -> Vec<String> {
     self
       .state
       .issues
       .values()
       .filter(|s| s.status == IssueStatus::NeedsClarification)
-      .map(|s| (s.repo.clone(), s.number))
+      .map(|s| s.id.clone())
       .collect()
   }
 
-  pub fn set_status(
-    &mut self,
-    repo: &str,
-    number: u64,
-    title: &str,
-    status: IssueStatus,
-  ) -> Result<()> {
-    let key = Self::issue_key(repo, number);
-    let entry = self.state.issues.entry(key).or_insert_with(|| IssueState {
-      repo: repo.to_string(),
-      number,
-      title: title.to_string(),
-      status: IssueStatus::Pending,
-      branch: None,
-      started_at: None,
-      completed_at: None,
-      error: None,
-    });
+  pub fn set_status(&mut self, id: &str, title: &str, status: IssueStatus) -> Result<()> {
+    let entry = self
+      .state
+      .issues
+      .entry(id.to_string())
+      .or_insert_with(|| IssueState {
+        id: id.to_string(),
+        title: title.to_string(),
+        status: IssueStatus::Pending,
+        branch: None,
+        started_at: None,
+        completed_at: None,
+        error: None,
+      });
 
-    info!("{repo}#{number}: {:?} -> {status:?}", entry.status);
+    info!("{id}: {:?} -> {status:?}", entry.status);
     entry.status = status;
     self.save()
   }
 
-  pub fn set_branch(&mut self, repo: &str, number: u64, branch: &str) -> Result<()> {
-    let key = Self::issue_key(repo, number);
-    if let Some(entry) = self.state.issues.get_mut(&key) {
+  pub fn set_branch(&mut self, id: &str, branch: &str) -> Result<()> {
+    if let Some(entry) = self.state.issues.get_mut(id) {
       entry.branch = Some(branch.to_string());
       self.save()?;
     }
     Ok(())
   }
 
-  pub fn set_error(&mut self, repo: &str, number: u64, error: &str) -> Result<()> {
-    let key = Self::issue_key(repo, number);
-    if let Some(entry) = self.state.issues.get_mut(&key) {
+  pub fn set_error(&mut self, id: &str, error: &str) -> Result<()> {
+    if let Some(entry) = self.state.issues.get_mut(id) {
       entry.status = IssueStatus::Error;
       entry.error = Some(error.to_string());
       entry.completed_at = Some(Utc::now());
@@ -189,10 +174,9 @@ impl StateTracker {
     Ok(())
   }
 
-  pub fn reset_to_pending(&mut self, repo: &str, number: u64) -> Result<()> {
-    let key = Self::issue_key(repo, number);
-    if let Some(entry) = self.state.issues.get_mut(&key) {
-      info!("{repo}#{number}: {:?} -> Pending (reset)", entry.status);
+  pub fn reset_to_pending(&mut self, id: &str) -> Result<()> {
+    if let Some(entry) = self.state.issues.get_mut(id) {
+      info!("{id}: {:?} -> Pending (reset)", entry.status);
       entry.status = IssueStatus::Pending;
       entry.error = None;
       self.save()?;
@@ -200,9 +184,8 @@ impl StateTracker {
     Ok(())
   }
 
-  pub fn set_started(&mut self, repo: &str, number: u64) -> Result<()> {
-    let key = Self::issue_key(repo, number);
-    if let Some(entry) = self.state.issues.get_mut(&key) {
+  pub fn set_started(&mut self, id: &str) -> Result<()> {
+    if let Some(entry) = self.state.issues.get_mut(id) {
       entry.started_at = Some(Utc::now());
       self.save()?;
     }
@@ -259,15 +242,14 @@ mod tests {
 
     let mut tracker = StateTracker::load(&path).unwrap();
     tracker
-      .set_status("test-repo", 1, "Test issue", IssueStatus::Executing)
+      .set_status("abc123", "Test issue", IssueStatus::Executing)
       .unwrap();
-    tracker.set_branch("test-repo", 1, "forge/issue-1").unwrap();
+    tracker.set_branch("abc123", "forge/abc123").unwrap();
 
-    // Reload and verify
     let tracker2 = StateTracker::load(&path).unwrap();
-    let state = tracker2.get("test-repo", 1).unwrap();
+    let state = tracker2.get("abc123").unwrap();
     assert_eq!(state.status, IssueStatus::Executing);
-    assert_eq!(state.branch.as_deref(), Some("forge/issue-1"));
+    assert_eq!(state.branch.as_deref(), Some("forge/abc123"));
   }
 
   #[test]
@@ -299,13 +281,13 @@ mod tests {
     let mut tracker = StateTracker::load(tmp.path()).unwrap();
 
     tracker
-      .set_status("test-repo", 1, "Test", IssueStatus::Success)
+      .set_status("id1", "Test", IssueStatus::Success)
       .unwrap();
-    assert!(tracker.is_processed("test-repo", 1));
+    assert!(tracker.is_processed("id1"));
 
     tracker
-      .set_status("test-repo", 2, "Test2", IssueStatus::Executing)
+      .set_status("id2", "Test2", IssueStatus::Executing)
       .unwrap();
-    assert!(!tracker.is_processed("test-repo", 2));
+    assert!(!tracker.is_processed("id2"));
   }
 }

@@ -32,7 +32,7 @@ pub enum TaskStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
-  pub issue_number: u64,
+  pub issue_id: String,
   pub issue_title: String,
   pub issue_body: String,
   #[serde(default)]
@@ -47,7 +47,7 @@ pub struct Task {
 impl Task {
   pub fn from_triage(issue: &ForgeIssue, deep: &DeepTriageResult) -> Self {
     Self {
-      issue_number: issue.number,
+      issue_id: issue.id.clone(),
       issue_title: issue.title.clone(),
       issue_body: issue.body.clone(),
       status: TaskStatus::Pending,
@@ -116,13 +116,11 @@ questions from the prior attempt. Update the plan accordingly."#,
   };
 
   let prompt = format!(
-    r#"Repository: {repo}
-Issue #{number}: {title}
+    r#"Issue {id}: {title}
 Labels: {labels}
 
 {body}{clarification_section}"#,
-    repo = issue.repo_name,
-    number = issue.number,
+    id = issue.id,
     title = issue.title,
     labels = labels,
     body = issue.body,
@@ -156,8 +154,7 @@ pub fn consult(
   let complex_model = model::resolve(&config.settings.models.complex);
 
   let prompt = format!(
-    r#"Repository: {repo}
-Issue #{number}: {title}
+    r#"Issue {id}: {title}
 
 {body}
 
@@ -166,8 +163,7 @@ Issue #{number}: {title}
 - Relevant files: {prev_files}
 - Steps: {prev_steps}
 - Context: {prev_context}"#,
-    repo = issue.repo_name,
-    number = issue.number,
+    id = issue.id,
     title = issue.title,
     body = issue.body,
     prev_plan = deep_result.plan,

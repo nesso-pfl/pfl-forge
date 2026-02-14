@@ -105,11 +105,7 @@ fn default_worktree_dir() -> String {
   ".pfl-worktrees".to_string()
 }
 fn default_state_file() -> PathBuf {
-  std::env::var("HOME")
-    .map(PathBuf::from)
-    .unwrap_or_else(|_| PathBuf::from("."))
-    .join(".pfl-forge")
-    .join("state.yaml")
+  PathBuf::from(".forge/state.yaml")
 }
 fn default_worker_timeout() -> u64 {
   1200
@@ -141,13 +137,6 @@ impl Config {
     let content = std::fs::read_to_string(path)?;
     let config: Config = serde_yaml::from_str(&content)?;
     Ok(config)
-  }
-
-  pub fn repo_name() -> String {
-    std::env::current_dir()
-      .ok()
-      .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
-      .unwrap_or_else(|| "unknown".to_string())
   }
 
   pub fn repo_path() -> PathBuf {

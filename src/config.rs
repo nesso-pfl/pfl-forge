@@ -8,8 +8,6 @@ use crate::error::{ForgeError, Result};
 pub struct Config {
   #[serde(default = "default_test_command")]
   pub test_command: String,
-  #[serde(default)]
-  pub docker_required: bool,
   #[serde(default = "default_base_branch")]
   pub base_branch: String,
   #[serde(default)]
@@ -169,7 +167,6 @@ mod tests {
   fn test_all_tools() {
     let config = Config {
       test_command: "cargo test".into(),
-      docker_required: false,
       base_branch: "main".into(),
       extra_tools: vec!["WebSearch".into()],
       settings: Settings::default(),

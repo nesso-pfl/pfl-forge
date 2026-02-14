@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use tracing::{error, info};
+use tracing::info;
 
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
@@ -64,14 +64,6 @@ pub fn execute(
   write_task_yaml(&worktree_path, task)?;
   ensure_gitignore_forge(&worktree_path)?;
 
-  // Check Docker if required
-  if config.docker_required {
-    if let Err(e) = check_docker(&worktree_path) {
-      error!("docker check failed: {e}");
-      return Ok(ExecuteResult::Error(format!("Docker not running: {e}")));
-    }
-  }
-
   // Select model based on complexity
   let complexity = task.complexity();
   let selected_model = complexity.select_model(model_settings);
@@ -132,20 +124,6 @@ fn build_worker_prompt(forge_task: &ForgeTask, test_command: &str) -> String {
     body = forge_task.body,
     test_command = test_command,
   )
-}
-
-fn check_docker(worktree_path: &Path) -> Result<()> {
-  let output = std::process::Command::new("docker")
-    .args(["compose", "ps", "--status", "running"])
-    .current_dir(worktree_path)
-    .output()?;
-
-  if !output.status.success() {
-    return Err(crate::error::ForgeError::Git(
-      "docker compose is not running".into(),
-    ));
-  }
-  Ok(())
 }
 
 pub fn run_tests(worktree_path: &Path, test_command: &str) -> Result<bool> {

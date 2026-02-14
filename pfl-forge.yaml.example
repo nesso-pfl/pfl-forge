@@ -1,6 +1,5 @@
 # pfl-forge.yaml — リポジトリルートに配置して pfl-forge を実行
 test_command: "just test"
-docker_required: true
 base_branch: main
 extra_tools: []
 

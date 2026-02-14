@@ -540,7 +540,7 @@ fn cmd_answer(config: &Config, number: u64, text: &str) -> Result<()> {
 fn cmd_parent(config: &Config, model: Option<&str>) -> Result<()> {
   let state = StateTracker::load(&config.settings.state_file)?;
 
-  let system_prompt = parent_prompt::build_system_prompt(config);
+  let system_prompt = crate::prompt::PARENT;
   let initial_message = parent_prompt::build_initial_message(config, &state)?;
 
   let mut cmd = std::process::Command::new("claude");

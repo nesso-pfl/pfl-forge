@@ -362,6 +362,8 @@ async fn process_issue(
     let models = config.settings.models.clone();
     let worktree_dir = config.settings.worktree_dir.clone();
 
+    let worker_timeout_secs = config.settings.worker_timeout_secs;
+
     let exec_result = tokio::task::spawn_blocking(move || {
         pipeline::execute::execute(
             &issue_clone,
@@ -370,6 +372,7 @@ async fn process_issue(
             &exec_runner,
             &models,
             &worktree_dir,
+            worker_timeout_secs,
         )
     })
     .await

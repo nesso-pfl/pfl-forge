@@ -1,8 +1,9 @@
 use std::path::Path;
 use std::process::Command;
+use std::time::Duration;
 
 use serde::de::DeserializeOwned;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::error::{ForgeError, Result};
 
@@ -22,6 +23,7 @@ impl ClaudeRunner {
         prompt: &str,
         model: &str,
         cwd: &Path,
+        timeout: Option<Duration>,
     ) -> Result<String> {
         let tools_csv = self.allowed_tools.join(",");
 
@@ -37,7 +39,7 @@ impl ClaudeRunner {
         // Remove CLAUDECODE env var to allow nested Claude Code invocation
         cmd.env_remove("CLAUDECODE");
 
-        let child = cmd
+        let mut child = cmd
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -45,12 +47,15 @@ impl ClaudeRunner {
 
         // Write prompt to stdin
         use std::io::Write;
-        let mut child = child;
         if let Some(mut stdin) = child.stdin.take() {
             stdin.write_all(prompt.as_bytes())?;
         }
 
-        let output = child.wait_with_output()?;
+        let output = if let Some(dur) = timeout {
+            wait_with_timeout(child, dur)?
+        } else {
+            child.wait_with_output()?
+        };
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -71,9 +76,59 @@ impl ClaudeRunner {
         prompt: &str,
         model: &str,
         cwd: &Path,
+        timeout: Option<Duration>,
     ) -> Result<T> {
-        let raw = self.run_prompt(prompt, model, cwd)?;
+        let raw = self.run_prompt(prompt, model, cwd, timeout)?;
         parse_claude_json_output(&raw)
+    }
+}
+
+fn wait_with_timeout(
+    mut child: std::process::Child,
+    timeout: Duration,
+) -> Result<std::process::Output> {
+    use std::io::Read;
+
+    let stdout_pipe = child.stdout.take();
+    let stderr_pipe = child.stderr.take();
+
+    let stdout_handle = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        if let Some(mut pipe) = stdout_pipe {
+            let _ = pipe.read_to_end(&mut buf);
+        }
+        buf
+    });
+
+    let stderr_handle = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        if let Some(mut pipe) = stderr_pipe {
+            let _ = pipe.read_to_end(&mut buf);
+        }
+        buf
+    });
+
+    let start = std::time::Instant::now();
+    let poll_interval = Duration::from_secs(1);
+
+    loop {
+        match child.try_wait()? {
+            Some(status) => {
+                let stdout = stdout_handle.join().unwrap_or_default();
+                let stderr = stderr_handle.join().unwrap_or_default();
+                return Ok(std::process::Output { status, stdout, stderr });
+            }
+            None if start.elapsed() >= timeout => {
+                warn!("claude process timed out after {}s, killing", timeout.as_secs());
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(ForgeError::Timeout(format!(
+                    "timed out after {}s",
+                    timeout.as_secs()
+                )));
+            }
+            None => std::thread::sleep(poll_interval),
+        }
     }
 }
 

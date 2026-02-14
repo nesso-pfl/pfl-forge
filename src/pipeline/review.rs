@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::process::Command;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -67,8 +68,10 @@ Respond with ONLY a JSON object (no markdown, no explanation):
         diff = truncate_diff(&diff, 50000),
     );
 
+    let timeout = Some(Duration::from_secs(config.settings.triage_timeout_secs));
+
     info!("reviewing: {issue}");
-    let result: ReviewResult = runner.run_json(&prompt, review_model, worktree_path)?;
+    let result: ReviewResult = runner.run_json(&prompt, review_model, worktree_path, timeout)?;
 
     info!(
         "review: approved={}, {} issues, {} suggestions",

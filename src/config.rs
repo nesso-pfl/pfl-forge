@@ -46,6 +46,10 @@ pub struct Settings {
     pub worktree_dir: String,
     #[serde(default = "default_state_file")]
     pub state_file: PathBuf,
+    #[serde(default = "default_worker_timeout")]
+    pub worker_timeout_secs: u64,
+    #[serde(default = "default_triage_timeout")]
+    pub triage_timeout_secs: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,6 +83,8 @@ impl Default for Settings {
             poll_interval_secs: default_poll_interval(),
             worktree_dir: default_worktree_dir(),
             state_file: default_state_file(),
+            worker_timeout_secs: default_worker_timeout(),
+            triage_timeout_secs: default_triage_timeout(),
         }
     }
 }
@@ -131,6 +137,12 @@ fn default_state_file() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("."))
         .join(".pfl-forge")
         .join("state.yaml")
+}
+fn default_worker_timeout() -> u64 {
+    1200
+}
+fn default_triage_timeout() -> u64 {
+    600
 }
 fn default_triage_tools() -> Vec<String> {
     vec!["Read".into(), "Glob".into(), "Grep".into()]

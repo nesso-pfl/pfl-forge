@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -101,8 +103,10 @@ Respond with ONLY a JSON object (no markdown, no explanation):
         clarification_section = clarification_section,
     );
 
+    let timeout = Some(Duration::from_secs(config.settings.triage_timeout_secs));
+
     info!("deep triaging: {issue}");
-    let result: DeepTriageResult = runner.run_json(&prompt, deep_model, repo_path)?;
+    let result: DeepTriageResult = runner.run_json(&prompt, deep_model, repo_path, timeout)?;
 
     info!(
         "deep triage: complexity={}, {} relevant files, {} steps, sufficient={}",
@@ -171,8 +175,10 @@ If needs clarification:
         prev_context = deep_result.context,
     );
 
+    let timeout = Some(Duration::from_secs(config.settings.triage_timeout_secs));
+
     info!("consulting on: {issue}");
-    let raw: serde_json::Value = runner.run_json(&prompt, complex_model, repo_path)?;
+    let raw: serde_json::Value = runner.run_json(&prompt, complex_model, repo_path, timeout)?;
 
     let status = raw
         .get("status")

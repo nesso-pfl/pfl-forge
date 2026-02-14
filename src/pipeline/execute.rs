@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::time::Duration;
 
 use tracing::{error, info};
 
@@ -24,6 +25,7 @@ pub fn execute(
     runner: &ClaudeRunner,
     model_settings: &crate::config::ModelSettings,
     worktree_dir: &str,
+    worker_timeout_secs: u64,
 ) -> Result<ExecuteResult> {
     let branch = issue.branch_name();
     let repo_path = &repo_config.path;
@@ -50,7 +52,8 @@ pub fn execute(
     let prompt = build_worker_prompt(issue, deep, repo_config);
 
     // Run Claude Code Worker
-    let result = runner.run_prompt(&prompt, selected_model, &worktree_path);
+    let timeout = Some(Duration::from_secs(worker_timeout_secs));
+    let result = runner.run_prompt(&prompt, selected_model, &worktree_path, timeout);
 
     match result {
         Ok(output) => {

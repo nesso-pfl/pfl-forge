@@ -113,7 +113,7 @@ async fn run(cli: Cli) -> Result<()> {
 }
 
 async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
-  let state = StateTracker::load(&config.settings.state_file)?.into_shared();
+  let state = StateTracker::load(&config.state_file)?.into_shared();
 
   let tasks = {
     let s = state.lock().unwrap();
@@ -132,7 +132,7 @@ async fn cmd_run(config: &Config, dry_run: bool) -> Result<()> {
   }
 
   // Phase 1: Triage (parallel per task)
-  let semaphore = Arc::new(Semaphore::new(config.settings.parallel_workers));
+  let semaphore = Arc::new(Semaphore::new(config.parallel_workers));
   let mut triage_set = JoinSet::new();
 
   for forge_task in tasks {
@@ -243,7 +243,7 @@ async fn triage_task(
 
   let clarification_ctx = pipeline::clarification::check_clarification(&repo_path, &forge_task.id)?;
 
-  let deep_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
+  let deep_runner = ClaudeRunner::new(config.triage_tools.clone());
   let task_clone = forge_task.clone();
   let config_clone = config.clone();
   let repo_path_clone = repo_path.clone();
@@ -263,7 +263,7 @@ async fn triage_task(
     deep_result
   } else {
     info!("deep triage insufficient for {forge_task}, consulting...");
-    let consult_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
+    let consult_runner = ClaudeRunner::new(config.triage_tools.clone());
     let task_clone = forge_task.clone();
     let deep_clone = deep_result.clone();
     let config_clone = config.clone();
@@ -329,14 +329,14 @@ async fn execute_task(
     s.set_branch(&forge_task.id, &forge_task.branch_name())?;
   }
 
-  let tools = config.worker_tools();
+  let tools = config.worker_tools.clone();
   let exec_runner = ClaudeRunner::new(tools);
   let forge_task_clone = forge_task.clone();
   let task_clone = task.clone();
   let config_clone = config.clone();
-  let models = config.settings.models.clone();
-  let worktree_dir = config.settings.worktree_dir.clone();
-  let worker_timeout_secs = config.settings.worker_timeout_secs;
+  let models = config.models.clone();
+  let worktree_dir = config.worktree_dir.clone();
+  let worker_timeout_secs = config.worker_timeout_secs;
 
   let exec_result = tokio::task::spawn_blocking(move || {
     pipeline::execute::execute(
@@ -369,7 +369,7 @@ async fn execute_task(
 }
 
 async fn cmd_run_dry(config: &Config, tasks: &[ForgeTask]) -> Result<()> {
-  let deep_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
+  let deep_runner = ClaudeRunner::new(config.triage_tools.clone());
   let repo_path = Config::repo_path();
 
   for forge_task in tasks {
@@ -388,7 +388,7 @@ async fn cmd_run_dry(config: &Config, tasks: &[ForgeTask]) -> Result<()> {
 }
 
 async fn cmd_watch(config: &Config) -> Result<()> {
-  let interval = std::time::Duration::from_secs(config.settings.poll_interval_secs);
+  let interval = std::time::Duration::from_secs(config.poll_interval_secs);
 
   loop {
     info!("polling for new tasks...");
@@ -408,7 +408,7 @@ async fn cmd_watch(config: &Config) -> Result<()> {
 }
 
 fn cmd_status(config: &Config) -> Result<()> {
-  let state = StateTracker::load(&config.settings.state_file)?;
+  let state = StateTracker::load(&config.state_file)?;
   let summary = state.summary();
 
   println!("pfl-forge status");
@@ -430,14 +430,11 @@ fn cmd_status(config: &Config) -> Result<()> {
 }
 
 fn cmd_clean(config: &Config) -> Result<()> {
-  let state = StateTracker::load(&config.settings.state_file)?;
+  let state = StateTracker::load(&config.state_file)?;
   let repo_path = Config::repo_path();
 
   let worktrees = git::worktree::list(&repo_path)?;
-  let worktree_prefix = format!(
-    "{}/forge/",
-    repo_path.join(&config.settings.worktree_dir).display()
-  );
+  let worktree_prefix = format!("{}/forge/", repo_path.join(&config.worktree_dir).display());
 
   for wt in &worktrees {
     if !wt.starts_with(&worktree_prefix) {
@@ -478,7 +475,7 @@ fn cmd_answer(config: &Config, id: &str, text: &str) -> Result<()> {
 
   pipeline::clarification::write_answer(&repo_path, id, text)?;
 
-  let mut state = StateTracker::load(&config.settings.state_file)?;
+  let mut state = StateTracker::load(&config.state_file)?;
   state.reset_to_pending(id)?;
 
   println!("Answered clarification for {id} and reset to pending.");
@@ -486,7 +483,7 @@ fn cmd_answer(config: &Config, id: &str, text: &str) -> Result<()> {
 }
 
 fn cmd_parent(config: &Config, model: Option<&str>) -> Result<()> {
-  let state = StateTracker::load(&config.settings.state_file)?;
+  let state = StateTracker::load(&config.state_file)?;
 
   let system_prompt = crate::prompt::PARENT;
   let initial_message = parent_prompt::build_initial_message(config, &state)?;

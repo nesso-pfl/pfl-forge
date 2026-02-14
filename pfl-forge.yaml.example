@@ -1,25 +1,23 @@
 # pfl-forge.yaml — リポジトリルートに配置して pfl-forge を実行
 base_branch: main
-
-settings:
-  parallel_workers: 4
-  models:
-    triage_deep: sonnet
-    default: sonnet
-    complex: opus
-  worker_tools:
-    - Bash
-    - Read
-    - Write
-    - Edit
-    - Glob
-    - Grep
-  triage_tools:
-    - Read
-    - Glob
-    - Grep
-  poll_interval_secs: 300
-  worktree_dir: .pfl-worktrees
-  state_file: ~/.pfl-forge/state.yaml
-  worker_timeout_secs: 1200
-  triage_timeout_secs: 600
+parallel_workers: 4
+models:
+  triage_deep: sonnet
+  default: sonnet
+  complex: opus
+worker_tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+triage_tools:
+  - Read
+  - Glob
+  - Grep
+poll_interval_secs: 300
+worktree_dir: .pfl-worktrees
+state_file: .forge/state.yaml
+worker_timeout_secs: 1200
+triage_timeout_secs: 600

@@ -32,7 +32,7 @@ pub async fn integrate_one(
 ) -> Result<()> {
   let forge_task = &output.forge_task;
   let branch = forge_task.branch_name();
-  let worktree_path = forge_task.worktree_path(&config.settings.worktree_dir);
+  let worktree_path = forge_task.worktree_path(&config.worktree_dir);
   let base_branch = config.base_branch.clone();
 
   // Rebase onto latest base branch
@@ -55,7 +55,7 @@ pub async fn integrate_one(
 
   // Review
   info!("reviewing {forge_task}");
-  let review_runner = ClaudeRunner::new(config.settings.triage_tools.clone());
+  let review_runner = ClaudeRunner::new(config.triage_tools.clone());
   let task_clone2 = forge_task.clone();
   let task_clone = output.task.clone();
   let config_clone = config.clone();

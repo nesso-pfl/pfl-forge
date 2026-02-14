@@ -88,7 +88,7 @@ pub fn deep_triage(
   repo_path: &std::path::Path,
   clarification: Option<&ClarificationContext>,
 ) -> Result<DeepTriageResult> {
-  let deep_model = model::resolve(&config.settings.models.triage_deep);
+  let deep_model = model::resolve(&config.models.triage_deep);
 
   let labels = forge_task.labels.join(", ");
 
@@ -127,7 +127,7 @@ Labels: {labels}
     clarification_section = clarification_section,
   );
 
-  let timeout = Some(Duration::from_secs(config.settings.triage_timeout_secs));
+  let timeout = Some(Duration::from_secs(config.triage_timeout_secs));
 
   info!("deep triaging: {forge_task}");
   let result: DeepTriageResult =
@@ -151,7 +151,7 @@ pub fn consult(
   runner: &ClaudeRunner,
   repo_path: &std::path::Path,
 ) -> Result<ConsultationOutcome> {
-  let complex_model = model::resolve(&config.settings.models.complex);
+  let complex_model = model::resolve(&config.models.complex);
 
   let prompt = format!(
     r#"Task {id}: {title}
@@ -172,7 +172,7 @@ pub fn consult(
     prev_context = deep_result.context,
   );
 
-  let timeout = Some(Duration::from_secs(config.settings.triage_timeout_secs));
+  let timeout = Some(Duration::from_secs(config.triage_timeout_secs));
 
   info!("consulting on: {forge_task}");
   let raw: serde_json::Value =

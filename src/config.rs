@@ -8,12 +8,6 @@ use crate::error::{ForgeError, Result};
 pub struct Config {
   #[serde(default = "default_base_branch")]
   pub base_branch: String,
-  #[serde(default)]
-  pub settings: Settings,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Settings {
   #[serde(default = "default_parallel_workers")]
   pub parallel_workers: usize,
   #[serde(default)]
@@ -42,22 +36,6 @@ pub struct ModelSettings {
   pub default: String,
   #[serde(default = "default_complex_model")]
   pub complex: String,
-}
-
-impl Default for Settings {
-  fn default() -> Self {
-    Self {
-      parallel_workers: default_parallel_workers(),
-      models: ModelSettings::default(),
-      worker_tools: default_worker_tools(),
-      triage_tools: default_triage_tools(),
-      poll_interval_secs: default_poll_interval(),
-      worktree_dir: default_worktree_dir(),
-      state_file: default_state_file(),
-      worker_timeout_secs: default_worker_timeout(),
-      triage_timeout_secs: default_triage_timeout(),
-    }
-  }
 }
 
 impl Default for ModelSettings {
@@ -127,10 +105,6 @@ impl Config {
   pub fn repo_path() -> PathBuf {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
   }
-
-  pub fn worker_tools(&self) -> Vec<String> {
-    self.settings.worker_tools.clone()
-  }
 }
 
 #[cfg(test)]
@@ -138,20 +112,11 @@ mod tests {
   use super::*;
 
   #[test]
-  fn test_default_settings() {
-    let settings = Settings::default();
-    assert_eq!(settings.parallel_workers, 4);
-    assert_eq!(settings.worker_tools.len(), 6);
-  }
-
-  #[test]
-  fn test_worker_tools() {
-    let config = Config {
-      base_branch: "main".into(),
-      settings: Settings::default(),
-    };
-    let tools = config.worker_tools();
-    assert_eq!(tools.len(), 6);
-    assert!(tools.contains(&"Bash".to_string()));
+  fn test_default_config() {
+    let yaml = "{}";
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.parallel_workers, 4);
+    assert_eq!(config.worker_tools.len(), 6);
+    assert_eq!(config.base_branch, "main");
   }
 }

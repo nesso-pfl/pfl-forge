@@ -28,7 +28,7 @@ pub fn review(
   worktree_path: &Path,
   base_branch: &str,
 ) -> Result<ReviewResult> {
-  let review_model = model::resolve(&config.settings.models.default);
+  let review_model = model::resolve(&config.models.default);
 
   let diff = get_diff(worktree_path, base_branch)?;
 
@@ -53,7 +53,7 @@ pub fn review(
     diff = truncate_diff(&diff, 50000),
   );
 
-  let timeout = Some(Duration::from_secs(config.settings.triage_timeout_secs));
+  let timeout = Some(Duration::from_secs(config.triage_timeout_secs));
 
   info!("reviewing: {forge_task}");
   let result: ReviewResult = runner.run_json(

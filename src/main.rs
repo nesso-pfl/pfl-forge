@@ -82,7 +82,7 @@ enum Commands {
 
 #[derive(Debug)]
 enum ExecuteResult {
-  Success { commits: u32 },
+  Success,
   Unclear(String),
   Error(String),
 }
@@ -224,8 +224,7 @@ async fn process_task(
   let analysis = {
     let _permit = semaphore.acquire().await.expect("semaphore closed");
 
-    let clarification_ctx =
-      task::clarification::check_clarification(&repo_path, &forge_task.id)?;
+    let clarification_ctx = task::clarification::check_clarification(&repo_path, &forge_task.id)?;
 
     let analyze_runner = ClaudeRunner::new(config.triage_tools.clone());
     let task_clone = forge_task.clone();
@@ -273,12 +272,9 @@ async fn process_task(
             &forge_task.title,
             TaskStatus::NeedsClarification,
           )?;
-          if let Err(e) = task::clarification::write_clarification(
-            &repo_path,
-            &forge_task,
-            &analysis,
-            &message,
-          ) {
+          if let Err(e) =
+            task::clarification::write_clarification(&repo_path, &forge_task, &analysis, &message)
+          {
             error!("failed to write clarification for {forge_task}: {e}");
           }
           return Ok(());
@@ -365,14 +361,14 @@ async fn process_task(
             ExecuteResult::Unclear("Worker completed but produced no commits".into())
           } else {
             info!("{commits} commit(s) produced");
-            ExecuteResult::Success { commits }
+            ExecuteResult::Success
           }
         }
         Err(e) => ExecuteResult::Error(e.to_string()),
       };
 
       match &exec_result {
-        ExecuteResult::Success { .. } => {}
+        ExecuteResult::Success => {}
         ExecuteResult::Unclear(reason) => {
           let _ = work::set_task_status(task_path, WorkStatus::Failed);
           info!("unclear result: {forge_task}: {reason}");
@@ -393,11 +389,10 @@ async fn process_task(
       let wt = prepare_result.worktree_path.clone();
       let bb = config.base_branch.clone();
       let label = forge_task.to_string();
-      let rebase_ok = tokio::task::spawn_blocking(move || {
-        git::branch::try_rebase(&wt, &bb, &label)
-      })
-      .await
-      .map_err(|e| crate::error::ForgeError::Git(format!("spawn_blocking: {e}")))??;
+      let rebase_ok =
+        tokio::task::spawn_blocking(move || git::branch::try_rebase(&wt, &bb, &label))
+          .await
+          .map_err(|e| crate::error::ForgeError::Git(format!("spawn_blocking: {e}")))??;
 
       if !rebase_ok {
         let _ = work::set_task_status(task_path, WorkStatus::Failed);
@@ -619,7 +614,6 @@ fn cmd_create(title: &str, body: &str, labels: &[String]) -> Result<()> {
     title: title.to_string(),
     body: body.to_string(),
     labels: labels.to_vec(),
-    created_at: chrono::Utc::now(),
   };
 
   let path = tasks_dir.join(format!("{id}.yaml"));

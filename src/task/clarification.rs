@@ -8,7 +8,6 @@ use crate::task::ForgeTask;
 
 pub struct ClarificationContext {
   pub previous_analysis: AnalysisResult,
-  pub questions: String,
   pub answer: String,
 }
 
@@ -82,7 +81,7 @@ pub fn check_clarification(
 
   let q_content = std::fs::read_to_string(&q_path).unwrap_or_default();
 
-  let (previous_analysis, questions) = parse_question_file(&q_content);
+  let (previous_analysis, _questions) = parse_question_file(&q_content);
 
   info!(
     "found clarification answer for task {task_id} ({} bytes)",
@@ -91,7 +90,6 @@ pub fn check_clarification(
 
   Ok(Some(ClarificationContext {
     previous_analysis,
-    questions,
     answer,
   }))
 }

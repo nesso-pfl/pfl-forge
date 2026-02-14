@@ -2,7 +2,6 @@ pub mod clarification;
 pub mod fetch;
 pub mod work;
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -13,17 +12,11 @@ pub struct ForgeTask {
   pub body: String,
   #[serde(default)]
   pub labels: Vec<String>,
-  #[serde(skip_serializing, default = "Utc::now")]
-  pub created_at: DateTime<Utc>,
 }
 
 impl ForgeTask {
   pub fn branch_name(&self) -> String {
     format!("forge/{}", self.id)
-  }
-
-  pub fn worktree_path(&self, worktree_dir: &str) -> std::path::PathBuf {
-    std::path::PathBuf::from(worktree_dir).join(format!("forge/{}", self.id))
   }
 }
 

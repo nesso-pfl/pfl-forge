@@ -7,8 +7,8 @@ use crate::claude::model;
 use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
-use crate::task::clarification::ClarificationContext;
 use crate::prompt;
+use crate::task::clarification::ClarificationContext;
 use crate::task::ForgeTask;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,10 +25,6 @@ impl AnalysisResult {
     !self.relevant_files.is_empty()
       && !self.implementation_steps.is_empty()
       && !self.plan.is_empty()
-  }
-
-  pub fn complexity(&self) -> model::Complexity {
-    self.complexity.parse().unwrap_or(model::Complexity::Medium)
   }
 }
 

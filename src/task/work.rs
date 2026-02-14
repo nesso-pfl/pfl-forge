@@ -77,29 +77,6 @@ pub fn write_tasks(
   Ok(vec![path])
 }
 
-pub fn read_pending_tasks(repo_path: &Path) -> Result<Vec<(PathBuf, Task)>> {
-  let dir = work_dir(repo_path);
-  if !dir.exists() {
-    return Ok(Vec::new());
-  }
-
-  let mut tasks = Vec::new();
-  for entry in std::fs::read_dir(&dir)? {
-    let entry = entry?;
-    let path = entry.path();
-    if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
-      continue;
-    }
-    let content = std::fs::read_to_string(&path)?;
-    let task: Task = serde_yaml::from_str(&content)?;
-    if task.status == WorkStatus::Pending {
-      tasks.push((path, task));
-    }
-  }
-
-  Ok(tasks)
-}
-
 pub fn set_task_status(path: &Path, status: WorkStatus) -> Result<()> {
   let content = std::fs::read_to_string(path)?;
   let mut task: Task = serde_yaml::from_str(&content)?;

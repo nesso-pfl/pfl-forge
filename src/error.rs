@@ -2,9 +2,6 @@ use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ForgeError {
-  #[error("config error: {0}")]
-  Config(String),
-
   #[error("config file not found: {0}")]
   ConfigNotFound(PathBuf),
 
@@ -16,9 +13,6 @@ pub enum ForgeError {
 
   #[error("timeout: {0}")]
   Timeout(String),
-
-  #[error("state error: {0}")]
-  State(String),
 
   #[error("io error: {0}")]
   Io(#[from] std::io::Error),

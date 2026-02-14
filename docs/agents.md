@@ -50,7 +50,8 @@ Implement Agent の成果物を検証するコードレビューエージェン�
 - ツール: `triage_tools` (default: Read, Glob, Grep)
 - base branch との diff をレビューし、タスクの要件を満たしているか判定
 - 出力: `ReviewResult` (approved, issues, suggestions)
-- integrate フロー内で呼ばれ、approved でなければブランチを残してエラー状態にする
+- integrate フロー内で呼ばれ、rejected の場合は review feedback を付けて Implement Agent を再実行（`max_review_retries` 回まで）
+- 全リトライ後も rejected なら Error 状態にする
 
 ## Agent 間の YAML 通信
 
@@ -67,13 +68,15 @@ Implement Agent の成果物を検証するコードレビューエージェン�
 ```
 Orchestrate Agent (interactive)
   └─ pfl-forge run (CLI)
-       ├─ Phase 1: Analyze Agent (並列)
-       │    └─ Architect Agent (必要時)
-       │         └─ NeedsClarification → Orchestrate に戻る
-       │    → .forge/work/*.yaml にタスク書き出し
-       ├─ Phase 2: Implement Agent (並列) ← .forge/task.yaml を読む
-       └─ Phase 3: integrate (streaming)
-            └─ Review Agent → .forge/review.yaml を書く
+       └─ process_task (タスク単位で独立並列実行)
+            ├─ Analyze Agent
+            │    └─ Architect Agent (必要時)
+            │         └─ NeedsClarification → Orchestrate に戻る
+            │    → .forge/work/*.yaml にタスク書き出し
+            └─ loop (max_review_retries + 1):
+                 ├─ Implement Agent ← .forge/task.yaml を読む
+                 └─ Review Agent → .forge/review.yaml を書く
+                      └─ rejected → Implement Agent に feedback 渡して再実行
 ```
 
 ## モデル選択

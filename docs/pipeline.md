@@ -5,28 +5,35 @@ pfl-forge のパイプラインフローとエージェント間通信の全体�
 ## フロー概要
 
 ```
-fetch → analyze → (architect) → work → execute → integrate → report
+fetch → process_task (per task, parallel):
+  analyze → (architect) → execute → integrate(review)
+                          └── review rejected → re-execute (retry loop)
 ```
 
 ```
-PHASE 1: ANALYZE (並列 per task)
-  fetch_tasks()
-    └─ .forge/tasks/{id}.yaml を読み取り → Vec<ForgeIssue>
-  analyze()
+process_task (タスク単位で独立並列実行):
+  {permit} analyze()
     └─ [分析不十分] → architect::resolve()
-         └─ [NeedsClarification] → .forge/clarifications/{id}.md 書き出し
+         └─ [NeedsClarification] → .forge/clarifications/{id}.md 書き出し, return
     └─ [成功] → work::write_tasks()
          └─ .forge/work/{id}-001.yaml 書き出し
+  // permit released
 
-PHASE 2: EXECUTE (並列 per task)
-  .forge/work/{id}-001.yaml を読み取り
-  git worktree 作成
-  <worktree>/.forge/task.yaml 書き出し
-  Implement Agent 実行（worktree 内で実装・コミット）
+  loop (max_review_retries + 1):
+    {permit} execute
+      git worktree 作成
+      <worktree>/.forge/task.yaml 書き出し
+      Implement Agent 実行（worktree 内で実装・コミット）
+    // permit released
 
-PHASE 3: INTEGRATE (streaming per result)
-  rebase → review → report
-  <worktree>/.forge/review.yaml 書き出し
+    {permit} integrate
+      rebase → review
+      <worktree>/.forge/review.yaml 書き出し
+    // permit released
+
+    if approved → Success, return
+    if rejected && retries remaining → re-execute with review feedback
+    if rejected && no retries → Error, return
 ```
 
 ## エージェント間通信
@@ -43,7 +50,7 @@ PHASE 3: INTEGRATE (streaming per result)
 | ユーザー → analyze(再実行) | ファイル | `.forge/clarifications/{id}.answer.md` |
 | analyze → execute | ファイル | `.forge/work/{id}-001.yaml` |
 | execute → Implement Agent | ファイル | `<worktree>/.forge/task.yaml` |
-| execute → integrate | メモリ | `ImplementOutput` 構造体 |
+| review → re-execute | メモリ | `ReviewResult` (feedback) |
 | review → 監査ログ | ファイル | `<worktree>/.forge/review.yaml` |
 | 全ステージ → state | ファイル | `.forge/state.yaml` |
 
@@ -65,13 +72,14 @@ Pending
 Triaging
   ├─→ NeedsClarification → (ユーザー回答) → Pending → Triaging
   └─→ Executing
-       ├─→ Success (terminal)
+       ├─→ Reviewing
+       │    ├─→ Success (terminal)
+       │    └─→ Executing (review rejected, retry)
        └─→ Error (自動再試行)
 ```
 
 ## 並列実行
 
-- Phase 1 (analyze): `JoinSet` + `Semaphore` で task 単位の並列処理
-- Phase 2 (execute): 同上、task 単位の並列処理
-- Phase 3 (integrate): ストリーミング（完了順に逐次処理）
+- タスク単位で `process_task` を `JoinSet` に spawn
+- Semaphore permit は各 Claude プロセス呼び出しごとに取得/解放（analyze, execute, integrate 間で他タスクが走れる）
 - 並列数: `parallel_workers` で制御

@@ -194,6 +194,21 @@ Execution Engine は `depends_on` を確認し、該当 intent が完了する�
 
 両方を併用する。
 
+### エージェントと Knowledge Base の関係
+
+| Agent | History | Observation | Skills / Rules |
+|-------|---------|-------------|----------------|
+| **Analyze** | — | 書き出し可 | 参照（プロンプト注入） |
+| **Implement** | — | 書き出し可 | 参照（プロンプト注入） |
+| **Review** | — | 書き出し可 | 参照（プロンプト注入） |
+| **Audit** | 傾向分析に参照 | 書き出し可 | 参照 + 規約違反チェック |
+| **Reflect** | Before/After 分析 | 横断分析 | 生成・更新・剪定 |
+| **Execution Engine** | 自動記録（全件） | — | — |
+
+- **History の記録主体は Execution Engine**。各 agent がステップ結果と所要時間を意識する必要はない
+- **Observation の記録主体は各 agent**。実行中に気づいた摩擦や問題を `.forge/observations.yaml` に書き出す
+- **Reflect Agent が両方を突き合わせてパターンを検出**し、Skills / Rules への昇格や剪定を判断する
+
 ---
 
 ## Knowledge Base

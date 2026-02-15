@@ -110,6 +110,7 @@ Flow ステップを逐次実行し、各ステップの結果に応じて**ル�
 - `analyze` が `complexity: high` を返す → `review` ステップを追加
 - `implement` の変更が 10 行未満 → `review` をスキップ
 - `review` が `rejected` を返す → `implement + review` サイクルを追加
+- `analyze` が `depends_on` を返す → 依存 intent の完了まで implement を遅延
 
 設計方針:
 - ルールは Rust コード。ユニットテスト可能、予測可能、デバッグ可能
@@ -117,6 +118,22 @@ Flow ステップを逐次実行し、各ステップの結果に応じて**ル�
 - 段階的拡張: ハードコードルール → 学習ベースルールの追加
 
 全エージェントは実行中に `.forge/observations.yaml` へ気づきを書き出せる。
+
+### 並列タスク協調
+
+analyze 実行時に、他の active な intent の情報をコンテキストとして注入する。
+
+注入する情報（intent ごと）:
+- タイトル、ステータス（analyzing / implementing / reviewing）
+- relevant_files、プラン概要（analyze 済みの場合）
+
+これにより analyze agent は:
+- 他タスクが変更予定のファイルを把握し、コンフリクトを避けた計画を立てられる
+- 明確な依存関係がある場合、`depends_on: [intent-id]` を出力できる
+
+Execution Engine は `depends_on` を確認し、該当 intent が完了するまで implement を遅延させる。
+
+主な価値は**依存検出**にある。コンフリクト回避は副次的な効果で、発生時はコンフリクト解決のフォールバックで対処する。
 
 ### コンフリクト解決
 

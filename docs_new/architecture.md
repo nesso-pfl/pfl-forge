@@ -228,6 +228,22 @@ Claude Code のネイティブ skill 機能をそのまま活用する。
 - Rules: 20-100 個。プロンプトに全量注入可能
 - History: 無制限に増加。将来 pgvector 等への移行が必要になる可能性あり
 
+History エントリのフィールド:
+- intent メタデータ（type, source, risk, title）
+- 実行された Flow（ステップ一覧 + 調整内容）
+- 各ステップの結果と所要時間
+- 最終結果（success / failed / escalated）+ 失敗理由
+- 生成された observation への参照
+- タイムスタンプ
+
+History は「構造化されたサマリ」。agent 内部の操作ログ（個別ファイル読み込み等）は記録しない。
+プロセスの摩擦や困難は Observation が担う。
+
+Rule の有効性検証:
+- Rule に適用履歴（applied_to）を持たせる
+- Reflect Agent が History の Before/After データから傾向を分析
+- 効果が見られない Rule は削除候補としてフラグ
+
 Rules / History はインターフェースを抽象化し、バックエンド変更に備える。
 各エージェントのプロンプトに関連コンテキストとして注入する。
 
@@ -287,5 +303,4 @@ Rules / History はインターフェースを抽象化し、バックエンド�
 - [ ] Audit Agent のスコープとプロンプト設計
 - [ ] Knowledge Base（Rules / History）のインターフェース抽象化の設計
 - [ ] Rule の YAML 表現形式
-- [ ] History の記録内容
 - [ ] Execution Engine の Flow 調整ルールの全容（上記は例示）

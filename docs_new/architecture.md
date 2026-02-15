@@ -161,11 +161,25 @@ Flow ステップを逐次実行し、各ステップの結果に応じて**ル�
 
 ## Knowledge Base
 
-保存場所: `.forge/knowledge/`
+二系統で管理する:
+
+### Skills（`.claude/skills/`）
+
+Claude Code のネイティブ skill 機能をそのまま活用する。
+
+```
+.claude/skills/
+  <name>/SKILL.md    ← YAML frontmatter + markdown（Claude Code 標準フォーマット）
+```
+
+- Claude Code が description ベースで関連スキルを自動注入する
+- Implement Agent（`claude -p`）でも自動的にスキルが読み込まれる
+- 自前のプロンプト注入の仕組みは不要
+
+### Rules / History（`.forge/knowledge/`）
 
 ```
 .forge/knowledge/
-  skills/    ← 繰り返しワークフローパターン（テンプレート）
   rules/     ← プロジェクト固有の規約
   history/   ← 実行記録
 ```
@@ -173,12 +187,12 @@ Flow ステップを逐次実行し、各ステップの結果に応じて**ル�
 フォーマット: 当面は YAML。
 
 スケール見積もり:
-- Skills: プロジェクトあたり 10-50 個。プロンプトに全量注入可能
-- Rules: 20-100 個。同上
+- Skills: プロジェクトあたり 10-50 個。Claude Code が自動注入
+- Rules: 20-100 個。プロンプトに全量注入可能
 - History: 無制限に増加。将来 pgvector 等への移行が必要になる可能性あり
 
-インターフェースを抽象化し、バックエンド変更に備える。
-Knowledge は各エージェントのプロンプトに関連コンテキストとして注入する。
+Rules / History はインターフェースを抽象化し、バックエンド変更に備える。
+各エージェントのプロンプトに関連コンテキストとして注入する。
 
 ---
 
@@ -191,7 +205,6 @@ Knowledge は各エージェントのプロンプトに関連コンテキスト�
 | `inbox` | 提案された Intent の一覧・承認・却下 | **新規** |
 | `approve` | 特定 Intent の承認（例: `approve 3,5,7`） | **新規** |
 | `status` | 処理状態の表示 | 既存 |
-| `skills` | 学習済み Skills の閲覧・編集 | **新規** |
 | `rules` | 学習済み Rules の閲覧・編集 | **新規** |
 | `parent` | インタラクティブセッション | 既存 |
 | `create` | 手動タスク作成 | 既存 |
@@ -236,8 +249,7 @@ Knowledge は各エージェントのプロンプトに関連コンテキスト�
 - [ ] 非 human Intent の YAML スキーマ
 - [ ] Verify Agent の具体的な動作仕様
 - [ ] Audit Agent のスコープとプロンプト設計
-- [ ] Knowledge Base のインターフェース抽象化の設計
-- [ ] Skill の YAML 表現形式
+- [ ] Knowledge Base（Rules / History）のインターフェース抽象化の設計
 - [ ] Rule の YAML 表現形式
 - [ ] History の記録内容
 - [ ] Execution Engine の Flow 調整ルールの全容（上記は例示）

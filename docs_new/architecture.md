@@ -2,6 +2,12 @@
 
 pfl-forge を「タスク実行エンジン」から「自律開発パートナー」へ再設計する。
 
+## 使用前提条件
+
+- 対象リポジトリに **pre-commit hook** を設定し、コミット時に静的検査を実行すること
+  - テスト、リント、フォーマットなど
+  - Implement Agent のコミットが pre-commit hook で検証されるため、専用の Verify Agent は不要
+
 ## 3つのパラダイムシフト
 
 ### 1. Task → Intent + Observation
@@ -23,11 +29,11 @@ Intent のソース:
 
 | タスク種別 | デフォルト Flow |
 |-----------|---------------|
-| `refactor` | `[implement, verify]` |
+| `refactor` | `[implement]` |
 | `feature` | `[analyze, implement, review]` |
-| `fix` | `[analyze, implement, verify]` |
+| `fix` | `[analyze, implement]` |
 | `audit` | `[audit, report]` |
-| `test` | `[analyze, implement, verify]` |
+| `test` | `[analyze, implement]` |
 | `skill_extraction` | `[observe, abstract, record]` |
 
 ### 3. ステートレス実行 → 学習する開発パートナー
@@ -102,7 +108,7 @@ Flow ステップを逐次実行し、各ステップの結果に応じて**ル�
 
 調整ルールの例:
 - `analyze` が `complexity: high` を返す → `review` ステップを追加
-- `implement` の変更が 10 行未満 → `review` を `verify` にダウングレード
+- `implement` の変更が 10 行未満 → `review` をスキップ
 - `review` が `rejected` を返す → `implement + review` サイクルを追加
 
 設計方針:
@@ -121,11 +127,11 @@ Flow ステップを逐次実行し、各ステップの結果に応じて**ル�
 | **Analyze** | タスク分析、実装計画 | 既存（ほぼ同じ） |
 | **Implement** | コード実装 + observation 書き出し | 既存（observation 追加） |
 | **Review** | コードレビュー | 既存（ほぼ同じ） |
-| **Verify** | 軽量検証（テスト実行のみ） | **新規** |
 | **Audit** | コードベース監査 → Intent 生成 | **新規** |
 | **Reflect** | タスク完了後の振り返り → 学習 | **新規** |
 | **Orchestrate** | インタラクティブセッション | 既存（拡張） |
 | ~~Architect~~ | Analyze に統合、Flow 調整で代替 | **削除** |
+| ~~Verify~~ | pre-commit hook で代替 | **削除** |
 
 ### Audit Agent
 
@@ -247,7 +253,6 @@ Rules / History はインターフェースを抽象化し、バックエンド�
 - [ ] リファクタか書き直しか — 現行コードベースへの適用方法
 - [ ] `.forge/observations.yaml` のスキーマ
 - [ ] 非 human Intent の YAML スキーマ
-- [ ] Verify Agent の具体的な動作仕様
 - [ ] Audit Agent のスコープとプロンプト設計
 - [ ] Knowledge Base（Rules / History）のインターフェース抽象化の設計
 - [ ] Rule の YAML 表現形式

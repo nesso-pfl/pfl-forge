@@ -126,7 +126,7 @@ Implement 成功 + rebase 成功後。
 
 ### 概要
 
-包括的なコードベース監査を行うエージェント。`pfl-forge audit` サブコマンドで起動。
+包括的なコードベース監査を行うエージェント。`claude -p` で非対話実行。`pfl-forge audit` サブコマンドで起動。
 
 ### 起動タイミング
 
@@ -156,7 +156,7 @@ Implement 成功 + rebase 成功後。
 
 ### 概要
 
-Intent 完了後の振り返りを行い、Knowledge Base を更新する学習エージェント。
+Intent 完了後の振り返りを行い、Knowledge Base を更新する学習エージェント。`claude -p` で非対話実行。
 
 ### 起動タイミング
 

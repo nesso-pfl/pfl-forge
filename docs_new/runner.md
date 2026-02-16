@@ -152,8 +152,11 @@ Runner が各 Intent の実行記録を自動的に History に書き込む。�
 - Intent メタデータ（type, source, risk, title）
 - 実行された Flow（ステップ一覧 + 調整内容）
 - 各ステップの結果と所要時間
+- 各ステップの session ID、消費トークン（input / output）、コスト（USD）
 - 最終結果（success / failed / escalated）+ 失敗理由
 - 生成された Observation への参照
 - タイムスタンプ
+
+トークン・コスト情報は `claude -p --output-format json` の出力から取得する（`context_window.total_input_tokens` / `total_output_tokens`、`cost.total_cost_usd`）。
 
 History は「構造化されたサマリ」。エージェント内部の操作ログ（個別ファイル読み込み等）は記録しない。

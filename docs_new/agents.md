@@ -193,7 +193,7 @@ Implement 成功 + rebase 成功後。
 
 ### 概要
 
-Intent 完了後の振り返りを行い、Knowledge Base を更新する学習エージェント。
+Intent 完了後の振り返りを行い、改善 Intent を生成する学習エージェント。
 
 ### 起動タイミング
 
@@ -213,8 +213,10 @@ Intent 完了後の振り返りを行い、Knowledge Base を更新する学習�
 
 ### 成果物
 
-- Knowledge Base 更新: Skills / Rules の生成・更新・剪定
-- Intent Registry への昇格（observation → intent）
+- `.forge/intents/` に Intent を生成（source: `reflection`）
+  - Skills / Rules の生成・更新・剪定の提案
+  - Observation から action が必要なもの
+- リスクベースで承認フローに乗る（low → 自動実行、med/high → inbox）
 
 ---
 
@@ -239,12 +241,12 @@ Intent 完了後の振り返りを行い、Knowledge Base を更新する学習�
 | **Implement** | — | 書き出し可 | 参照（プロンプト注入） | — |
 | **Review** | — | 書き出し可 | 参照（プロンプト注入） | — |
 | **Audit** | 傾向分析に参照 | 書き出し可 | 参照 + 規約違反チェック | — |
-| **Reflect** | Before/After 分析 | 横断分析 | 生成・更新・剪定 | — |
+| **Reflect** | Before/After 分析 | 横断分析 | Intent 経由で変更提案 | — |
 | **Execution Engine** | 自動記録（全件） | — | — | — |
 
 - **History の記録主体は Execution Engine**。各 agent がステップ結果と所要時間を意識する必要はない
 - **Observation の記録主体は各 agent**。実行中に気づいた摩擦や問題を `.forge/observations.yaml` に書き出す
-- **Reflect Agent が両方を突き合わせてパターンを検出**し、Skills / Rules への昇格や剪定を判断する
+- **Reflect Agent が両方を突き合わせてパターンを検出**し、Skills / Rules の変更を Intent として提案する（実際の更新は Implement Agent が行う）
 
 ---
 
@@ -261,3 +263,4 @@ Intent 完了後の振り返りを行い、Knowledge Base を更新する学習�
 | ツール設定キー | `triage_tools`（Analyze/Architect/Review で共有） | エージェントごとに分離: `analyze_tools`, `review_tools` |
 | Implement リトライ | 毎回新プロセスで再起動 | `--resume` でセッション継続（トークン節約） |
 | Analyze 再実行 | clarification 回答後に新プロセスで再起動 | `--resume` でセッション継続 |
+| Reflect の成果物 | Knowledge Base を直接更新 | Intent を生成し、通常のパイプライン（Analyze → Implement → Review）で更新 |

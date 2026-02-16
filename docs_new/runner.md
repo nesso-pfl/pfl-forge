@@ -69,7 +69,7 @@ Analyze は Intent を 1 つ以上の Task に分解する。各 Task が独立�
 - **Analyze**: `needs_clarification` → 人間が回答 → `--resume` で同一セッション継続
 - **Implement**: `review` で rejected → `--resume` で同一セッションに review feedback を注入
 
-新プロセスを起動するのではなく、前回の探索コンテキストを活用することでトークン消費を抑える。
+前回の探索コンテキストを活用することでトークン消費を抑える。
 
 ---
 

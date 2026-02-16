@@ -64,7 +64,6 @@ Execution Engine が Flow の `analyze` ステップを実行するとき。
 ### 入力コンテキスト
 
 - Intent（[data-model.md](data-model.md) 参照）
-- Clarification 回答（再実行時）
 - Project Rules（プロンプト注入）
 - Decision Storage（プロンプト注入）
 - 関連する History
@@ -76,6 +75,7 @@ Execution Engine が Flow の `analyze` ステップを実行するとき。
 - 実装計画を立てられる → Task[] に分解（各 Task が implement へ）
 - 問題が大きすぎる → 子 Intent[] に分解（各子が再び analyze から開始）
 - 情報不足 → `needs_clarification` を返す
+- Clarification 回答後は `--resume` でセッションを継続し、前回の探索コンテキストを活用する
 - モデル: `models.analyze`（default: opus）
 - ツール: `analyze_tools`（default: Read, Glob, Grep, Bash, WebSearch, WebFetch）
 
@@ -257,3 +257,4 @@ Intent 完了後の振り返りを行い、Knowledge Base を更新する学習�
 | モデル設定キー | `models.triage_deep`（Analyze 専用だが名前が汎用） | `models.analyze` |
 | ツール設定キー | `triage_tools`（Analyze/Architect/Review で共有） | エージェントごとに分離: `analyze_tools`, `review_tools` |
 | Implement リトライ | 毎回新プロセスで再起動 | `--resume` でセッション継続（トークン節約） |
+| Analyze 再実行 | clarification 回答後に新プロセスで再起動 | `--resume` でセッション継続 |

@@ -24,13 +24,12 @@
 
 タスクの種類ごとにデフォルト Flow テンプレートを持ち、実行中にルールベースで調整する。
 
-| タスク種別 | デフォルト Flow |
-|-----------|---------------|
-| `refactor` | `[implement]` |
-| `feature` | `[analyze, implement, review]` |
-| `fix` | `[analyze, implement]` |
+通常タスク（feature / fix / refactor / test）は全て `[analyze, implement, review]` で処理する。種別の差はフローではなく、各エージェントへのコンテキスト注入で吸収する。
+
+| 種別 | Flow |
+|------|------|
+| 通常タスク | `[analyze, implement, review]` |
 | `audit` | `[audit, report]` |
-| `test` | `[analyze, implement]` |
 | `skill_extraction` | `[observe, abstract, record]` |
 
 ### Knowledge Base

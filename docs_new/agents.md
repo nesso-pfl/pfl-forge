@@ -76,8 +76,8 @@ Execution Engine が Flow の `analyze` ステップを実行するとき。
 - 実装計画を立てられる → Task[] に分解（各 Task が implement へ）
 - 問題が大きすぎる → 子 Intent[] に分解（各子が再び analyze から開始）
 - 情報不足 → `needs_clarification` を返す
-- モデル: `models.triage_deep`（default: opus）
-- ツール: `triage_tools`（default: Read, Glob, Grep, Bash, WebSearch, WebFetch）
+- モデル: `models.analyze`（default: opus）
+- ツール: `analyze_tools`（default: Read, Glob, Grep, Bash, WebSearch, WebFetch）
 
 ### 成果物
 
@@ -144,7 +144,7 @@ Implement 成功 + rebase 成功後。
 
 - 5 つの検証基準でレビュー: 要件充足、パターン準拠、バグ/セキュリティ、計画整合性、テスト品質
 - モデル: `models.default`（default: sonnet）
-- ツール: `triage_tools`（default: Read, Glob, Grep）
+- ツール: `review_tools`（default: Read, Glob, Grep）
 
 ### 成果物
 

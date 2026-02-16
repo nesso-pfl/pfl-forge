@@ -8,6 +8,7 @@
 - **source**: `human`, `audit`, `epiphany`, `reflection`
 - **risk**: `low`, `med`, `high`
 - **status**: `proposed` → `approved` → `executing` → `done`
+- **parent**: 親 Intent の ID（子 Intent の場合）
 
 ### リスクベースの自律実行
 
@@ -49,6 +50,34 @@ labels: [ui, auth]
 ```
 
 frontmatter の `type`, `labels` は省略可能（Quick Classification が推定）。
+
+## Task
+
+Analyze Agent が Intent から生成する実行可能な作業単位。1 Task = 1 Implement Agent 実行。
+
+### フィールド
+
+- **intent_id**: 親 Intent の ID
+- **title**: 作業内容の要約
+- **plan**: 実装計画
+- **relevant_files**: 関連ファイル一覧
+- **implementation_steps**: 実装ステップ
+- **context**: 補足情報
+- **complexity**: `low`, `med`, `high`
+- **depends_on**: 他の Task ID（同一 Intent 内の依存関係）
+- **status**: `pending` → `implementing` → `done` / `failed`
+
+### Analyze の出力パターン
+
+Analyze は Intent を分析し、以下のいずれかを出力する:
+
+| パターン | 条件 | 出力 |
+|----------|------|------|
+| Task 分解 | 実装計画を立てられる | Task[] — 各 Task が implement へ |
+| Intent 分解 | 問題が大きすぎて1回の analyze では計画できない | 子 Intent[] — 各子 Intent がフルパイプライン（analyze → implement → review）を経る |
+| Clarification | 情報不足 | `needs_clarification` — inbox へ |
+
+Intent は全 Task（または全子 Intent）が done になったら done。
 
 ## Quick Classification
 

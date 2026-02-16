@@ -34,14 +34,16 @@ Execution Engine が Flow の `analyze` ステップを実行するとき。
 
 ### 処理内容
 
-- コードベースを探索し、Intent の実装計画を作成
-- 情報不足や判断困難な場合は `needs_clarification` を返す
+- コードベースを探索し、Intent を実行可能な単位に分解する
+- 実装計画を立てられる → Task[] に分解（各 Task が implement へ）
+- 問題が大きすぎる → 子 Intent[] に分解（各子が再び analyze から開始）
+- 情報不足 → `needs_clarification` を返す
 - モデル: `models.triage_deep`（default: opus）
 - ツール: `triage_tools`（default: Read, Glob, Grep, Bash, WebSearch, WebFetch）
 
 ### 成果物
 
-- 実装計画（complexity, plan, relevant_files, implementation_steps, context）
+- Task[]（[data-model.md](data-model.md) 参照）または子 Intent[]
 
 ### Flow 調整への影響
 
@@ -59,18 +61,18 @@ Execution Engine が Flow の `analyze` ステップを実行するとき。
 
 ### 起動タイミング
 
-Analyze 完了後、Execution Engine が worktree を作成し実装計画を配置した後に実行。Review で rejected の場合はフィードバック付きで再実行。
+Analyze が Task を生成した後、Execution Engine が worktree を作成し Task ファイルを配置して実行。Review で rejected の場合はフィードバック付きで再実行。
 
 ### 入力コンテキスト
 
-- worktree 内の実装計画ファイル（実装計画・関連ファイル・ステップ・コンテキスト）
+- worktree 内の Task ファイル（plan, relevant_files, implementation_steps, context）
 - Review feedback（リトライ時）
 - Skills（Claude Code が自動注入）
 - Project Rules（プロンプト注入）
 
 ### 処理内容
 
-- 実装計画に従い実装を行い、コミットを作成
+- Task に従い実装を行い、コミットを作成
 - モデル: complexity に応じて `models.default`（low/medium）または `models.complex`（high）
 - ツール: `worker_tools`（default: Bash, Read, Write, Edit, Glob, Grep）
 - 実行中の気づきを `.forge/observations.yaml` に書き出し可
@@ -98,8 +100,7 @@ Implement 成功 + rebase 成功後。
 
 ### 入力コンテキスト
 
-- Intent 定義
-- 実装計画（plan）
+- Task 定義（plan）
 - base branch との diff
 - Skills（Claude Code が自動注入）
 - Project Rules（プロンプト注入）

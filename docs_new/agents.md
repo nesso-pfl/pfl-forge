@@ -1,14 +1,14 @@
 # エージェント構成
 
-pfl-forge は複数の Claude Code エージェントを使い分けてタスクを処理する。各エージェントの呼び出しロジック（プロンプト組み立て・CLI 実行・出力パース）は `src/agents/` に、system prompt は `src/prompt/*.md` に定義されている。すべてのエージェント呼び出しは `process_task()` から行う。
+pfl-forge は複数の Claude Code エージェントを使い分けて Intent を処理する。各エージェントの呼び出しロジック（プロンプト組み立て・CLI 実行・出力パース）は `src/agents/` に、system prompt は `src/prompt/*.md` に定義されている。すべてのエージェント呼び出しは `process_task()` から行う。
 
 | Agent | 責務 | 状態 |
 |-------|------|------|
-| **Analyze** | タスク分析、実装計画 | 既存（ほぼ同じ） |
+| **Analyze** | Intent 分析、実装計画 | 既存（ほぼ同じ） |
 | **Implement** | コード実装 + observation 書き出し | 既存（observation 追加） |
 | **Review** | コードレビュー | 既存（ほぼ同じ） |
 | **Audit** | コードベース監査 → Intent 生成 | **新規** |
-| **Reflect** | タスク完了後の振り返り → 学習 | **新規** |
+| **Reflect** | Intent 完了後の振り返り → 学習 | **新規** |
 | **Orchestrate** | インタラクティブセッション | 既存（拡張） |
 | ~~Architect~~ | Analyze に統合、Flow 調整で代替 | **削除** |
 | ~~Verify~~ | pre-commit hook で代替 | **削除** |
@@ -19,7 +19,7 @@ pfl-forge は複数の Claude Code エージェントを使い分けてタスク
 
 ### 概要
 
-タスクの詳細分析を行う読み取り専用エージェント。`claude -p` で非対話実行。
+Intent の詳細分析を行う読み取り専用エージェント。`claude -p` で非対話実行。
 
 ### 起動タイミング
 
@@ -27,7 +27,7 @@ pfl-forge は複数の Claude Code エージェントを使い分けてタスク
 
 ### 入力コンテキスト
 
-- タスク定義（Issue: id, title, body, labels）
+- Intent（[data-model.md](data-model.md) 参照）
 - Clarification 回答（再実行時）
 - Project Rules（プロンプト注入）
 - Decision Storage（プロンプト注入）
@@ -36,7 +36,7 @@ pfl-forge は複数の Claude Code エージェントを使い分けてタスク
 
 ### 処理内容
 
-- コードベースを探索し、タスクの実装計画を作成
+- コードベースを探索し、Intent の実装計画を作成
 - モデル: `models.triage_deep`（default: sonnet）
 - ツール: `triage_tools`（default: Read, Glob, Grep）
 - 分析が不十分な場合は Architect Agent にエスカレート（現行動作。新アーキでは analyze 内で完結予定）
@@ -101,8 +101,8 @@ Implement 成功 + rebase 成功後。
 
 ### 入力コンテキスト
 
-- タスク定義
-- 実装計画（Task.plan）
+- Intent 定義
+- 実装計画（plan）
 - base branch との diff
 - Skills（Claude Code が自動注入）
 - Project Rules（プロンプト注入）
@@ -159,11 +159,11 @@ Implement 成功 + rebase 成功後。
 
 ### 概要
 
-タスク完了後の振り返りを行い、Knowledge Base を更新する学習エージェント。
+Intent 完了後の振り返りを行い、Knowledge Base を更新する学習エージェント。
 
 ### 起動タイミング
 
-各タスク完了後に自動実行。
+各 Intent 完了後に自動実行。
 
 ### 入力コンテキスト
 
@@ -212,10 +212,10 @@ Implement 成功 + rebase 成功後。
 
 ## Epiphany 収集
 
-全エージェントが実行中にタスクと無関係な気づきを記録できる二重アプローチ:
+全エージェントが実行中に当該 Intent と無関係な気づきを記録できる二重アプローチ:
 
-1. **プロンプト指示**: 全エージェントに「タスクと無関係な気づきは `.forge/observations.yaml` に書き出せ」と指示
-2. **事後リフレクション**: Reflect Agent がタスク完了後に「他に何か気づいたか」を問う
+1. **プロンプト指示**: 全エージェントに「Intent と無関係な気づきは `.forge/observations.yaml` に書き出せ」と指示
+2. **事後リフレクション**: Reflect Agent が Intent 完了後に「他に何か気づいたか」を問う
 
 生成ルール:
 - action が必要 → `.forge/intents/` に intent を直接生成（observation は書かない）

@@ -17,7 +17,7 @@ pfl-forge は複数の Claude Code エージェントを使い分けて Intent �
 
 ### 概要
 
-Intent の詳細分析を行う読み取り専用エージェント。`claude -p` で非対話実行。
+Intent の詳細分析を行う読み取り専用エージェント。`claude -p --allowedTools --append-system-prompt` で非対話実行。
 
 ### 起動タイミング
 
@@ -92,7 +92,7 @@ Analyze が Task を生成した後、Execution Engine が worktree を作成し
 
 ### 概要
 
-Implement Agent の成果物を検証するコードレビューエージェント。`claude -p` で非対話実行。
+Implement Agent の成果物を検証するコードレビューエージェント。`claude -p --allowedTools --append-system-prompt` で非対話実行。
 
 ### 起動タイミング
 
@@ -126,7 +126,7 @@ Implement 成功 + rebase 成功後。
 
 ### 概要
 
-包括的なコードベース監査を行うエージェント。`claude -p` で非対話実行。`pfl-forge audit` サブコマンドで起動。
+包括的なコードベース監査を行うエージェント。`claude -p --allowedTools --append-system-prompt` で非対話実行。`pfl-forge audit` サブコマンドで起動。
 
 ### 起動タイミング
 
@@ -156,7 +156,7 @@ Implement 成功 + rebase 成功後。
 
 ### 概要
 
-Intent 完了後の振り返りを行い、Knowledge Base を更新する学習エージェント。`claude -p` で非対話実行。
+Intent 完了後の振り返りを行い、Knowledge Base を更新する学習エージェント。`claude -p --allowedTools --append-system-prompt` で非対話実行。
 
 ### 起動タイミング
 

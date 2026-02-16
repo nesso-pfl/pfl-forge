@@ -82,11 +82,7 @@ Runner が Flow の `analyze` ステップを実行するとき。
 ### 成果物
 
 - Task[]（[data-model.md](data-model.md) 参照）または子 Intent[]
-
-### Flow 調整への影響
-
-- `needs_clarification` → intent を一時停止し inbox へ
-- `depends_on` → 依存 intent の完了まで implement を遅延
+- 各出力に応じた Runner の Flow 調整は [runner.md](runner.md) 参照
 
 ---
 
@@ -146,11 +142,7 @@ Implement 成功 + rebase 成功後。
 - Review Result（[data-model.md](data-model.md) 参照）
 - Runner がファイルに永続化（履歴・Reflect 用）
 - rejected 時は Review Result を Implement セッションへ `--resume` 経由で渡す
-
-### Flow 調整への影響
-
-- `rejected` → 該当 Task の implement + review サイクルを追加（設定上限まで）
-- 全リトライ後も `rejected` → Task を `failed` にする。Intent は残りの Task 状況に応じて `blocked`（一部失敗）または `error`（全失敗）となり inbox へ。人間が review feedback を確認し、再実行・追加指示・却下を判断する
+- review 結果に応じた Runner の Flow 調整は [runner.md](runner.md) 参照
 
 ---
 

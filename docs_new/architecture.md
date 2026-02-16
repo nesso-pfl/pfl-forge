@@ -125,13 +125,13 @@ Rule の有効性検証:
 ### Decision Storage（外部連携）
 
 プロジェクト横断の個人的な判断基準・設計思想を保持する外部アプリ。
-Project Rules と同列のコンテキストソースとして、各エージェントのプロンプトに事前注入する。
 
 - Project Rules = 「このプロジェクトではこうする」（プロジェクト固有）
 - Decision Storage = 「自分はこう考える」（プロジェクト横断）
 
-事前に注入することで Analyze の判断精度が上がり、needs_clarification の発生頻度を下げる。
-連携インターフェースの詳細は外部アプリの設計に依存する。
+MCP Server 経由で接続する。Runner がプロンプトに事前注入するのではなく、エージェントが実行中に必要に応じて MCP ツールで検索・取得する。Runner は MCP 設定（`--mcp-config`）を渡すだけ。
+
+理由: Runner は Intent の title/body しか持たず適切な検索クエリを組み立てられない。エージェント（特に Analyze）がコードベース探索中に背景情報を必要とした瞬間に取得するのが自然。
 
 Rules / History はインターフェースを抽象化し、バックエンド変更に備える。
 各エージェントのプロンプトに関連コンテキストとして注入する。
@@ -192,7 +192,7 @@ Rules / History はインターフェースを抽象化し、バックエンド�
 - [ ] Knowledge Base（Rules / History）のインターフェース抽象化の設計
 - [ ] Rule の YAML 表現形式
 - [ ] Runner の Flow 調整ルールの全容（上記は例示）
-- [ ] Decision Storage との連携インターフェース
+- [x] Decision Storage との連携インターフェース → MCP Server
 
 ---
 

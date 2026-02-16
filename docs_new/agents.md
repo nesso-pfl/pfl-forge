@@ -65,7 +65,7 @@ Runner が Flow の `analyze` ステップを実行するとき。
 
 - Intent（[data-model.md](data-model.md) 参照）
 - Project Rules（プロンプト注入）
-- Decision Storage（プロンプト注入）
+- Decision Storage（MCP ツール経由で実行中に取得）
 - 関連する History
 - 他の active な intent の情報（タイトル、ステータス、relevant_files、プラン概要）
 
@@ -224,7 +224,7 @@ Intent 完了後の振り返りを行い、改善 Intent を生成する学習�
 
 | Agent | History | Observation | Skills / Rules | Decision Storage |
 |-------|---------|-------------|----------------|-----------------|
-| **Analyze** | — | 書き出し可 | 参照（プロンプト注入） | 参照（プロンプト注入） |
+| **Analyze** | — | 書き出し可 | 参照（プロンプト注入） | 参照（MCP 経由） |
 | **Implement** | — | 書き出し可 | 参照（プロンプト注入） | — |
 | **Review** | — | 書き出し可 | 参照（プロンプト注入） | — |
 | **Audit** | 傾向分析に参照 | 書き出し可 | 参照 + 規約違反チェック | — |

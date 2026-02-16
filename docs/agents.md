@@ -2,7 +2,7 @@
 
 pfl-forge は複数の Claude Code エージェントを使い分けてタスクを処理する。
 
-各エージェントの呼び出しロジック（プロンプト組み立て・Claude CLI 実行・出力パース）は `src/agents/` に、system prompt は `src/prompt/*.md` に定義されている。
+各エージェントの呼び出しロジック（プロンプト組み立て・Claude CLI 実行・出力パース）は `src/agent/` に、system prompt は `src/prompt/*.md` に定義されている。
 
 すべてのエージェント呼び出しは `process_task()` から直接行われる。`src/task/` はタスクデータの読み書き・変換のみを担当し、`src/git/` は worktree 準備・rebase 等の Git 操作を担当する。
 

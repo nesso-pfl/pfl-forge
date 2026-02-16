@@ -1,6 +1,6 @@
 # エージェント構成
 
-pfl-forge は複数の Claude Code エージェントを使い分けて Intent を処理する。各エージェントの呼び出しロジック（プロンプト組み立て・CLI 実行・出力パース）は `src/agents/` に、system prompt は `src/prompt/*.md` に定義されている。
+pfl-forge は複数の Claude Code エージェントを使い分けて Intent を処理する。各エージェントの呼び出しロジック（プロンプト組み立て・CLI 実行・出力パース）は `src/agent/` に、system prompt は `src/prompt/*.md` に定義されている。
 
 | Agent | 責務 |
 |-------|------|

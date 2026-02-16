@@ -4,7 +4,7 @@ Multi-agent task processor powered by Claude Code.
 
 ## Architecture
 
-- `src/agents/` — Claude Code 呼び出し（プロンプト組み立て・CLI 実行・出力パース）
+- `src/agent/` — Claude Code 呼び出し（プロンプト組み立て・CLI 実行・出力パース）
 - `src/task/` — タスク定義・読み込み・work YAML・clarification 管理
 - `src/claude/` — Claude Code CLI (`claude -p`) のラッパー
 - `src/git/` — worktree/branch 操作（rebase・gitignore 管理を含む）

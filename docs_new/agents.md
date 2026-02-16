@@ -99,17 +99,17 @@ Execution Engine が Flow の `analyze` ステップを実行するとき。
 
 ### 起動タイミング
 
-Analyze が Task を生成した後、Execution Engine が worktree を作成し Task ファイルを配置して実行。Review で rejected の場合はフィードバック付きで再実行。
+Analyze が Task を生成した後、Execution Engine が worktree を作成し Task ファイルを配置して実行。
 
 ### 入力コンテキスト
 
 - worktree 内の Task ファイル（plan, relevant_files, implementation_steps, context）
-- Review feedback（リトライ時）
 - Project Rules（プロンプト注入）
 
 ### 処理内容
 
 - Task に従い実装を行い、コミットを作成
+- Review で rejected の場合、`--resume` で同一セッションを継続し review feedback を入力として渡す（コンテキスト再構築のトークン消費を回避）
 - モデル: complexity に応じて `models.default`（low/medium）または `models.complex`（high）
 - ツール: `worker_tools`（default: Bash, Read, Write, Edit, Glob, Grep）
 
@@ -256,3 +256,4 @@ Intent 完了後の振り返りを行い、Knowledge Base を更新する学習�
 | Review リトライ | `max_review_retries` 設定キー | Execution Engine の Flow 調整ルールとして管理 |
 | モデル設定キー | `models.triage_deep`（Analyze 専用だが名前が汎用） | `models.analyze` |
 | ツール設定キー | `triage_tools`（Analyze/Architect/Review で共有） | エージェントごとに分離: `analyze_tools`, `review_tools` |
+| Implement リトライ | 毎回新プロセスで再起動 | `--resume` でセッション継続（トークン節約） |

@@ -85,7 +85,6 @@ Runner が Flow の `analyze` ステップを実行するとき。
 
 ### Flow 調整への影響
 
-- `complexity: high` → `review` ステップを追加
 - `needs_clarification` → intent を一時停止し inbox へ
 - `depends_on` → 依存 intent の完了まで implement を遅延
 
@@ -117,10 +116,6 @@ Analyze が Task を生成した後、Runner が worktree を作成し Task フ�
 
 - Git コミット（worktree 内）
 - 成功判定: コミット数 > 0
-
-### Flow 調整への影響
-
-- 変更 10 行未満 → `review` をスキップ
 
 ---
 
@@ -154,8 +149,8 @@ Implement 成功 + rebase 成功後。
 
 ### Flow 調整への影響
 
-- `rejected` → implement + review サイクルを追加（設定上限まで）
-- 全リトライ後も rejected → Error 状態
+- `rejected` → 該当 Task の implement + review サイクルを追加（設定上限まで）
+- 全リトライ後も `rejected` → Task を `failed` にする。Intent は残りの Task 状況に応じて `blocked`（一部失敗）または `error`（全失敗）となり inbox へ。人間が review feedback を確認し、再実行・追加指示・却下を判断する
 
 ---
 

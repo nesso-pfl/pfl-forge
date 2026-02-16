@@ -20,10 +20,9 @@ Runner 自身は AI エージェントではなく、Rust コードによる決�
 
 種別ごとにフローを分岐しない理由:
 - refactor でも大規模なら analyze が必要。test でも正しいテストか review が必要
-- Quick Classification の誤分類でステップが欠落するリスクを回避
 - 種別の差はフローではなく、各エージェントへのコンテキスト注入で吸収する
 
-別パイプラインを持つ種別:
+別パイプラインを持つ種別（Intent の `type` フィールドで分岐）:
 
 | 種別 | Flow |
 |------|------|
@@ -45,8 +44,6 @@ Flow テンプレートには含まれないが、Runner が固定で実行す�
 
 ```
 Intent 受取
-  │
-  ├─ Quick Classification → Flow テンプレート選択
   │
   ├─ analyze ステップ
   │    Analyze Agent 呼び出し

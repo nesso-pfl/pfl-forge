@@ -68,7 +68,7 @@ labels: [ui, auth]
 現状ではパスワードを忘れたユーザーがリセットする手段がない。
 ```
 
-frontmatter の `type`, `labels` は省略可能（Quick Classification が推定）。
+frontmatter の `type`, `labels` は省略可能（Analyze Agent が推定）。
 
 ## Task
 
@@ -112,10 +112,3 @@ Review Agent が返す構造化 JSON 出力。Runner がファイルに永続化
 - **issues**: 問題点（rejected の根拠）
 - **suggestions**: 改善提案（approved でも出せる）
 
-## Quick Classification
-
-AI エージェントではなく、決定論的なルール。ラベル・キーワード・ソースから:
-
-1. タスク種別を判定（refactor / feature / fix / test / audit）
-2. デフォルト Flow テンプレートを選択
-3. 初期リスクレベルを設定

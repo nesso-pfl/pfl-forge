@@ -70,61 +70,11 @@ Knowledge Base           ← Skills / Rules / History
 
 ## Runner
 
-Flow ステップを逐次実行し、各ステップの結果に応じて**ルールベース**で残りの Flow を調整する。
-
-調整ルールの例:
-- `analyze` が `complexity: high` を返す → `review` ステップを追加
-- `implement` の変更が 10 行未満 → `review` をスキップ
-- `review` が `rejected` を返す → `implement + review` サイクルを追加
-- `analyze` が `depends_on` を返す → 依存 intent の完了まで implement を遅延
-- `analyze` が `needs_clarification` を返す → intent を一時停止し inbox へ
-
-設計方針:
-- ルールは Rust コード。ユニットテスト可能、予測可能、デバッグ可能
-- 精度は「最初から正解する」ではなく「途中で修正できる」で担保
-- 段階的拡張: ハードコードルール → 学習ベースルールの追加
+Flow ステップの逐次実行とルールベースの Flow 調整を行う。AI エージェントではなく Rust コードによる制御ロジック。
 
 全エージェントは実行中に `.forge/observations.yaml` へ気づきを書き出せる。
 
-### 並列タスク協調
-
-analyze 実行時に、他の active な intent の情報をコンテキストとして注入する。
-
-注入する情報（intent ごと）:
-- タイトル、ステータス（analyzing / implementing / reviewing）
-- relevant_files、プラン概要（analyze 済みの場合）
-
-これにより analyze agent は:
-- 他タスクが変更予定のファイルを把握し、コンフリクトを避けた計画を立てられる
-- 明確な依存関係がある場合、`depends_on: [intent-id]` を出力できる
-
-Runner は `depends_on` を確認し、該当 intent が完了するまで implement を遅延させる。
-
-主な価値は**依存検出**にある。コンフリクト回避は副次的な効果で、発生時はコンフリクト解決のフォールバックで対処する。
-
-### Analyze の判断不足時
-
-Analyze には常に以下のコンテキストがプロンプトに注入される:
-
-- Project Rules（プロジェクト固有の規約）
-- Decision Storage（個人の判断基準・設計思想、外部連携）
-- 関連する History
-
-これにより大半の判断は Analyze 内で完結する。それでも情報不足や判断困難な場合は `needs_clarification` を返し、Execution Engine が intent を一時停止して inbox へ回す。人間が補足情報を追加した後に再実行する。
-
-### コンフリクト解決
-
-並列ワーカーが同時に作業すると、main へのリベース時にコンフリクトが発生しうる。
-
-解決戦略（段階的フォールバック）:
-
-1. **`git rebase`** — 成功すればそのまま統合
-2. **同じプランで再実装** — rebase abort し、updated main から worktree を再作成、analyze 結果を再利用して implement のみ再実行
-3. **Failed** — 再実装でも失敗した場合は人間にエスカレート
-
-再実装で十分な理由:
-- 並列タスクは別の関心事を扱うため、プラン自体は main が進んでも有効
-- pre-commit hook が通れば結果の正しさも担保される
+詳細は [runner.md](runner.md) を参照。
 
 ---
 
@@ -246,12 +196,13 @@ Rules / History はインターフェースを抽象化し、バックエンド�
 - [ ] Audit Agent のスコープとプロンプト設計
 - [ ] Knowledge Base（Rules / History）のインターフェース抽象化の設計
 - [ ] Rule の YAML 表現形式
-- [ ] Execution Engine の Flow 調整ルールの全容（上記は例示）
+- [ ] Runner の Flow 調整ルールの全容（上記は例示）
 - [ ] Decision Storage との連携インターフェース
 
 ---
 
 ## 関連ドキュメント
 
+- [runner.md](runner.md) — Runner の仕様・実行フロー・Flow 調整ルール
 - [agents.md](agents.md) — エージェント構成・責務・Knowledge Base との関係
 - [data-model.md](data-model.md) — Intent, Quick Classification 等のデータモデル定義

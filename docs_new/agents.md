@@ -244,7 +244,7 @@ Intent 完了後の振り返りを行い、改善 Intent を生成する学習�
 | **Reflect** | Before/After 分析 | 横断分析 | Intent 経由で変更提案 | — |
 | **Runner** | 自動記録（全件） | — | — | — |
 
-- **History の記録主体は Runner**。各 agent がステップ結果と所要時間を意識する必要はない
+- **History の記録主体は Runner**（[runner.md](runner.md) 参照）。各 agent がステップ結果と所要時間を意識する必要はない
 - **Observation の記録主体は各 agent**。実行中に気づいた摩擦や問題を `.forge/observations.yaml` に書き出す
 - **Reflect Agent が両方を突き合わせてパターンを検出**し、Skills / Rules の変更を Intent として提案する（実際の更新は Implement Agent が行う）
 

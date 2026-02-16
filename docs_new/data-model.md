@@ -7,8 +7,18 @@
 - **type**: `feature`, `refactor`, `fix`, `test`, `audit`, ...
 - **source**: `human`, `audit`, `epiphany`, `reflection`
 - **risk**: `low`, `med`, `high`
-- **status**: `proposed` → `approved` → `executing` → `done`
+- **status**: `proposed` → `approved` → `executing` → `done` / `blocked` / `error`
 - **parent**: 親 Intent の ID（子 Intent の場合）
+
+ステータス遷移:
+
+```
+proposed → approved → executing → done      (全 Task 成功)
+                                → blocked   (一部 Task が failed)
+                                → error     (全 Task が failed)
+```
+
+`blocked` / `error` の Intent は inbox に入り、人間が失敗した Task の review feedback を確認して対応を決める（再実行・追加指示・却下）。成功した Task のコミットはそのまま保持される。
 
 ### リスクベースの自律実行
 
@@ -22,6 +32,15 @@
 例:
 - low: 小規模リファクタ、テスト追加
 - high: アーキテクチャ変更、大規模設計変更
+
+### Inbox
+
+人間のアクションを待っている Intent のフィルタビュー。物理的な場所ではなく、`.forge/intents/` 内の Intent を条件で抽出する。
+
+inbox に入る条件:
+- **承認待ち** — リスク `med` / `high` で人間の承認が必要（status: `proposed`）
+- **clarification 待ち** — 情報不足で人間の回答が必要（`needs_clarification`）
+- **review 失敗** — 全リトライ後も Task が失敗（status: `blocked` / `error`）
 
 ### Intent Registry（`.forge/intents/`）
 
@@ -77,7 +96,10 @@ Analyze は Intent を分析し、以下のいずれかを出力する:
 | Intent 分解 | 問題が大きすぎて1回の analyze では計画できない | 子 Intent[] — 各子 Intent がフルパイプライン（analyze → implement → review）を経る |
 | Clarification | 情報不足 | `needs_clarification` — inbox へ |
 
-Intent は全 Task（または全子 Intent）が done になったら done。
+Intent のステータスは Task の集約:
+- 全 Task が `done` → Intent は `done`
+- 一部 Task が `failed`（リトライ上限到達後） → Intent は `blocked`
+- 全 Task が `failed` → Intent は `error`
 
 ## Review Result
 

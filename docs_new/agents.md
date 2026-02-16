@@ -11,13 +11,25 @@ pfl-forge は複数の Claude Code エージェントを使い分けて Intent �
 | **Reflect** | Intent 完了後の振り返り → 学習 |
 | **Orchestrate** | インタラクティブセッション |
 
+## 共通ルール（非対話エージェント）
+
+Orchestrate 以外の全エージェント（Analyze, Implement, Review, Audit, Reflect）は以下の共通仕様で動作する:
+
+- **起動**: `claude -p --allowedTools <tools> --append-system-prompt <prompt> --model <model> --output-format json`
+- **nested 呼び出し対応**: `CLAUDECODE` / `CLAUDE_CODE_ENTRYPOINT` 環境変数を除去
+- **Skills 自動注入**: Claude Code が `.claude/skills/` を自動的に読み込む
+- **Observation 書き出し**: 実行中の気づきを `.forge/observations.yaml` に書き出せる
+- **タイムアウト**: 設定時間超過でプロセスを kill
+
+各エージェント固有のモデル・ツール・プロンプトは個別セクションに記載。
+
 ---
 
 ## Analyze Agent
 
 ### 概要
 
-Intent の詳細分析を行う読み取り専用エージェント。`claude -p --allowedTools --append-system-prompt` で非対話実行。
+Intent の詳細分析を行う読み取り専用エージェント。
 
 ### 起動タイミング
 
@@ -57,7 +69,7 @@ Execution Engine が Flow の `analyze` ステップを実行するとき。
 
 ### 概要
 
-コード変更を行うエージェント。Git worktree 内で動作。`claude -p --allowedTools --append-system-prompt` で起動。
+コード変更を行うエージェント。Git worktree 内で動作。
 
 ### 起動タイミング
 
@@ -67,7 +79,6 @@ Analyze が Task を生成した後、Execution Engine が worktree を作成し
 
 - worktree 内の Task ファイル（plan, relevant_files, implementation_steps, context）
 - Review feedback（リトライ時）
-- Skills（Claude Code が自動注入）
 - Project Rules（プロンプト注入）
 
 ### 処理内容
@@ -75,7 +86,6 @@ Analyze が Task を生成した後、Execution Engine が worktree を作成し
 - Task に従い実装を行い、コミットを作成
 - モデル: complexity に応じて `models.default`（low/medium）または `models.complex`（high）
 - ツール: `worker_tools`（default: Bash, Read, Write, Edit, Glob, Grep）
-- 実行中の気づきを `.forge/observations.yaml` に書き出し可
 
 ### 成果物
 
@@ -92,7 +102,7 @@ Analyze が Task を生成した後、Execution Engine が worktree を作成し
 
 ### 概要
 
-Implement Agent の成果物を検証するコードレビューエージェント。`claude -p --allowedTools --append-system-prompt` で非対話実行。
+Implement Agent の成果物を検証するコードレビューエージェント。
 
 ### 起動タイミング
 
@@ -102,7 +112,6 @@ Implement 成功 + rebase 成功後。
 
 - Task 定義（plan）
 - base branch との diff
-- Skills（Claude Code が自動注入）
 - Project Rules（プロンプト注入）
 
 ### 処理内容
@@ -126,7 +135,7 @@ Implement 成功 + rebase 成功後。
 
 ### 概要
 
-包括的なコードベース監査を行うエージェント。`claude -p --allowedTools --append-system-prompt` で非対話実行。`pfl-forge audit` サブコマンドで起動。
+包括的なコードベース監査を行うエージェント。`pfl-forge audit` サブコマンドで起動。
 
 ### 起動タイミング
 
@@ -148,7 +157,6 @@ Implement 成功 + rebase 成功後。
 ### 成果物
 
 - `.forge/intents/` に Intent を生成
-- `.forge/observations.yaml` に observation を書き出し可
 
 ---
 
@@ -156,7 +164,7 @@ Implement 成功 + rebase 成功後。
 
 ### 概要
 
-Intent 完了後の振り返りを行い、Knowledge Base を更新する学習エージェント。`claude -p --allowedTools --append-system-prompt` で非対話実行。
+Intent 完了後の振り返りを行い、Knowledge Base を更新する学習エージェント。
 
 ### 起動タイミング
 

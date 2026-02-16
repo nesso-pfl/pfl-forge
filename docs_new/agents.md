@@ -111,7 +111,7 @@ Analyze が Task を生成した後、Execution Engine が worktree を作成し
 - Task に従い実装を行い、コミットを作成
 - Review で rejected の場合、`--resume` で同一セッションを継続し review feedback を入力として渡す（コンテキスト再構築のトークン消費を回避）
 - モデル: complexity に応じて `models.default`（low/medium）または `models.complex`（high）
-- ツール: `worker_tools`（default: Bash, Read, Write, Edit, Glob, Grep）
+- ツール: `implement_tools`（default: Bash, Read, Write, Edit, Glob, Grep）
 
 ### 成果物
 

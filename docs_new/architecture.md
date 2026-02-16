@@ -20,7 +20,7 @@ pfl-forge を「タスク実行エンジン」から「自律開発パートナ�
 Intent のソース:
 - **Human** — `.forge/tasks/*.md` に Markdown で作成 → pfl-forge が `.forge/intents/` に変換
 - **Audit** — Audit Agent が `.forge/intents/` に直接生成
-- **Epiphany** — 実装中にエージェントが `.forge/observations.yaml` に書き出し + action が必要なら `.forge/intents/` にも生成
+- **Epiphany** — 実装中にエージェントが判断: action 必要 → `.forge/intents/` に生成、それ以外 → `.forge/observations.yaml` に記録
 - **Reflection** — Reflect Agent が `.forge/intents/` に直接生成
 
 ### 2. 固定パイプライン → タスク性質に応じた柔軟 Flow
@@ -100,7 +100,7 @@ Knowledge Base           ← Skills / Rules / History
 |--------|------|------|--------|
 | Human | `.forge/tasks/*.md` | pfl-forge が frontmatter + body をパース | `.forge/intents/` |
 | Audit | Audit Agent の発見 | Agent が直接生成 | `.forge/intents/` |
-| Epiphany | `.forge/observations.yaml` | Agent が action 必要と判断時に同時生成 | `.forge/intents/` |
+| Epiphany | Agent の気づき | Agent が action 必要と判断時に直接生成 | `.forge/intents/` |
 | Reflection | Reflect Agent の発見 | Agent が直接生成 | `.forge/intents/` |
 
 Human 入力のフォーマット（`.forge/tasks/*.md`）:
@@ -223,7 +223,7 @@ Analyze には常に以下のコンテキストがプロンプトに注入され
 - ルール化すべき規約はないか
 
 出力:
-- 新しい observation → Intent Registry
+- observation の評価 → Intent 生成が必要なら Intent Registry へ
 - Knowledge Base 更新（skills, rules, history）
 
 ### Epiphany 収集（二重アプローチ）
@@ -232,6 +232,12 @@ Analyze には常に以下のコンテキストがプロンプトに注入され
 2. **事後リフレクション**: Reflect Agent がタスク完了後に「他に何か気づいたか」を問う
 
 両方を併用する。
+
+生成ルール:
+- action が必要 → `.forge/intents/` に intent を直接生成（observation は書かない）
+- action 不要だが記録に値する → `.forge/observations.yaml` に observation のみ
+
+これにより observation は常に「未処理」であり、Reflect Agent は全件を評価対象にできる。
 
 ### エージェントと Knowledge Base の関係
 

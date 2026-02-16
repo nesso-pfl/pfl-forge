@@ -38,7 +38,7 @@ Intent の詳細分析を行う読み取り専用エージェント。`claude -p
 
 - コードベースを探索し、Intent の実装計画を作成
 - モデル: `models.triage_deep`（default: opus）
-- ツール: `triage_tools`（default: Read, Glob, Grep）
+- ツール: `triage_tools`（default: Read, Glob, Grep, Bash, WebSearch, WebFetch）
 - 分析が不十分な場合は Architect Agent にエスカレート（現行動作。新アーキでは analyze 内で完結予定）
 
 ### 成果物

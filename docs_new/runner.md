@@ -35,7 +35,7 @@ Runner 自身は AI エージェントではなく、Rust コードによる決�
 Flow テンプレートには含まれないが、Runner が固定で実行するステップ:
 
 - **rebase** — implement 後、review 前に毎回実行
-- **reflect** — リーフ Intent の完了後に自動実行。子 Intent に分解された場合、親 Intent では reflect しない（学びは実際に実装した単位に紐づく）
+- **reflect** — 子 Intent を持たない Intent の完了後に自動実行。子 Intent に分解された場合、親 Intent では reflect しない（学びは実際に実装した単位に紐づく）
 
 ---
 
@@ -71,7 +71,7 @@ Intent 受取
   │    worktree の変更を main にマージ
   │
   └─ reflect ステップ
-       Reflect Agent 呼び出し（リーフ Intent 完了後に自動実行）
+       Reflect Agent 呼び出し（子を持たない Intent の完了後に自動実行）
 ```
 
 ### Analyze → Task の関係

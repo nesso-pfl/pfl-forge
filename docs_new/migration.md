@@ -61,3 +61,30 @@
 | `ArchitectOutcome` | Architect Agent 削除に伴い不要 |
 | `TaskStatus`（state） | Intent のステータスモデル（`proposed` → `approved` → `executing` → `done`）に置き換え |
 | `ClarificationContext` / `PendingClarification` | `needs_clarification` が Intent の一時停止になるため再設計 |
+
+## アーキテクチャ
+
+### パラダイムシフト
+
+| 現行 | 新アーキ |
+|------|----------|
+| `Task(YAML)` → 固定パイプライン → `Result` | `Intent(any trigger)` → 柔軟な Flow → `Action[]` → Learn |
+| 固定パイプライン（fetch → analyze → implement → review） | タスク種別に応じた Flow テンプレート + ルールベース調整 |
+| ステートレス実行（毎回ゼロから） | Knowledge Base（Skills / Rules / History）で学習を蓄積 |
+
+### CLI サブコマンド
+
+| コマンド | 状態 | 変更内容 |
+|---------|------|----------|
+| `run` | 拡張 | 柔軟 Flow 対応 |
+| `create` | 変更 | `.forge/tasks/` に Markdown タスク作成 |
+| `audit` | **新規** | コードベース監査 → Intent 生成 |
+| `inbox` | **新規** | 提案された Intent の一覧・承認・却下 |
+| `approve` | **新規** | 特定 Intent の承認 |
+| `rules` | **新規** | 学習済み Rules の閲覧・編集 |
+| `status` / `parent` / `clean` / `watch` | 既存 | 変更なし |
+| `clarifications` / `answer` | **廃止** | `needs_clarification` が Intent の一時停止 + inbox に統合 |
+
+### 未決事項（移行関連）
+
+- リファクタか書き直しか — 現行コードベースへの適用方法

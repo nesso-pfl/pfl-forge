@@ -1,6 +1,6 @@
-# pfl-forge New Architecture
+# pfl-forge Architecture
 
-pfl-forge を「タスク実行エンジン」から「自律開発パートナー」へ再設計する。
+自律開発パートナー。Intent を受け取り、柔軟な Flow で処理し、学習を蓄積する。
 
 ## 使用前提条件
 
@@ -8,22 +8,19 @@ pfl-forge を「タスク実行エンジン」から「自律開発パートナ�
   - テスト、リント、フォーマットなど
   - Implement Agent のコミットが pre-commit hook で検証されるため、専用の Verify Agent は不要
 
-## 3つのパラダイムシフト
+## コア概念
 
-### 1. Task → Intent + Observation
+### Intent
 
-```
-現在:  Task(YAML) → 固定パイプライン → Result
-新:    Intent(any trigger) → 柔軟な Flow → Action[] → Learn
-```
+あらゆるトリガーから生成される作業単位。
 
-Intent のソース:
+ソース:
 - **Human** — `.forge/tasks/*.md` に Markdown で作成 → pfl-forge が `.forge/intents/` に変換
 - **Audit** — Audit Agent が `.forge/intents/` に直接生成
 - **Epiphany** — 実装中にエージェントが判断: action 必要 → `.forge/intents/` に生成、それ以外 → `.forge/observations.yaml` に記録
 - **Reflection** — Reflect Agent が `.forge/intents/` に直接生成
 
-### 2. 固定パイプライン → タスク性質に応じた柔軟 Flow
+### 柔軟 Flow
 
 タスクの種類ごとにデフォルト Flow テンプレートを持ち、実行中にルールベースで調整する。
 
@@ -36,7 +33,9 @@ Intent のソース:
 | `test` | `[analyze, implement]` |
 | `skill_extraction` | `[observe, abstract, record]` |
 
-### 3. ステートレス実行 → 学習する開発パートナー
+### Knowledge Base
+
+実行から学習を蓄積する。
 
 - **Skills** — 繰り返しパターンをテンプレート化
 - **Rules** — プロジェクト固有の規約を学習
@@ -144,18 +143,18 @@ Rules / History はインターフェースを抽象化し、バックエンド�
 
 ## CLI サブコマンド
 
-| コマンド | 用途 | 状態 |
-|---------|------|------|
-| `run` | タスク処理（柔軟 Flow 対応） | 既存・拡張 |
-| `audit` | コードベース監査 → Intent 生成 | **新規** |
-| `inbox` | 提案された Intent の一覧・承認・却下 | **新規** |
-| `approve` | 特定 Intent の承認（例: `approve 3,5,7`） | **新規** |
-| `status` | 処理状態の表示 | 既存 |
-| `rules` | 学習済み Rules の閲覧・編集 | **新規** |
-| `parent` | インタラクティブセッション | 既存 |
-| `create` | `.forge/tasks/` に Markdown タスク作成 | 既存・変更 |
-| `clean` | worktree クリーンアップ | 既存 |
-| `watch` | daemon モード | 既存 |
+| コマンド | 用途 |
+|---------|------|
+| `run` | タスク処理（柔軟 Flow 対応） |
+| `audit` | コードベース監査 → Intent 生成 |
+| `inbox` | 提案された Intent の一覧・承認・却下 |
+| `approve` | 特定 Intent の承認（例: `approve 3,5,7`） |
+| `status` | 処理状態の表示 |
+| `rules` | 学習済み Rules の閲覧・編集 |
+| `parent` | インタラクティブセッション |
+| `create` | `.forge/tasks/` に Markdown タスク作成 |
+| `clean` | worktree クリーンアップ |
+| `watch` | daemon モード |
 
 ---
 
@@ -190,7 +189,6 @@ Rules / History はインターフェースを抽象化し、バックエンド�
 
 ## 未決事項
 
-- [ ] リファクタか書き直しか — 現行コードベースへの適用方法
 - [ ] `.forge/observations.yaml` のスキーマ
 - [ ] `.forge/intents/*.yaml` のスキーマ（全ソース共通）
 - [ ] Audit Agent のスコープとプロンプト設計

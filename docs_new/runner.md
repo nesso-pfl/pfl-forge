@@ -157,6 +157,36 @@ Runner が各 Intent の実行記録を自動的に History に書き込む。�
 - 生成された Observation への参照
 - タイムスタンプ
 
-トークン・コスト情報は `claude -p --output-format json` の出力から取得する（`context_window.total_input_tokens` / `total_output_tokens`、`cost.total_cost_usd`）。
+### CLI JSON 出力からの取得
+
+`claude -p --output-format json` はエージェントの応答テキストだけでなく、メタデータを含むラッパーオブジェクトを返す。Runner はこのラッパーから History 用のデータを抽出する。
+
+```json
+{
+  "result": "...(エージェントの応答テキスト)",
+  "session_id": "abc123...",
+  "cost": {
+    "total_cost_usd": 0.0123,
+    "total_duration_ms": 45000,
+    "total_api_duration_ms": 2300,
+    "total_lines_added": 156,
+    "total_lines_removed": 23
+  },
+  "context_window": {
+    "total_input_tokens": 15234,
+    "total_output_tokens": 4521
+  }
+}
+```
+
+| History フィールド | JSON パス |
+|-------------------|-----------|
+| session ID | `session_id` |
+| 入力トークン | `context_window.total_input_tokens` |
+| 出力トークン | `context_window.total_output_tokens` |
+| コスト | `cost.total_cost_usd` |
+| 所要時間 | `cost.total_duration_ms` |
+
+現在の実装（`ClaudeRunner::parse_claude_json_output`）は `result` のみ抽出しているため、ラッパー全体を返すよう拡張が必要。
 
 History は「構造化されたサマリ」。エージェント内部の操作ログ（個別ファイル読み込み等）は記録しない。

@@ -111,6 +111,7 @@ Flow ステップを逐次実行し、各ステップの結果に応じて**ル�
 - `implement` の変更が 10 行未満 → `review` をスキップ
 - `review` が `rejected` を返す → `implement + review` サイクルを追加
 - `analyze` が `depends_on` を返す → 依存 intent の完了まで implement を遅延
+- `analyze` が `needs_clarification` を返す → intent を一時停止し inbox へ
 
 設計方針:
 - ルールは Rust コード。ユニットテスト可能、予測可能、デバッグ可能
@@ -134,6 +135,16 @@ analyze 実行時に、他の active な intent の情報をコンテキスト�
 Execution Engine は `depends_on` を確認し、該当 intent が完了するまで implement を遅延させる。
 
 主な価値は**依存検出**にある。コンフリクト回避は副次的な効果で、発生時はコンフリクト解決のフォールバックで対処する。
+
+### Analyze の判断不足時
+
+Analyze には常に以下のコンテキストがプロンプトに注入される:
+
+- Project Rules（プロジェクト固有の規約）
+- Decision Storage（個人の判断基準・設計思想、外部連携）
+- 関連する History
+
+これにより大半の判断は Analyze 内で完結する。それでも情報不足や判断困難な場合は `needs_clarification` を返し、Execution Engine が intent を一時停止して inbox へ回す。人間が補足情報を追加した後に再実行する。
 
 ### コンフリクト解決
 
@@ -196,14 +207,14 @@ Execution Engine は `depends_on` を確認し、該当 intent が完了する�
 
 ### エージェントと Knowledge Base の関係
 
-| Agent | History | Observation | Skills / Rules |
-|-------|---------|-------------|----------------|
-| **Analyze** | — | 書き出し可 | 参照（プロンプト注入） |
-| **Implement** | — | 書き出し可 | 参照（プロンプト注入） |
-| **Review** | — | 書き出し可 | 参照（プロンプト注入） |
-| **Audit** | 傾向分析に参照 | 書き出し可 | 参照 + 規約違反チェック |
-| **Reflect** | Before/After 分析 | 横断分析 | 生成・更新・剪定 |
-| **Execution Engine** | 自動記録（全件） | — | — |
+| Agent | History | Observation | Skills / Rules | Decision Storage |
+|-------|---------|-------------|----------------|-----------------|
+| **Analyze** | — | 書き出し可 | 参照（プロンプト注入） | 参照（プロンプト注入） |
+| **Implement** | — | 書き出し可 | 参照（プロンプト注入） | — |
+| **Review** | — | 書き出し可 | 参照（プロンプト注入） | — |
+| **Audit** | 傾向分析に参照 | 書き出し可 | 参照 + 規約違反チェック | — |
+| **Reflect** | Before/After 分析 | 横断分析 | 生成・更新・剪定 | — |
+| **Execution Engine** | 自動記録（全件） | — | — | — |
 
 - **History の記録主体は Execution Engine**。各 agent がステップ結果と所要時間を意識する必要はない
 - **Observation の記録主体は各 agent**。実行中に気づいた摩擦や問題を `.forge/observations.yaml` に書き出す
@@ -258,6 +269,17 @@ Rule の有効性検証:
 - Rule に適用履歴（applied_to）を持たせる
 - Reflect Agent が History の Before/After データから傾向を分析
 - 効果が見られない Rule は削除候補としてフラグ
+
+### Decision Storage（外部連携）
+
+プロジェクト横断の個人的な判断基準・設計思想を保持する外部アプリ。
+Project Rules と同列のコンテキストソースとして、各エージェントのプロンプトに事前注入する。
+
+- Project Rules = 「このプロジェクトではこうする」（プロジェクト固有）
+- Decision Storage = 「自分はこう考える」（プロジェクト横断）
+
+事前に注入することで Analyze の判断精度が上がり、needs_clarification の発生頻度を下げる。
+連携インターフェースの詳細は外部アプリの設計に依存する。
 
 Rules / History はインターフェースを抽象化し、バックエンド変更に備える。
 各エージェントのプロンプトに関連コンテキストとして注入する。
@@ -319,3 +341,4 @@ Rules / History はインターフェースを抽象化し、バックエンド�
 - [ ] Knowledge Base（Rules / History）のインターフェース抽象化の設計
 - [ ] Rule の YAML 表現形式
 - [ ] Execution Engine の Flow 調整ルールの全容（上記は例示）
+- [ ] Decision Storage との連携インターフェース

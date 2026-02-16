@@ -35,9 +35,11 @@ pfl-forge は複数の Claude Code エージェントを使い分けて Intent �
 
 - ユーザーインタラクション（直接的なファイル出力なし）
 
-## 共通ルール（非対話エージェント）
+---
 
-Orchestrate 以外の全エージェント（Analyze, Implement, Review, Audit, Reflect）は以下の共通仕様で動作する:
+## 非対話エージェント共通仕様
+
+以下は Analyze, Implement, Review, Audit, Reflect に共通する仕様:
 
 - **起動**: `claude -p --allowedTools <tools> --append-system-prompt <prompt> --model <model> --output-format json`
 - **nested 呼び出し対応**: `CLAUDECODE` / `CLAUDE_CODE_ENTRYPOINT` 環境変数を除去

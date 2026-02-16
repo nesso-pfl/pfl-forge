@@ -24,12 +24,12 @@ pfl-forge は複数の Claude Code エージェントを使い分けて Intent �
 ### 入力コンテキスト
 
 - State サマリ
-- Pending clarification 一覧
+- Inbox（承認待ち Intent、clarification 待ち Intent）
 
 ### 処理内容
 
-- `pfl-forge run/status/clarifications/answer/create/audit/inbox/approve` 等のサブコマンドを Bash 経由で実行
-- NeedsClarification が発生した場合、ユーザーに質問を提示し回答を記録
+- `pfl-forge run/status/create/audit/inbox/approve` 等のサブコマンドを Bash 経由で実行
+- `needs_clarification` で一時停止した Intent について、ユーザーに質問を提示し回答を記録
 
 ### 成果物
 

@@ -11,6 +11,30 @@ pfl-forge は複数の Claude Code エージェントを使い分けて Intent �
 | **Reflect** | Intent 完了後の振り返り → 学習 |
 | **Orchestrate** | インタラクティブセッション |
 
+---
+
+## Orchestrate Agent
+
+ユーザーとの対話窓口となるインタラクティブセッション。`claude --append-system-prompt --allowedTools Bash` + `exec()` で起動。
+
+### 起動タイミング
+
+ユーザーが `pfl-forge parent` を実行したとき。
+
+### 入力コンテキスト
+
+- State サマリ
+- Pending clarification 一覧
+
+### 処理内容
+
+- `pfl-forge run/status/clarifications/answer/create/audit/inbox/approve` 等のサブコマンドを Bash 経由で実行
+- NeedsClarification が発生した場合、ユーザーに質問を提示し回答を記録
+
+### 成果物
+
+- ユーザーインタラクション（直接的なファイル出力なし）
+
 ## 共通ルール（非対話エージェント）
 
 Orchestrate 以外の全エージェント（Analyze, Implement, Review, Audit, Reflect）は以下の共通仕様で動作する:
@@ -186,32 +210,6 @@ Intent 完了後の振り返りを行い、Knowledge Base を更新する学習�
 
 - Knowledge Base 更新: Skills / Rules の生成・更新・剪定
 - Intent Registry への昇格（observation → intent）
-
----
-
-## Orchestrate Agent
-
-### 概要
-
-ユーザーとの対話窓口となるインタラクティブセッション。`claude --append-system-prompt --allowedTools Bash` + `exec()` で起動。
-
-### 起動タイミング
-
-ユーザーが `pfl-forge parent` を実行したとき。
-
-### 入力コンテキスト
-
-- State サマリ
-- Pending clarification 一覧
-
-### 処理内容
-
-- `pfl-forge run/status/clarifications/answer/create/audit/inbox/approve` 等のサブコマンドを Bash 経由で実行
-- NeedsClarification が発生した場合、ユーザーに質問を提示し回答を記録
-
-### 成果物
-
-- ユーザーインタラクション（直接的なファイル出力なし）
 
 ---
 

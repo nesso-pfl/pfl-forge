@@ -163,18 +163,29 @@ Runner が各 Intent の実行記録を自動的に History に書き込む。�
 
 ```json
 {
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "duration_ms": 2514,
+  "duration_api_ms": 2482,
+  "num_turns": 1,
   "result": "...(エージェントの応答テキスト)",
-  "session_id": "abc123...",
-  "cost": {
-    "total_cost_usd": 0.0123,
-    "total_duration_ms": 45000,
-    "total_api_duration_ms": 2300,
-    "total_lines_added": 156,
-    "total_lines_removed": 23
+  "session_id": "d44db260-...",
+  "total_cost_usd": 0.044,
+  "usage": {
+    "input_tokens": 3,
+    "cache_creation_input_tokens": 5586,
+    "cache_read_input_tokens": 17836,
+    "output_tokens": 20
   },
-  "context_window": {
-    "total_input_tokens": 15234,
-    "total_output_tokens": 4521
+  "modelUsage": {
+    "claude-opus-4-6": {
+      "inputTokens": 3,
+      "outputTokens": 20,
+      "cacheReadInputTokens": 17836,
+      "cacheCreationInputTokens": 5586,
+      "costUSD": 0.044
+    }
   }
 }
 ```
@@ -182,10 +193,13 @@ Runner が各 Intent の実行記録を自動的に History に書き込む。�
 | History フィールド | JSON パス |
 |-------------------|-----------|
 | session ID | `session_id` |
-| 入力トークン | `context_window.total_input_tokens` |
-| 出力トークン | `context_window.total_output_tokens` |
-| コスト | `cost.total_cost_usd` |
-| 所要時間 | `cost.total_duration_ms` |
+| 入力トークン | `usage.input_tokens` |
+| 出力トークン | `usage.output_tokens` |
+| キャッシュ読み込みトークン | `usage.cache_read_input_tokens` |
+| コスト | `total_cost_usd` |
+| 所要時間 | `duration_ms` |
+| API 所要時間 | `duration_api_ms` |
+| ターン数 | `num_turns` |
 
 現在の実装（`ClaudeRunner::parse_claude_json_output`）は `result` のみ抽出しているため、ラッパー全体を返すよう拡張が必要。
 

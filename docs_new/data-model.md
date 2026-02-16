@@ -79,6 +79,17 @@ Analyze は Intent を分析し、以下のいずれかを出力する:
 
 Intent は全 Task（または全子 Intent）が done になったら done。
 
+## Review Result
+
+Review Agent が返す構造化 JSON 出力。Execution Engine がファイルに永続化する。
+
+### フィールド
+
+- **task_id**: 対象 Task の ID
+- **verdict**: `approved` / `rejected`
+- **issues**: 問題点（rejected の根拠）
+- **suggestions**: 改善提案（approved でも出せる）
+
 ## Quick Classification
 
 AI エージェントではなく、決定論的なルール。ラベル・キーワード・ソースから:

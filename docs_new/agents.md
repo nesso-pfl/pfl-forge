@@ -1,17 +1,15 @@
 # エージェント構成
 
-pfl-forge は複数の Claude Code エージェントを使い分けて Intent を処理する。各エージェントの呼び出しロジック（プロンプト組み立て・CLI 実行・出力パース）は `src/agents/` に、system prompt は `src/prompt/*.md` に定義されている。すべてのエージェント呼び出しは `process_task()` から行う。
+pfl-forge は複数の Claude Code エージェントを使い分けて Intent を処理する。各エージェントの呼び出しロジック（プロンプト組み立て・CLI 実行・出力パース）は `src/agents/` に、system prompt は `src/prompt/*.md` に定義されている。
 
-| Agent | 責務 | 状態 |
-|-------|------|------|
-| **Analyze** | Intent 分析、実装計画 | 既存（ほぼ同じ） |
-| **Implement** | コード実装 + observation 書き出し | 既存（observation 追加） |
-| **Review** | コードレビュー | 既存（ほぼ同じ） |
-| **Audit** | コードベース監査 → Intent 生成 | **新規** |
-| **Reflect** | Intent 完了後の振り返り → 学習 | **新規** |
-| **Orchestrate** | インタラクティブセッション | 既存（拡張） |
-| ~~Architect~~ | Analyze に統合、Flow 調整で代替 | **削除** |
-| ~~Verify~~ | pre-commit hook で代替 | **削除** |
+| Agent | 責務 |
+|-------|------|
+| **Analyze** | Intent 分析、実装計画 |
+| **Implement** | コード実装 + observation 書き出し |
+| **Review** | コードレビュー |
+| **Audit** | コードベース監査 → Intent 生成 |
+| **Reflect** | Intent 完了後の振り返り → 学習 |
+| **Orchestrate** | インタラクティブセッション |
 
 ---
 
@@ -23,7 +21,7 @@ Intent の詳細分析を行う読み取り専用エージェント。`claude -p
 
 ### 起動タイミング
 
-`process_task()` の最初のステップ。Flow に `analyze` が含まれる場合に実行。
+Execution Engine が Flow の `analyze` ステップを実行するとき。
 
 ### 入力コンテキスト
 
@@ -37,14 +35,13 @@ Intent の詳細分析を行う読み取り専用エージェント。`claude -p
 ### 処理内容
 
 - コードベースを探索し、Intent の実装計画を作成
+- 情報不足や判断困難な場合は `needs_clarification` を返す
 - モデル: `models.triage_deep`（default: opus）
 - ツール: `triage_tools`（default: Read, Glob, Grep, Bash, WebSearch, WebFetch）
-- 分析が不十分な場合は Architect Agent にエスカレート（現行動作。新アーキでは analyze 内で完結予定）
 
 ### 成果物
 
-- `AnalysisResult`（complexity, plan, relevant_files, implementation_steps, context）
-- `.forge/work/{id}-001.yaml` に書き出し
+- 実装計画（complexity, plan, relevant_files, implementation_steps, context）
 
 ### Flow 調整への影響
 
@@ -62,18 +59,18 @@ Intent の詳細分析を行う読み取り専用エージェント。`claude -p
 
 ### 起動タイミング
 
-Analyze 完了 → `prepare()`（worktree 作成 + `task.yaml` 配置）後に実行。Review で rejected の場合はフィードバック付きで再実行。
+Analyze 完了後、Execution Engine が worktree を作成し実装計画を配置した後に実行。Review で rejected の場合はフィードバック付きで再実行。
 
 ### 入力コンテキスト
 
-- worktree 内 `.forge/task.yaml`（実装計画・関連ファイル・ステップ・コンテキスト）
+- worktree 内の実装計画ファイル（実装計画・関連ファイル・ステップ・コンテキスト）
 - Review feedback（リトライ時）
 - Skills（Claude Code が自動注入）
 - Project Rules（プロンプト注入）
 
 ### 処理内容
 
-- `task.yaml` に従い実装を行い、コミットを作成
+- 実装計画に従い実装を行い、コミットを作成
 - モデル: complexity に応じて `models.default`（low/medium）または `models.complex`（high）
 - ツール: `worker_tools`（default: Bash, Read, Write, Edit, Glob, Grep）
 - 実行中の気づきを `.forge/observations.yaml` に書き出し可
@@ -115,12 +112,11 @@ Implement 成功 + rebase 成功後。
 
 ### 成果物
 
-- `ReviewResult`（approved, issues, suggestions）
-- `.forge/review.yaml` に書き出し
+- レビュー結果（approved/rejected, issues, suggestions）
 
 ### Flow 調整への影響
 
-- `rejected` → implement + review サイクルを追加（`max_review_retries` 回まで）
+- `rejected` → implement + review サイクルを追加（設定上限まで）
 - 全リトライ後も rejected → Error 状態
 
 ---
@@ -237,3 +233,15 @@ Intent 完了後の振り返りを行い、Knowledge Base を更新する学習�
 - **History の記録主体は Execution Engine**。各 agent がステップ結果と所要時間を意識する必要はない
 - **Observation の記録主体は各 agent**。実行中に気づいた摩擦や問題を `.forge/observations.yaml` に書き出す
 - **Reflect Agent が両方を突き合わせてパターンを検出**し、Skills / Rules への昇格や剪定を判断する
+
+---
+
+## 現行実装からの変更点
+
+| 項目 | 現行 | 新アーキ |
+|------|------|----------|
+| Architect Agent | Analyze が不十分な場合にエスカレート | 削除。Analyze 内で完結（`needs_clarification` で inbox へ） |
+| Verify Agent | 実装後のテスト検証 | 削除。pre-commit hook で代替 |
+| Analyze の起動 | `process_task()` から直接呼び出し | Execution Engine が Flow ステップとして実行 |
+| エージェント間データ | `AnalysisResult` / `ReviewResult` 型、`.forge/work/*.yaml` / `.forge/task.yaml` / `.forge/review.yaml` | 詳細は実装時に決定 |
+| Review リトライ | `max_review_retries` 設定キー | Execution Engine の Flow 調整ルールとして管理 |

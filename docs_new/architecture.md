@@ -206,3 +206,4 @@ Rules / History はインターフェースを抽象化し、バックエンド�
 - [runner.md](runner.md) — Runner の仕様・実行フロー・Flow 調整ルール
 - [agents.md](agents.md) — エージェント構成・責務・Knowledge Base との関係
 - [data-model.md](data-model.md) — Intent, Quick Classification 等のデータモデル定義
+- [migration.md](migration.md) — 現行実装からの変更点

@@ -1,5 +1,7 @@
 # エージェント構成
 
+pfl-forge は複数の Claude Code エージェントを使い分けてタスクを処理する。各エージェントの呼び出しロジック（プロンプト組み立て・CLI 実行・出力パース）は `src/agents/` に、system prompt は `src/prompt/*.md` に定義されている。すべてのエージェント呼び出しは `process_task()` から行う。
+
 | Agent | 責務 | 状態 |
 |-------|------|------|
 | **Analyze** | タスク分析、実装計画 | 既存（ほぼ同じ） |
@@ -11,35 +13,209 @@
 | ~~Architect~~ | Analyze に統合、Flow 調整で代替 | **削除** |
 | ~~Verify~~ | pre-commit hook で代替 | **削除** |
 
+---
+
+## Analyze Agent
+
+### 概要
+
+タスクの詳細分析を行う読み取り専用エージェント。`claude -p` で非対話実行。
+
+### 起動タイミング
+
+`process_task()` の最初のステップ。Flow に `analyze` が含まれる場合に実行。
+
+### 入力コンテキスト
+
+- タスク定義（Issue: id, title, body, labels）
+- Clarification 回答（再実行時）
+- Project Rules（プロンプト注入）
+- Decision Storage（プロンプト注入）
+- 関連する History
+- 他の active な intent の情報（タイトル、ステータス、relevant_files、プラン概要）
+
+### 処理内容
+
+- コードベースを探索し、タスクの実装計画を作成
+- モデル: `models.triage_deep`（default: sonnet）
+- ツール: `triage_tools`（default: Read, Glob, Grep）
+- 分析が不十分な場合は Architect Agent にエスカレート（現行動作。新アーキでは analyze 内で完結予定）
+
+### 成果物
+
+- `AnalysisResult`（complexity, plan, relevant_files, implementation_steps, context）
+- `.forge/work/{id}-001.yaml` に書き出し
+
+### Flow 調整への影響
+
+- `complexity: high` → `review` ステップを追加
+- `needs_clarification` → intent を一時停止し inbox へ
+- `depends_on` → 依存 intent の完了まで implement を遅延
+
+---
+
+## Implement Agent
+
+### 概要
+
+コード変更を行うエージェント。Git worktree 内で動作。`claude -p --allowedTools --append-system-prompt` で起動。
+
+### 起動タイミング
+
+Analyze 完了 → `prepare()`（worktree 作成 + `task.yaml` 配置）後に実行。Review で rejected の場合はフィードバック付きで再実行。
+
+### 入力コンテキスト
+
+- worktree 内 `.forge/task.yaml`（実装計画・関連ファイル・ステップ・コンテキスト）
+- Review feedback（リトライ時）
+- Skills（Claude Code が自動注入）
+- Project Rules（プロンプト注入）
+
+### 処理内容
+
+- `task.yaml` に従い実装を行い、コミットを作成
+- モデル: complexity に応じて `models.default`（low/medium）または `models.complex`（high）
+- ツール: `worker_tools`（default: Bash, Read, Write, Edit, Glob, Grep）
+- 実行中の気づきを `.forge/observations.yaml` に書き出し可
+
+### 成果物
+
+- Git コミット（worktree 内）
+- 成功判定: コミット数 > 0
+
+### Flow 調整への影響
+
+- 変更 10 行未満 → `review` をスキップ
+
+---
+
+## Review Agent
+
+### 概要
+
+Implement Agent の成果物を検証するコードレビューエージェント。`claude -p` で非対話実行。
+
+### 起動タイミング
+
+Implement 成功 + rebase 成功後。
+
+### 入力コンテキスト
+
+- タスク定義
+- 実装計画（Task.plan）
+- base branch との diff
+- Skills（Claude Code が自動注入）
+- Project Rules（プロンプト注入）
+
+### 処理内容
+
+- 5 つの検証基準でレビュー: 要件充足、パターン準拠、バグ/セキュリティ、計画整合性、テスト品質
+- モデル: `models.default`（default: sonnet）
+- ツール: `triage_tools`（default: Read, Glob, Grep）
+
+### 成果物
+
+- `ReviewResult`（approved, issues, suggestions）
+- `.forge/review.yaml` に書き出し
+
+### Flow 調整への影響
+
+- `rejected` → implement + review サイクルを追加（`max_review_retries` 回まで）
+- 全リトライ後も rejected → Error 状態
+
+---
+
 ## Audit Agent
 
-`pfl-forge audit` で起動。包括的なコードベース監査を行う:
-- テストカバレッジの薄い領域
-- 設計品質（巨大関数、密結合、責務の混在）
-- コード規約違反（プロジェクト固有ルール）
-- 技術的負債（TODO、非推奨 API、重複コード）
-- ドキュメントと実装の乖離
+### 概要
 
-発見事項を Intent として登録する。
+包括的なコードベース監査を行うエージェント。`pfl-forge audit` サブコマンドで起動。
+
+### 起動タイミング
+
+ユーザーが `pfl-forge audit` を実行したとき。
+
+### 入力コンテキスト
+
+- History（傾向分析）
+- Skills / Rules（規約違反チェック）
+
+### 処理内容
+
+- テストカバレッジの薄い領域の検出
+- 設計品質の評価（巨大関数、密結合、責務の混在）
+- コード規約違反のチェック（プロジェクト固有ルール）
+- 技術的負債の検出（TODO、非推奨 API、重複コード）
+- ドキュメントと実装の乖離の検出
+
+### 成果物
+
+- `.forge/intents/` に Intent を生成
+- `.forge/observations.yaml` に observation を書き出し可
+
+---
 
 ## Reflect Agent
 
-各タスク完了後に実行。以下を評価:
-- Flow 選択は適切だったか
-- 他に気づいた問題はないか
-- テンプレート化できるパターンはないか
-- ルール化すべき規約はないか
+### 概要
 
-出力:
-- observation の評価 → Intent 生成が必要なら Intent Registry へ
-- Knowledge Base 更新（skills, rules, history）
+タスク完了後の振り返りを行い、Knowledge Base を更新する学習エージェント。
 
-## Epiphany 収集（二重アプローチ）
+### 起動タイミング
+
+各タスク完了後に自動実行。
+
+### 入力コンテキスト
+
+- History（Before/After 分析）
+- Observation（横断分析）
+
+### 処理内容
+
+- Flow 選択が適切だったかの評価
+- パターン検出（テンプレート化できる繰り返しパターン）
+- 規約化判断（ルール化すべき規約の特定）
+- Rule の有効性検証（applied_to 履歴からの傾向分析）
+
+### 成果物
+
+- Knowledge Base 更新: Skills / Rules の生成・更新・剪定
+- Intent Registry への昇格（observation → intent）
+
+---
+
+## Orchestrate Agent
+
+### 概要
+
+ユーザーとの対話窓口となるインタラクティブセッション。`claude --append-system-prompt --allowedTools Bash` + `exec()` で起動。
+
+### 起動タイミング
+
+ユーザーが `pfl-forge parent` を実行したとき。
+
+### 入力コンテキスト
+
+- State サマリ
+- Pending clarification 一覧
+
+### 処理内容
+
+- `pfl-forge run/status/clarifications/answer/create/audit/inbox/approve` 等のサブコマンドを Bash 経由で実行
+- NeedsClarification が発生した場合、ユーザーに質問を提示し回答を記録
+
+### 成果物
+
+- ユーザーインタラクション（直接的なファイル出力なし）
+
+---
+
+## Epiphany 収集
+
+全エージェントが実行中にタスクと無関係な気づきを記録できる二重アプローチ:
 
 1. **プロンプト指示**: 全エージェントに「タスクと無関係な気づきは `.forge/observations.yaml` に書き出せ」と指示
 2. **事後リフレクション**: Reflect Agent がタスク完了後に「他に何か気づいたか」を問う
-
-両方を併用する。
 
 生成ルール:
 - action が必要 → `.forge/intents/` に intent を直接生成（observation は書かない）

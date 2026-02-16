@@ -148,9 +148,9 @@ Implement 成功 + rebase 成功後。
 
 ### 成果物
 
-- 構造化 JSON 出力（approved/rejected, issues, suggestions）
-- Execution Engine が受け取りファイルに永続化（履歴・Reflect 用）
-- rejected 時の feedback は Implement セッションへ `--resume` 経由で直接渡す
+- Review Result（[data-model.md](data-model.md) 参照）
+- Execution Engine がファイルに永続化（履歴・Reflect 用）
+- rejected 時は Review Result を Implement セッションへ `--resume` 経由で渡す
 
 ### Flow 調整への影響
 

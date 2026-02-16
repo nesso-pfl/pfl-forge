@@ -31,12 +31,12 @@
 
 | ソース | 入力 | 変換 | 生成先 |
 |--------|------|------|--------|
-| Human | `.forge/tasks/*.md` | pfl-forge が frontmatter + body をパース | `.forge/intents/` |
+| Human | `.forge/intent-drafts/*.md` | pfl-forge が frontmatter + body をパース | `.forge/intents/` |
 | Audit | Audit Agent の発見 | Agent が直接生成 | `.forge/intents/` |
 | Epiphany | Agent の気づき | Agent が action 必要と判断時に直接生成 | `.forge/intents/` |
 | Reflection | Reflect Agent の発見 | Agent が直接生成 | `.forge/intents/` |
 
-Human 入力のフォーマット（`.forge/tasks/*.md`）:
+Human 入力のフォーマット（`.forge/intent-drafts/*.md`）:
 
 ```markdown
 ---

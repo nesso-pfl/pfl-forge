@@ -15,7 +15,7 @@
 あらゆるトリガーから生成される作業単位。
 
 ソース:
-- **Human** — `.forge/tasks/*.md` に Markdown で作成 → pfl-forge が `.forge/intents/` に変換
+- **Human** — `.forge/intent-drafts/*.md` に Markdown で作成 → pfl-forge が `.forge/intents/` に変換
 - **Audit** — Audit Agent が `.forge/intents/` に直接生成
 - **Epiphany** — 実装中にエージェントが判断: action 必要 → `.forge/intents/` に生成、それ以外 → `.forge/observations.yaml` に記録
 - **Reflection** — Reflect Agent が `.forge/intents/` に直接生成
@@ -151,7 +151,7 @@ Rules / History はインターフェースを抽象化し、バックエンド�
 | `status` | 処理状態の表示 |
 | `rules` | 学習済み Rules の閲覧・編集 |
 | `parent` | インタラクティブセッション |
-| `create` | `.forge/tasks/` に Markdown タスク作成 |
+| `create` | `.forge/intent-drafts/` に Markdown 作成 |
 | `clean` | worktree クリーンアップ |
 | `watch` | daemon モード |
 

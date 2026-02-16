@@ -77,7 +77,7 @@
 | コマンド | 状態 | 変更内容 |
 |---------|------|----------|
 | `run` | 拡張 | 柔軟 Flow 対応 |
-| `create` | 変更 | `.forge/tasks/` に Markdown タスク作成 |
+| `create` | 変更 | `.forge/intent-drafts/` に Markdown 作成 |
 | `audit` | **新規** | コードベース監査 → Intent 生成 |
 | `inbox` | **新規** | 提案された Intent の一覧・承認・却下 |
 | `approve` | **新規** | 特定 Intent の承認 |

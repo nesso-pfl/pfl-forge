@@ -59,7 +59,7 @@ Intent Registry          ← Intent の登録・管理
   │
 Quick Classification     ← ルールベースで種別・Flow・リスク決定
   │
-Execution Engine         ← Flow ステップの逐次実行 + ルールベース調整
+Runner                   ← Flow ステップの逐次実行 + ルールベース調整
   │
 Reflect Agent            ← タスク完了後の振り返り
   │
@@ -68,7 +68,7 @@ Knowledge Base           ← Skills / Rules / History
 
 ---
 
-## Execution Engine
+## Runner
 
 Flow ステップを逐次実行し、各ステップの結果に応じて**ルールベース**で残りの Flow を調整する。
 
@@ -98,7 +98,7 @@ analyze 実行時に、他の active な intent の情報をコンテキスト�
 - 他タスクが変更予定のファイルを把握し、コンフリクトを避けた計画を立てられる
 - 明確な依存関係がある場合、`depends_on: [intent-id]` を出力できる
 
-Execution Engine は `depends_on` を確認し、該当 intent が完了するまで implement を遅延させる。
+Runner は `depends_on` を確認し、該当 intent が完了するまで implement を遅延させる。
 
 主な価値は**依存検出**にある。コンフリクト回避は副次的な効果で、発生時はコンフリクト解決のフォールバックで対処する。
 

@@ -9,11 +9,11 @@ pfl-forge は複数の Claude Code エージェントを使い分けて Intent �
 | **Review** | コードレビュー |
 | **Audit** | コードベース監査 → Intent 生成 |
 | **Reflect** | Intent 完了後の振り返り → 学習 |
-| **Orchestrate** | インタラクティブセッション |
+| **Operator** | インタラクティブセッション |
 
 ---
 
-## Orchestrate Agent
+## Operator Agent
 
 ユーザーとの対話窓口となるインタラクティブセッション。`claude --append-system-prompt --allowedTools Bash` + `exec()` で起動。
 
@@ -59,7 +59,7 @@ Intent の詳細分析を行う読み取り専用エージェント。
 
 ### 起動タイミング
 
-Execution Engine が Flow の `analyze` ステップを実行するとき。
+Runner が Flow の `analyze` ステップを実行するとき。
 
 ### 入力コンテキスト
 
@@ -99,7 +99,7 @@ Execution Engine が Flow の `analyze` ステップを実行するとき。
 
 ### 起動タイミング
 
-Analyze が Task を生成した後、Execution Engine が worktree を作成し Task ファイルを配置して実行。
+Analyze が Task を生成した後、Runner が worktree を作成し Task ファイルを配置して実行。
 
 ### 入力コンテキスト
 
@@ -149,7 +149,7 @@ Implement 成功 + rebase 成功後。
 ### 成果物
 
 - Review Result（[data-model.md](data-model.md) 参照）
-- Execution Engine がファイルに永続化（履歴・Reflect 用）
+- Runner がファイルに永続化（履歴・Reflect 用）
 - rejected 時は Review Result を Implement セッションへ `--resume` 経由で渡す
 
 ### Flow 調整への影響
@@ -242,9 +242,9 @@ Intent 完了後の振り返りを行い、改善 Intent を生成する学習�
 | **Review** | — | 書き出し可 | 参照（プロンプト注入） | — |
 | **Audit** | 傾向分析に参照 | 書き出し可 | 参照 + 規約違反チェック | — |
 | **Reflect** | Before/After 分析 | 横断分析 | Intent 経由で変更提案 | — |
-| **Execution Engine** | 自動記録（全件） | — | — | — |
+| **Runner** | 自動記録（全件） | — | — | — |
 
-- **History の記録主体は Execution Engine**。各 agent がステップ結果と所要時間を意識する必要はない
+- **History の記録主体は Runner**。各 agent がステップ結果と所要時間を意識する必要はない
 - **Observation の記録主体は各 agent**。実行中に気づいた摩擦や問題を `.forge/observations.yaml` に書き出す
 - **Reflect Agent が両方を突き合わせてパターンを検出**し、Skills / Rules の変更を Intent として提案する（実際の更新は Implement Agent が行う）
 
@@ -256,9 +256,9 @@ Intent 完了後の振り返りを行い、改善 Intent を生成する学習�
 |------|------|----------|
 | Architect Agent | Analyze が不十分な場合にエスカレート | 削除。Analyze 内で完結（`needs_clarification` で inbox へ） |
 | Verify Agent | 実装後のテスト検証 | 削除。pre-commit hook で代替 |
-| Analyze の起動 | `process_task()` から直接呼び出し | Execution Engine が Flow ステップとして実行 |
+| Analyze の起動 | `process_task()` から直接呼び出し | Runner が Flow ステップとして実行 |
 | エージェント間データ | `AnalysisResult` / `ReviewResult` 型、`.forge/work/*.yaml` / `.forge/task.yaml` / `.forge/review.yaml` | 詳細は実装時に決定 |
-| Review リトライ | `max_review_retries` 設定キー | Execution Engine の Flow 調整ルールとして管理 |
+| Review リトライ | `max_review_retries` 設定キー | Runner の Flow 調整ルールとして管理 |
 | モデル設定キー | `models.triage_deep`（Analyze 専用だが名前が汎用） | `models.analyze` |
 | ツール設定キー | `triage_tools`（Analyze/Architect/Review で共有） | エージェントごとに分離: `analyze_tools`, `review_tools` |
 | Implement リトライ | 毎回新プロセスで再起動 | `--resume` でセッション継続（トークン節約） |

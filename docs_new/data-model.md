@@ -25,7 +25,7 @@
 
 ### Intent Registry（`.forge/intents/`）
 
-全ソースの Intent を `.forge/intents/*.yaml` に集約する。Execution Engine はこのディレクトリだけを参照する。
+全ソースの Intent を `.forge/intents/*.yaml` に集約する。Runner はこのディレクトリだけを参照する。
 
 ソースごとの生成経路:
 
@@ -81,7 +81,7 @@ Intent は全 Task（または全子 Intent）が done になったら done。
 
 ## Review Result
 
-Review Agent が返す構造化 JSON 出力。Execution Engine がファイルに永続化する。
+Review Agent が返す構造化 JSON 出力。Runner がファイルに永続化する。
 
 ### フィールド
 

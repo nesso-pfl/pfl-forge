@@ -199,25 +199,25 @@ mod tests {
   use super::*;
 
   #[test]
-  fn test_extract_json_raw() {
+  fn extract_json_returns_plain_json_as_is() {
     let input = r#"{"actionable": true, "complexity": "low"}"#;
     assert_eq!(extract_json(input), input);
   }
 
   #[test]
-  fn test_extract_json_code_block() {
+  fn extract_json_strips_markdown_code_block() {
     let input = "Here's the result:\n```json\n{\"actionable\": true}\n```\n";
     assert_eq!(extract_json(input), "{\"actionable\": true}");
   }
 
   #[test]
-  fn test_extract_json_with_surrounding_text() {
+  fn extract_json_finds_json_within_surrounding_text() {
     let input = "The analysis shows: {\"key\": \"value\"} end";
     assert_eq!(extract_json(input), "{\"key\": \"value\"}");
   }
 
   #[test]
-  fn test_parse_claude_json_output() {
+  fn parse_claude_output_extracts_result_field_as_typed_json() {
     #[derive(serde::Deserialize)]
     struct TestOutput {
       actionable: bool,

@@ -41,7 +41,7 @@ Flow 内のステップのうち、AI エージェントではなく Runner の 
 Flow テンプレートには含まれないが、Runner が固定で実行するステップ:
 
 - **rebase** — 上述の通り、Runner が implement と review の間に挿入
-- **reflect** — 子 Intent を持たない Intent の完了後に自動実行。子 Intent に分解された場合、親 Intent では reflect しない（学びは実際に実装した単位に紐づく）
+- **reflect** — 子 Intent を持たない Intent の完了後に自動実行。子 Intent に分解された場合、親 Intent では reflect しない（学びは実際に実装した単位に紐づく）。Runner が起動前に `processed: false` の Observation を収集してリストを渡し、完了後に `processed: true` に更新する。これにより複数の Reflect が並列実行されても Observation の重複処理が起きない
 
 ---
 

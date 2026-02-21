@@ -152,6 +152,7 @@ Review Agent が返す構造化 JSON 出力。Runner がファイルに永続化
   - **ref**: 対象の識別子（ファイルパス、skill パス等）
 - **source**: 生成元エージェント（`implement`, `reflect`, `audit`）
 - **intent_id**: 処理中の Intent の ID
+- **processed**: Reflect が処理済みかどうか（default: `false`）
 - **created_at**: タイムスタンプ
 
 ### 例

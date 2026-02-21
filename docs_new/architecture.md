@@ -167,18 +167,6 @@ History はインターフェースを抽象化し、バックエンド変更に
 
 ---
 
-## 未決事項
-
-- [x] `.forge/observations.yaml` のスキーマ → [data-model.md](data-model.md) に定義
-- [x] `.forge/intents/*.yaml` のスキーマ（全ソース共通） → [data-model.md](data-model.md) に定義
-- [x] Audit Agent のスコープとプロンプト設計 → [agents.md](agents.md) に定義（プロンプト設計は実装時）
-- [x] ~~Knowledge Base（Rules / History）のインターフェース抽象化の設計~~ → Rules 廃止（CLAUDE.md + Skills で代替）、History の抽象化は YAGNI
-- [x] ~~Rule の YAML 表現形式~~ → Rules 廃止
-- [x] ~~Runner の Flow 調整ルールの全容~~ → 段階的拡張方針のため、現時点のルールで十分。実装しながら追加
-- [x] Decision Storage との連携インターフェース → MCP Server
-
----
-
 ## 関連ドキュメント
 
 - [runner.md](runner.md) — Runner の仕様・実行フロー・Flow 調整ルール

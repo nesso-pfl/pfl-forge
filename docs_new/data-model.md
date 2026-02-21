@@ -112,3 +112,41 @@ Review Agent が返す構造化 JSON 出力。Runner がファイルに永続化
 - **issues**: 問題点（rejected の根拠）
 - **suggestions**: 改善提案（approved でも出せる）
 
+## Observation
+
+エージェントが実行中に記録する気づき。`.forge/observations.yaml` に追記される。種類の分類は行わず、消費側（Audit / Reflect）が内容から判断する。
+
+### フィールド
+
+- **content**: 気づきの内容（自然言語）
+- **evidence**: 根拠となるリソースのリスト
+  - **type**: `file` / `rule` / `skill` / `history` / `decision`（enum）
+  - **ref**: 対象の識別子（ファイルパス、rule ID、skill パス等）
+- **source**: 生成元エージェント（`implement`, `reflect`, `audit`）
+- **intent_id**: 処理中の Intent の ID
+- **created_at**: タイムスタンプ
+
+### 例
+
+```yaml
+- content: "src/handler/login.rs と src/handler/signup.rs にほぼ同じバリデーションロジックがある"
+  evidence:
+    - type: file
+      ref: src/handler/login.rs
+    - type: file
+      ref: src/handler/signup.rs
+  source: implement
+  intent_id: fix-login-validation
+  created_at: 2025-02-22T10:30:00Z
+
+- content: "Rule naming-convention と Skill api-handler のコーディングスタイル指示が矛盾している"
+  evidence:
+    - type: rule
+      ref: naming-convention
+    - type: skill
+      ref: .claude/skills/api-handler/SKILL.md
+  source: reflect
+  intent_id: refactor-api-layer
+  created_at: 2025-02-22T11:00:00Z
+```
+

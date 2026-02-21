@@ -64,7 +64,7 @@ Runner が Flow の `analyze` ステップを実行するとき。
 ### 入力コンテキスト
 
 - Intent（[data-model.md](data-model.md) 参照）
-- Project Rules（プロンプト注入）
+- CLAUDE.md / Skills（`claude -p` が自動読み込み）
 - Decision Storage（MCP ツール経由で実行中に取得）
 - 関連する History
 - 他の active な intent の情報（タイトル、ステータス、relevant_files、プラン概要）
@@ -99,7 +99,7 @@ Analyze が Task を生成した後、Runner が worktree を作成し Task フ�
 ### 入力コンテキスト
 
 - worktree 内の Task ファイル（plan, relevant_files, implementation_steps, context）
-- Project Rules（プロンプト注入）
+- CLAUDE.md / Skills（`claude -p` が自動読み込み）
 
 ### 処理内容
 
@@ -129,7 +129,7 @@ Implement 成功 + rebase 成功後。
 
 - Task 定義（plan）
 - base branch との diff
-- Project Rules（プロンプト注入）
+- CLAUDE.md / Skills（`claude -p` が自動読み込み）
 
 ### 処理内容
 
@@ -159,7 +159,7 @@ Implement 成功 + rebase 成功後。
 ### 入力コンテキスト
 
 - History（傾向分析）
-- Skills / Rules（規約違反チェック）
+- CLAUDE.md / Skills（規約違反チェックの基準）
 
 ### 処理内容
 
@@ -197,12 +197,12 @@ Intent 完了後の振り返りを行い、改善 Intent を生成する学習�
 - Flow 選択が適切だったかの評価
 - パターン検出（テンプレート化できる繰り返しパターン）
 - 規約化判断（ルール化すべき規約の特定）
-- Rule の有効性検証（applied_to 履歴からの傾向分析）
+- CLAUDE.md / Skills の有効性検証（History の傾向分析から不要な記述を検出）
 
 ### 成果物
 
 - `.forge/intents/` に Intent を生成（source: `reflection`）
-  - Skills / Rules の生成・更新・剪定の提案
+  - Skills / CLAUDE.md の生成・更新・剪定の提案
   - Observation から action が必要なもの
 - リスクベースで承認フローに乗る（low → 自動実行、med/high → inbox）
 
@@ -223,16 +223,16 @@ Intent 完了後の振り返りを行い、改善 Intent を生成する学習�
 
 ## エージェントと Knowledge Base の関係
 
-| Agent | History | Observation | Skills / Rules | Decision Storage |
-|-------|---------|-------------|----------------|-----------------|
-| **Analyze** | — | 書き出し可 | 参照（プロンプト注入） | 参照（MCP 経由） |
-| **Implement** | — | 書き出し可 | 参照（プロンプト注入） | — |
-| **Review** | — | 書き出し可 | 参照（プロンプト注入） | — |
-| **Audit** | 傾向分析に参照 | 書き出し可 | 参照 + 規約違反チェック | — |
+| Agent | History | Observation | CLAUDE.md / Skills | Decision Storage |
+|-------|---------|-------------|-------------------|-----------------|
+| **Analyze** | — | 書き出し可 | 自動読み込み | 参照（MCP 経由） |
+| **Implement** | — | 書き出し可 | 自動読み込み + 編集可 | — |
+| **Review** | — | 書き出し可 | 自動読み込み | — |
+| **Audit** | 傾向分析に参照 | 書き出し可 | 自動読み込み | — |
 | **Reflect** | Before/After 分析 | 横断分析 | Intent 経由で変更提案 | — |
 | **Runner** | 自動記録（全件） | — | — | — |
 
 - **History の記録主体は Runner**（[runner.md](runner.md) 参照）。各 agent がステップ結果と所要時間を意識する必要はない
 - **Observation の記録主体は各 agent**。実行中に気づいた摩擦や問題を `.forge/observations.yaml` に書き出す
-- **Reflect Agent が両方を突き合わせてパターンを検出**し、Skills / Rules の変更を Intent として提案する（実際の更新は Implement Agent が行う）
+- **Reflect Agent が両方を突き合わせてパターンを検出**し、Skills / CLAUDE.md の変更を Intent として提案する（実際の更新は Implement Agent が行う）
 

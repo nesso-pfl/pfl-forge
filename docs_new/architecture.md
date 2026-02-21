@@ -37,7 +37,6 @@
 実行から学習を蓄積する。
 
 - **Skills** — 繰り返しパターンをテンプレート化
-- **Rules** — プロジェクト固有の規約を学習
 - **History** — 成功・失敗・リジェクトの履歴を蓄積
 
 ```
@@ -59,7 +58,7 @@ Runner                   ← Flow ステップの逐次実行 + ルールベー�
   │
 Reflect Agent            ← タスク完了後の振り返り
   │
-Knowledge Base           ← Skills / Rules / History
+Knowledge Base           ← Skills / History
 ```
 
 ---
@@ -91,20 +90,9 @@ Claude Code のネイティブ skill 機能をそのまま活用する。
 - Implement Agent（`claude -p`）でも自動的にスキルが読み込まれる
 - 自前のプロンプト注入の仕組みは不要
 
-### Rules / History（`.forge/knowledge/`）
+### History（`.forge/knowledge/history/`）
 
-```
-.forge/knowledge/
-  rules/     ← プロジェクト固有の規約
-  history/   ← 実行記録
-```
-
-フォーマット: 当面は YAML。
-
-スケール見積もり:
-- Skills: プロジェクトあたり 10-50 個。Claude Code が自動注入
-- Rules: 20-100 個。プロンプトに全量注入可能
-- History: 無制限に増加。将来 pgvector 等への移行が必要になる可能性あり
+フォーマット: 当面は YAML。無制限に増加するため、将来 pgvector 等への移行が必要になる可能性あり。
 
 History エントリのフィールド:
 - intent メタデータ（type, source, risk, title）
@@ -117,24 +105,20 @@ History エントリのフィールド:
 History は「構造化されたサマリ」。agent 内部の操作ログ（個別ファイル読み込み等）は記録しない。
 プロセスの摩擦や困難は Observation が担う。
 
-Rule の有効性検証:
-- Rule に適用履歴（applied_to）を持たせる
-- Reflect Agent が History の Before/After データから傾向を分析
-- 効果が見られない Rule は削除候補としてフラグ
+プロジェクト固有の規約は CLAUDE.md と `.claude/skills/` で管理する。全エージェントが `claude -p` で起動するため自動的に読み込まれ、Runner による注入は不要。規約の追加・更新は Reflect が Intent を生成し、通常の Implement → Review フローで CLAUDE.md を編集する。
 
 ### Decision Storage（外部連携）
 
 プロジェクト横断の個人的な判断基準・設計思想を保持する外部アプリ。
 
-- Project Rules = 「このプロジェクトではこうする」（プロジェクト固有）
+- CLAUDE.md / Skills = 「このプロジェクトではこうする」（プロジェクト固有）
 - Decision Storage = 「自分はこう考える」（プロジェクト横断）
 
 MCP Server 経由で接続する。Runner がプロンプトに事前注入するのではなく、エージェントが実行中に必要に応じて MCP ツールで検索・取得する。Runner は MCP 設定（`--mcp-config`）を渡すだけ。
 
 理由: Runner は Intent の title/body しか持たず適切な検索クエリを組み立てられない。エージェント（特に Analyze）がコードベース探索中に背景情報を必要とした瞬間に取得するのが自然。
 
-Rules / History はインターフェースを抽象化し、バックエンド変更に備える。
-各エージェントのプロンプトに関連コンテキストとして注入する。
+History はインターフェースを抽象化し、バックエンド変更に備える。
 
 ---
 
@@ -147,7 +131,6 @@ Rules / History はインターフェースを抽象化し、バックエンド�
 | `inbox` | 提案された Intent の一覧・承認・却下 |
 | `approve` | 特定 Intent の承認（例: `approve 3,5,7`） |
 | `status` | 処理状態の表示 |
-| `rules` | 学習済み Rules の閲覧・編集 |
 | `parent` | インタラクティブセッション |
 | `create` | `.forge/intent-drafts/` に Markdown 作成 |
 | `clean` | worktree クリーンアップ |
@@ -189,8 +172,8 @@ Rules / History はインターフェースを抽象化し、バックエンド�
 - [x] `.forge/observations.yaml` のスキーマ → [data-model.md](data-model.md) に定義
 - [x] `.forge/intents/*.yaml` のスキーマ（全ソース共通） → [data-model.md](data-model.md) に定義
 - [x] Audit Agent のスコープとプロンプト設計 → [agents.md](agents.md) に定義（プロンプト設計は実装時）
-- [ ] Knowledge Base（Rules / History）のインターフェース抽象化の設計
-- [ ] Rule の YAML 表現形式
+- [x] ~~Knowledge Base（Rules / History）のインターフェース抽象化の設計~~ → Rules 廃止（CLAUDE.md + Skills で代替）、History の抽象化は YAGNI
+- [x] ~~Rule の YAML 表現形式~~ → Rules 廃止
 - [ ] Runner の Flow 調整ルールの全容（上記は例示）
 - [x] Decision Storage との連携インターフェース → MCP Server
 

@@ -149,8 +149,8 @@ Review Agent が返す構造化 JSON 出力。Runner がファイルに永続化
 
 - **content**: 気づきの内容（自然言語）
 - **evidence**: 根拠となるリソースのリスト
-  - **type**: `file` / `rule` / `skill` / `history` / `decision`（enum）
-  - **ref**: 対象の識別子（ファイルパス、rule ID、skill パス等）
+  - **type**: `file` / `skill` / `history` / `decision`（enum）
+  - **ref**: 対象の識別子（ファイルパス、skill パス等）
 - **source**: 生成元エージェント（`implement`, `reflect`, `audit`）
 - **intent_id**: 処理中の Intent の ID
 - **created_at**: タイムスタンプ
@@ -168,10 +168,10 @@ Review Agent が返す構造化 JSON 出力。Runner がファイルに永続化
   intent_id: fix-login-validation
   created_at: 2025-02-22T10:30:00Z
 
-- content: "Rule naming-convention と Skill api-handler のコーディングスタイル指示が矛盾している"
+- content: "CLAUDE.md のエラーハンドリング指示と Skill api-handler の実装例が矛盾している"
   evidence:
-    - type: rule
-      ref: naming-convention
+    - type: file
+      ref: CLAUDE.md
     - type: skill
       ref: .claude/skills/api-handler/SKILL.md
   source: reflect

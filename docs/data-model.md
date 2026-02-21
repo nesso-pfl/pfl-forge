@@ -138,6 +138,23 @@ Review Agent が返す構造化 JSON 出力。Runner がファイルに永続化
 - **issues**: 問題点（rejected の根拠）
 - **suggestions**: 改善提案（approved でも出せる）
 
+## History
+
+実行履歴の構造化サマリ。`.forge/knowledge/history/` に YAML で保存される。エージェント内部の操作ログ（個別ファイル読み込み等）は記録しない。プロセスの摩擦や困難は Observation が担う。
+
+### フィールド
+
+- **intent_id**: 対象 Intent の ID
+- **intent_type**: Intent の type
+- **intent_risk**: Intent の risk
+- **title**: Intent の title
+- **flow**: 実行された Flow ステップ一覧 + 調整内容
+- **step_results**: 各ステップの結果と所要時間
+- **outcome**: `success` / `failed` / `escalated`
+- **failure_reason**: 失敗理由（outcome が failed の場合）
+- **observations**: 生成された Observation の参照
+- **created_at**: タイムスタンプ
+
 ## Observation
 
 エージェントが実行中に記録する気づき。`.forge/observations.yaml` に追記される。種類の分類は行わず、消費側（Audit / Reflect）が内容から判断する。

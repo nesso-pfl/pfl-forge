@@ -92,18 +92,7 @@ Claude Code のネイティブ skill 機能をそのまま活用する。
 
 ### History（`.forge/knowledge/history/`）
 
-フォーマット: 当面は YAML。無制限に増加するため、将来 pgvector 等への移行が必要になる可能性あり。
-
-History エントリのフィールド:
-- intent メタデータ（type, source, risk, title）
-- 実行された Flow（ステップ一覧 + 調整内容）
-- 各ステップの結果と所要時間
-- 最終結果（success / failed / escalated）+ 失敗理由
-- 生成された observation への参照
-- タイムスタンプ
-
-History は「構造化されたサマリ」。agent 内部の操作ログ（個別ファイル読み込み等）は記録しない。
-プロセスの摩擦や困難は Observation が担う。
+成功・失敗・リジェクトの実行履歴を構造化サマリとして蓄積する。フォーマットは当面 YAML。スキーマは [data-model.md](data-model.md#history) を参照。
 
 プロジェクト固有の規約は CLAUDE.md と `.claude/skills/` で管理する。全エージェントが `claude -p` で起動するため自動的に読み込まれ、Runner による注入は不要。規約の追加・更新は Reflect が Intent を生成し、通常の Implement → Review フローで CLAUDE.md を編集する。
 
@@ -172,4 +161,3 @@ History のバックエンドは当面 YAML ファイル。スケール問題が
 - [runner.md](runner.md) — Runner の仕様・実行フロー・Flow 調整ルール
 - [agents.md](agents.md) — エージェント構成・責務・Knowledge Base との関係
 - [data-model.md](data-model.md) — Intent, Task 等のデータモデル定義
-- [migration.md](migration.md) — 現行実装からの変更点

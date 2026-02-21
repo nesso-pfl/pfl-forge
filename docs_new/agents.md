@@ -154,7 +154,7 @@ Implement 成功 + rebase 成功後。
 
 ### 起動タイミング
 
-ユーザーが `pfl-forge audit` を実行したとき。
+ユーザーが `pfl-forge audit` を実行したとき。デフォルトはコードベース全体。パス引数で対象を絞れる（例: `pfl-forge audit src/handler/`）。
 
 ### 入力コンテキスト
 
@@ -172,7 +172,8 @@ Implement 成功 + rebase 成功後。
 
 ### 成果物
 
-- `.forge/intents/` に Intent を生成
+- `.forge/observations.yaml` に Observation を記録
+- Intent は生成しない。Reflect Agent が Observation を評価し、必要に応じて Intent を提案する
 
 ---
 

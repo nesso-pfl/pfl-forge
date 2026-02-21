@@ -188,7 +188,7 @@ Rules / History はインターフェースを抽象化し、バックエンド�
 
 - [x] `.forge/observations.yaml` のスキーマ → [data-model.md](data-model.md) に定義
 - [x] `.forge/intents/*.yaml` のスキーマ（全ソース共通） → [data-model.md](data-model.md) に定義
-- [ ] Audit Agent のスコープとプロンプト設計
+- [x] Audit Agent のスコープとプロンプト設計 → [agents.md](agents.md) に定義（プロンプト設計は実装時）
 - [ ] Knowledge Base（Rules / History）のインターフェース抽象化の設計
 - [ ] Rule の YAML 表現形式
 - [ ] Runner の Flow 調整ルールの全容（上記は例示）

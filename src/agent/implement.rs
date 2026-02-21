@@ -3,13 +3,13 @@ use std::time::Duration;
 
 use tracing::info;
 
-use crate::agents::review::ReviewResult;
+use crate::agent::review::ReviewResult;
 use crate::claude::runner::ClaudeRunner;
+use crate::intent::registry::Intent;
 use crate::prompt;
-use crate::task::Issue;
 
 pub fn run(
-  issue: &Issue,
+  intent: &Intent,
   runner: &ClaudeRunner,
   selected_model: &str,
   worktree_path: &Path,
@@ -20,9 +20,9 @@ pub fn run(
     r#"## Task {id}: {title}
 
 {body}"#,
-    id = issue.id,
-    title = issue.title,
-    body = issue.body,
+    id = intent.id(),
+    title = intent.title,
+    body = intent.body,
   );
 
   if let Some(review) = review_feedback {
@@ -41,7 +41,7 @@ pub fn run(
     }
   }
 
-  info!("implementing: {issue}");
+  info!("implementing: {intent}");
   runner.run_prompt(
     &prompt,
     prompt::IMPLEMENT,

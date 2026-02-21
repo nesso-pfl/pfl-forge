@@ -5,33 +5,35 @@ Multi-agent task processor powered by Claude Code.
 ## Architecture
 
 - `src/agent/` — Claude Code 呼び出し（プロンプト組み立て・CLI 実行・出力パース）
-- `src/task/` — タスク定義・読み込み・work YAML・clarification 管理
+- `src/intent/` — Intent 定義・読み込み・Registry・draft 変換
+- `src/task/` — Task 構造体・work YAML I/O
+- `src/runner/` — Flow 実行エンジン（ステップ逐次実行 + ルールベース調整）
+- `src/knowledge/` — History 記録・Observation 読み書き
 - `src/claude/` — Claude Code CLI (`claude -p`) のラッパー
 - `src/git/` — worktree/branch 操作（rebase・gitignore 管理を含む）
-- `src/state/` — YAML ファイルベースの状態管理
 - `src/prompt/` — 各エージェントの system prompt（`.md` ファイル、`include_str!` で埋め込み）
-- `src/main.rs` — CLI・フロー制御（`process_task()` + prepare/report ヘルパー）
+- `src/main.rs` — CLI のみ、runner に委譲
 
-すべてのエージェント呼び出しは `process_task()` から行う。`task/` はタスクデータの読み書き・変換のみ。
-エージェント間通信は `.forge/` ディレクトリの YAML ファイルで行う。analyze は `.forge/work/*.yaml` にタスクを書き出し、prepare は worktree 内 `.forge/task.yaml` で implement agent に渡す。review 結果は `.forge/review.yaml`。
-タスクは `.forge/tasks/*.yaml` に配置する。
+Runner が全エージェント呼び出しを管理する。Intent は `.forge/intents/*.yaml`、Observation は `.forge/observations.yaml`。
+エージェント間データは `.forge/` ディレクトリの YAML ファイルで受け渡し。
 
-エージェント構成の詳細は [docs/agents.md](docs/agents.md)、パイプラインフローは [docs/pipeline.md](docs/pipeline.md) を参照。
+アーキテクチャの詳細は [docs_new/architecture.md](docs_new/architecture.md) を参照。
 
 ## Config
 
-`pfl-forge.yaml` をリポジトリルートに配置。CWD ベースの単一リポモデル。状態は `.forge/state.yaml` に保存。タスク ID はファイル名（UUID 等の任意文字列）。
+`pfl-forge.yaml` をリポジトリルートに配置。CWD ベースの単一リポモデル。Intent ID はファイル名 stem。
 
 ## CLI subcommands
 
-- `run` — タスク処理 (fetch → analyze → prepare → implement → rebase → review)
+- `run` — Intent 処理（柔軟 Flow 対応）
 - `watch` — daemon モードでポーリング
 - `status` — 処理状態の表示
 - `clean` — 完了済み worktree の削除
-- `clarifications` — 未回答の clarification 一覧
-- `answer <id> "<text>"` — clarification への回答
-- `create "<title>" "<body>"` — タスク作成 (`--labels` オプション)
-- `parent` — orchestrate agent (interactive Claude Code session) を起動
+- `create "<title>" "<body>"` — Intent draft 作成
+- `parent` — Operator Agent (interactive Claude Code session) を起動
+- `audit [path]` — コードベース監査 → Observation 記録
+- `inbox` — 承認待ち Intent の一覧
+- `approve <ids>` — Intent の承認
 
 ## Development
 
@@ -42,11 +44,11 @@ cargo test
 
 ## Key conventions
 
-- Implement agent は `claude -p --allowedTools --append-system-prompt` で起動（`--dangerously-skip-permissions` は使わない）
-- Orchestrate agent は `claude --append-system-prompt --allowedTools Bash` + `exec()` で起動
+- Implement Agent は `claude -p --allowedTools --append-system-prompt` で起動（`--dangerously-skip-permissions` は使わない）
+- Operator Agent は `claude --append-system-prompt --allowedTools Bash` + `exec()` で起動
 - `env_remove("CLAUDECODE")` で nested Claude Code 呼び出しを有効化
 - Git worktree でワーカー間のファイルシステム隔離
-- エージェント間データは `.forge/work/*.yaml`（タスク）、`.forge/task.yaml`（worktree 内）、`.forge/review.yaml` で受け渡し（プロンプト埋め込みではなくファイル経由）
-- タスク: `.forge/tasks/*.yaml` に定義
+- エージェント間データは `.forge/` ディレクトリの YAML ファイルで受け渡し（プロンプト埋め込みではなくファイル経由）
+- Intent: `.forge/intents/*.yaml` に定義
 - コミット前に、変更が CLAUDE.md、README.md や docs/ の記述と矛盾しないか確認し、必要なら同じコミットで更新すること
 - 作業前に `.tmp/TODO.md` を確認し、関連する課題があれば意識すること

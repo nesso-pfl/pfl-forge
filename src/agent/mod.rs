@@ -1,5 +1,6 @@
 pub mod analyze;
-pub mod architect;
+pub mod audit;
 pub mod implement;
-pub mod orchestrate;
+pub mod operator;
+pub mod reflect;
 pub mod review;

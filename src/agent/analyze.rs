@@ -8,8 +8,7 @@ use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::Result;
 use crate::prompt;
-use crate::task::clarification::ClarificationContext;
-use crate::task::Issue;
+use crate::intent::registry::Intent;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisResult {
@@ -29,54 +28,25 @@ impl AnalysisResult {
 }
 
 pub fn analyze(
-  issue: &Issue,
+  intent: &Intent,
   config: &Config,
   runner: &ClaudeRunner,
   repo_path: &std::path::Path,
-  clarification: Option<&ClarificationContext>,
 ) -> Result<AnalysisResult> {
   let deep_model = model::resolve(&config.models.triage_deep);
 
-  let labels = issue.labels.join(", ");
-
-  let clarification_section = if let Some(ctx) = clarification {
-    format!(
-      r#"
-
-## Previous Analysis (from prior analysis attempt)
-Relevant files: {files}
-Plan: {plan}
-Context: {context}
-
-## Clarification from maintainer
-{answer}
-
-Use the previous analysis as a starting point. The clarification above resolves
-questions from the prior attempt. Update the plan accordingly."#,
-      files = ctx.previous_analysis.relevant_files.join(", "),
-      plan = ctx.previous_analysis.plan,
-      context = ctx.previous_analysis.context,
-      answer = ctx.answer,
-    )
-  } else {
-    String::new()
-  };
-
   let prompt = format!(
-    r#"Task {id}: {title}
-Labels: {labels}
+    r#"Intent {id}: {title}
 
-{body}{clarification_section}"#,
-    id = issue.id,
-    title = issue.title,
-    labels = labels,
-    body = issue.body,
-    clarification_section = clarification_section,
+{body}"#,
+    id = intent.id(),
+    title = intent.title,
+    body = intent.body,
   );
 
   let timeout = Some(Duration::from_secs(config.triage_timeout_secs));
 
-  info!("analyzing: {issue}");
+  info!("analyzing: {intent}");
   let result: AnalysisResult =
     runner.run_json(&prompt, prompt::ANALYZE, deep_model, repo_path, timeout)?;
 

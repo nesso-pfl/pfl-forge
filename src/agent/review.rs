@@ -10,8 +10,8 @@ use crate::claude::runner::ClaudeRunner;
 use crate::config::Config;
 use crate::error::{ForgeError, Result};
 use crate::prompt;
-use crate::task::work::Task;
-use crate::task::Issue;
+use crate::intent::registry::Intent;
+use crate::task::Task;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewResult {
@@ -21,7 +21,7 @@ pub struct ReviewResult {
 }
 
 pub fn review(
-  issue: &Issue,
+  intent: &Intent,
   task: &Task,
   config: &Config,
   runner: &ClaudeRunner,
@@ -46,16 +46,16 @@ pub fn review(
 ```
 {diff}
 ```"#,
-    id = issue.id,
-    title = issue.title,
-    body = issue.body,
+    id = intent.id(),
+    title = intent.title,
+    body = intent.body,
     plan = task.plan,
     diff = truncate_diff(&diff, 50000),
   );
 
   let timeout = Some(Duration::from_secs(config.triage_timeout_secs));
 
-  info!("reviewing: {issue}");
+  info!("reviewing: {intent}");
   let result: ReviewResult = runner.run_json(
     &prompt,
     prompt::REVIEW,

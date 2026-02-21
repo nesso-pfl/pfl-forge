@@ -210,16 +210,12 @@ Intent 完了後の振り返りを行い、改善 Intent を生成する学習�
 
 ## Epiphany 収集
 
-全エージェントが実行中に当該 Intent と無関係な気づきを記録できる二重アプローチ:
+全エージェントが実行中に当該 Intent と無関係な気づきを `.forge/observations.yaml` に記録できる。
 
 1. **プロンプト指示**: 全エージェントに「Intent と無関係な気づきは `.forge/observations.yaml` に書き出せ」と指示
 2. **事後リフレクション**: Reflect Agent が Intent 完了後に「他に何か気づいたか」を問う
 
-生成ルール:
-- action が必要 → `.forge/intents/` に intent を直接生成（observation は書かない）
-- action 不要だが記録に値する → `.forge/observations.yaml` に observation のみ
-
-これにより observation は常に「未処理」であり、Reflect Agent は全件を評価対象にできる。
+エージェントは Intent を直接生成しない。全ての気づきは Observation として記録し、Reflect が Intent 化するか判断する。
 
 ## エージェントと Knowledge Base の関係
 

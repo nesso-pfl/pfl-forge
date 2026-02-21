@@ -9,7 +9,7 @@ ID はファイル名の stem（`fix-login-validation.yaml` → `fix-login-valid
 - **title**: 作業内容の要約
 - **body**: 詳細な説明
 - **type**: `feature`, `refactor`, `fix`, `test`, `audit`, ...
-- **source**: `human`, `epiphany`, `reflection`
+- **source**: `human`, `reflection`
 - **risk**: `low`, `med`, `high`
 - **status**: `proposed` → `approved` → `executing` → `done` / `blocked` / `error`
 - **parent**: 親 Intent の ID（子 Intent の場合）
@@ -80,8 +80,7 @@ inbox に入る条件:
 | ソース | 入力 | 変換 | 生成先 |
 |--------|------|------|--------|
 | Human | `.forge/intent-drafts/*.md` | pfl-forge が frontmatter + body をパース | `.forge/intents/` |
-| Epiphany | Agent の気づき | Agent が action 必要と判断時に直接生成 | `.forge/intents/` |
-| Reflection | Reflect Agent の発見 | Agent が直接生成 | `.forge/intents/` |
+| Reflection | Reflect Agent が Observation を評価 | Agent が直接生成 | `.forge/intents/` |
 
 Human 入力のフォーマット（`.forge/intent-drafts/*.md`）:
 

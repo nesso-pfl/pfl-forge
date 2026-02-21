@@ -7,6 +7,29 @@ use tracing::{debug, info, warn};
 
 use crate::error::{ForgeError, Result};
 
+pub trait Claude {
+  fn run_prompt(
+    &self,
+    prompt: &str,
+    system_prompt: &str,
+    model: &str,
+    cwd: &Path,
+    timeout: Option<Duration>,
+  ) -> Result<String>;
+
+  fn run_json<T: DeserializeOwned>(
+    &self,
+    prompt: &str,
+    system_prompt: &str,
+    model: &str,
+    cwd: &Path,
+    timeout: Option<Duration>,
+  ) -> Result<T> {
+    let raw = self.run_prompt(prompt, system_prompt, model, cwd, timeout)?;
+    parse_claude_json_output(&raw)
+  }
+}
+
 #[derive(Clone)]
 pub struct ClaudeRunner {
   allowed_tools: Vec<String>,
@@ -16,9 +39,10 @@ impl ClaudeRunner {
   pub fn new(allowed_tools: Vec<String>) -> Self {
     Self { allowed_tools }
   }
+}
 
-  /// Run claude -p with a prompt, returning raw stdout.
-  pub fn run_prompt(
+impl Claude for ClaudeRunner {
+  fn run_prompt(
     &self,
     prompt: &str,
     system_prompt: &str,
@@ -74,19 +98,6 @@ impl ClaudeRunner {
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     debug!("claude output length: {} bytes", stdout.len());
     Ok(stdout)
-  }
-
-  /// Run claude -p and parse the JSON result field from the output.
-  pub fn run_json<T: DeserializeOwned>(
-    &self,
-    prompt: &str,
-    system_prompt: &str,
-    model: &str,
-    cwd: &Path,
-    timeout: Option<Duration>,
-  ) -> Result<T> {
-    let raw = self.run_prompt(prompt, system_prompt, model, cwd, timeout)?;
-    parse_claude_json_output(&raw)
   }
 }
 

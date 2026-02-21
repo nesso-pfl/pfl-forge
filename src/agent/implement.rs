@@ -4,13 +4,13 @@ use std::time::Duration;
 use tracing::info;
 
 use crate::agent::review::ReviewResult;
-use crate::claude::runner::ClaudeRunner;
+use crate::claude::runner::Claude;
 use crate::intent::registry::Intent;
 use crate::prompt;
 
 pub fn run(
   intent: &Intent,
-  runner: &ClaudeRunner,
+  runner: &impl Claude,
   selected_model: &str,
   worktree_path: &Path,
   timeout: Option<Duration>,

@@ -4,11 +4,11 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::claude::model;
-use crate::claude::runner::ClaudeRunner;
+use crate::claude::runner::Claude;
 use crate::config::Config;
 use crate::error::Result;
-use crate::prompt;
 use crate::intent::registry::Intent;
+use crate::prompt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisResult {
@@ -30,7 +30,7 @@ impl AnalysisResult {
 pub fn analyze(
   intent: &Intent,
   config: &Config,
-  runner: &ClaudeRunner,
+  runner: &impl Claude,
   repo_path: &std::path::Path,
 ) -> Result<AnalysisResult> {
   let deep_model = model::resolve(&config.models.triage_deep);

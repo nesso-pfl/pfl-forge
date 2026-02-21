@@ -224,6 +224,6 @@ Runner が各 Intent の実行記録を自動的に History に書き込む。�
 | API 所要時間 | `duration_api_ms` |
 | ターン数 | `num_turns` |
 
-現在の実装（`ClaudeRunner::parse_claude_json_output`）は `result` のみ抽出しているため、ラッパー全体を返すよう拡張が必要。
+現在の実装（`claude::runner::parse_claude_json_output`）は `result` のみ抽出しているため、ラッパー全体を返すよう拡張が必要。
 
 History は「構造化されたサマリ」。エージェント内部の操作ログ（個別ファイル読み込み等）は記録しない。

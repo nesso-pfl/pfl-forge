@@ -6,11 +6,11 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::claude::model;
-use crate::claude::runner::ClaudeRunner;
+use crate::claude::runner::Claude;
 use crate::config::Config;
 use crate::error::{ForgeError, Result};
-use crate::prompt;
 use crate::intent::registry::Intent;
+use crate::prompt;
 use crate::task::Task;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,7 +24,7 @@ pub fn review(
   intent: &Intent,
   task: &Task,
   config: &Config,
-  runner: &ClaudeRunner,
+  runner: &impl Claude,
   worktree_path: &Path,
   base_branch: &str,
 ) -> Result<ReviewResult> {

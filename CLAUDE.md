@@ -23,6 +23,7 @@ Runner が全エージェント呼び出しを管理する。Intent は `.forge/
 - [docs/agents.md](docs/agents.md) — 各エージェントの責務・入出力・Knowledge Base 参照。エージェントの追加・変更・プロンプト調整のとき
 - [docs/runner.md](docs/runner.md) — Flow 実行の仕組み・ステップ定義・調整ルール。パイプライン処理の変更や worktree 周りの作業のとき
 - [docs/data-model.md](docs/data-model.md) — Intent / Task / Observation 等の YAML スキーマ。データ構造の変更や新フィールド追加のとき
+- [docs/testing.md](docs/testing.md) — テスト戦略（Unit / Spec / Prompt Eval）。テストの追加・評価軸の変更のとき
 
 ## Config
 
@@ -47,13 +48,7 @@ cargo build
 cargo test
 ```
 
-テストは2層に分かれる:
-
-- **`src/` 内の `#[cfg(test)]`** — 関数単位のユニットテスト。private 関数も対象。テスト名は関数ベース（例: `test_extract_json_raw`）
-- **`tests/`** — 仕様ベースの振る舞いテスト。pub API のみ対象。docs の構造に対応:
-  - `tests/agent/` — 各エージェントの入出力仕様（Claude trait のモック経由）
-  - `tests/runner/` — Flow 実行・リトライ・ステップ順序
-  - `tests/data_model/` — Intent / Task / Observation の YAML パース・バリデーション
+テスト戦略の詳細は [docs/testing.md](docs/testing.md) を参照。
 
 ## Key conventions
 

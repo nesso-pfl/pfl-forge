@@ -161,3 +161,4 @@ History のバックエンドは当面 YAML ファイル。スケール問題が
 - [runner.md](runner.md) — Runner の仕様・実行フロー・Flow 調整ルール
 - [agents.md](agents.md) — エージェント構成・責務・Knowledge Base との関係
 - [data-model.md](data-model.md) — Intent, Task 等のデータモデル定義
+- [testing.md](testing.md) — テスト戦略（Unit / Spec / Prompt Eval）

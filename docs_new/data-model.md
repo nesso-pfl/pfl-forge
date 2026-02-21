@@ -2,13 +2,42 @@
 
 ## Intent
 
+ID はファイル名の stem（`fix-login-validation.yaml` → `fix-login-validation`）。
+
 ### フィールド
 
+- **title**: 作業内容の要約
+- **body**: 詳細な説明
 - **type**: `feature`, `refactor`, `fix`, `test`, `audit`, ...
 - **source**: `human`, `audit`, `epiphany`, `reflection`
 - **risk**: `low`, `med`, `high`
 - **status**: `proposed` → `approved` → `executing` → `done` / `blocked` / `error`
 - **parent**: 親 Intent の ID（子 Intent の場合）
+- **clarifications**: 質問と回答のリスト（`answer: null` が未回答）
+- **created_at**: タイムスタンプ
+
+### YAML 形式
+
+```yaml
+# .forge/intents/fix-login-validation.yaml
+title: "ログインバリデーションの修正"
+body: |
+  現状のバリデーションがメールアドレスの形式チェックを行っていない。
+  RFC 5322 準拠のチェックを追加する。
+type: fix
+source: human
+risk: low
+status: approved
+parent: null
+created_at: 2025-02-22T10:00:00Z
+clarifications:
+  - question: "メールアドレスの形式チェックは RFC 5322 準拠？それとも簡易チェック？"
+    answer: "RFC 5322 準拠で"
+  - question: "既存ユーザーのデータも再検証する？"
+    answer: null
+```
+
+`clarifications` 内に `answer: null` のエントリが1つでもあれば `needs_clarification` 状態と判定する。
 
 ステータス遷移:
 
@@ -39,7 +68,7 @@ proposed → approved → executing → done      (全 Task 成功)
 
 inbox に入る条件:
 - **承認待ち** — リスク `med` / `high` で人間の承認が必要（status: `proposed`）
-- **clarification 待ち** — 情報不足で人間の回答が必要（`needs_clarification`）
+- **clarification 待ち** — `clarifications` に `answer: null` のエントリがある
 - **review 失敗** — 全リトライ後も Task が失敗（status: `blocked` / `error`）
 
 ### Intent Registry（`.forge/intents/`）

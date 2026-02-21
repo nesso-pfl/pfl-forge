@@ -94,7 +94,7 @@ type: feature
 現状ではパスワードを忘れたユーザーがリセットする手段がない。
 ```
 
-frontmatter の `type` は省略可能（Analyze Agent が推定）。
+Runner が frontmatter + body をパースし `.forge/intents/` に変換する。`type` や `risk` は省略可能で、空のまま Intent になる。Analyze Agent が処理時に推定して Intent ファイルを更新する。
 
 ## Task
 

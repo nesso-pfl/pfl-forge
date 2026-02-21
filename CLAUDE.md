@@ -17,7 +17,13 @@ Multi-agent task processor powered by Claude Code.
 Runner が全エージェント呼び出しを管理する。Intent は `.forge/intents/*.yaml`、Observation は `.forge/observations.yaml`。
 エージェント間データは `.forge/` ディレクトリの YAML ファイルで受け渡し。
 
-エージェント構成の詳細は [docs/agents.md](docs/agents.md)、パイプラインフローは [docs/runner.md](docs/runner.md) を参照。
+## Docs
+
+- [docs/architecture.md](docs/architecture.md) — 全体像・レイヤー構成・設計思想。新機能の位置づけやレイヤー間の責務を確認するとき
+- [docs/agents.md](docs/agents.md) — 各エージェントの責務・入出力・Knowledge Base 参照。エージェントの追加・変更・プロンプト調整のとき
+- [docs/runner.md](docs/runner.md) — Flow 実行の仕組み・ステップ定義・調整ルール。パイプライン処理の変更や worktree 周りの作業のとき
+- [docs/data-model.md](docs/data-model.md) — Intent / Task / Observation 等の YAML スキーマ。データ構造の変更や新フィールド追加のとき
+- [docs/migration.md](docs/migration.md) — 旧アーキテクチャからの差分・移行状況。リファクタリングで何が変わったか確認するとき
 
 ## Config
 

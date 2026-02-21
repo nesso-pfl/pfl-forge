@@ -16,7 +16,7 @@
 
 ソース:
 - **Human** — `.forge/intent-drafts/*.md` に Markdown で作成 → pfl-forge が `.forge/intents/` に変換
-- **Audit** — Audit Agent が `.forge/intents/` に直接生成
+- **Audit** — Audit Agent が `.forge/observations.yaml` に記録 → Reflect が評価し Intent 化
 - **Epiphany** — 実装中にエージェントが判断: action 必要 → `.forge/intents/` に生成、それ以外 → `.forge/observations.yaml` に記録
 - **Reflection** — Reflect Agent が `.forge/intents/` に直接生成
 
@@ -118,7 +118,7 @@ MCP Server 経由で接続する。Runner がプロンプトに事前注入す�
 
 理由: Runner は Intent の title/body しか持たず適切な検索クエリを組み立てられない。エージェント（特に Analyze）がコードベース探索中に背景情報を必要とした瞬間に取得するのが自然。
 
-History はインターフェースを抽象化し、バックエンド変更に備える。
+History のバックエンドは当面 YAML ファイル。スケール問題が顕在化した時点で抽象化を検討する。
 
 ---
 
@@ -127,7 +127,7 @@ History はインターフェースを抽象化し、バックエンド変更に
 | コマンド | 用途 |
 |---------|------|
 | `run` | タスク処理（柔軟 Flow 対応） |
-| `audit` | コードベース監査 → Intent 生成 |
+| `audit` | コードベース監査 → Observation 記録 |
 | `inbox` | 提案された Intent の一覧・承認・却下 |
 | `approve` | 特定 Intent の承認（例: `approve 3,5,7`） |
 | `status` | 処理状態の表示 |
@@ -142,7 +142,7 @@ History はインターフェースを抽象化し、バックエンド変更に
 
 ```
 朝:
-  pfl-forge audit           → 監査実行、Intent が inbox に蓄積
+  pfl-forge audit           → 監査実行、Observation を記録しサマリ表示
   pfl-forge inbox            → 提案された Intent を確認
   pfl-forge approve 3,5,7    → 良いものを承認
   pfl-forge run              → 承認済み + 自動実行 Intent を処理
@@ -151,7 +151,7 @@ History はインターフェースを抽象化し、バックエンド変更に
 作業中:
   pfl-forge create "Feature X" "details..."  → 手動タスク作成
   pfl-forge run                              → 処理実行
-  （implement 中: 「ここテスト薄い」→ observation → 次回 audit で拾われる）
+  （implement 中: 「ここテスト薄い」→ observation → Reflect が拾い Intent 化）
 ```
 
 ---

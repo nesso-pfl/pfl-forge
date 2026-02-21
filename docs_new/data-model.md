@@ -80,7 +80,7 @@ inbox に入る条件:
 | ソース | 入力 | 変換 | 生成先 |
 |--------|------|------|--------|
 | Human | `.forge/intent-drafts/*.md` | pfl-forge が frontmatter + body をパース | `.forge/intents/` |
-| Audit | Audit Agent の発見 | Agent が直接生成 | `.forge/intents/` |
+| Audit | Audit Agent の発見 | `.forge/observations.yaml` に記録（Intent は Reflect 経由） | — |
 | Epiphany | Agent の気づき | Agent が action 必要と判断時に直接生成 | `.forge/intents/` |
 | Reflection | Reflect Agent の発見 | Agent が直接生成 | `.forge/intents/` |
 
@@ -89,7 +89,6 @@ Human 入力のフォーマット（`.forge/intent-drafts/*.md`）:
 ```markdown
 ---
 type: feature
-labels: [ui, auth]
 ---
 
 ログイン画面にパスワードリセットリンクを追加する。
@@ -97,7 +96,7 @@ labels: [ui, auth]
 現状ではパスワードを忘れたユーザーがリセットする手段がない。
 ```
 
-frontmatter の `type`, `labels` は省略可能（Analyze Agent が推定）。
+frontmatter の `type` は省略可能（Analyze Agent が推定）。
 
 ## Task
 

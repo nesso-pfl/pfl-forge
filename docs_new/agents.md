@@ -7,7 +7,7 @@ pfl-forge は複数の Claude Code エージェントを使い分けて Intent �
 | **Analyze** | Intent 分析、実装計画 |
 | **Implement** | コード実装 + observation 書き出し |
 | **Review** | コードレビュー |
-| **Audit** | コードベース監査 → Intent 生成 |
+| **Audit** | コードベース監査 → Observation 記録 |
 | **Reflect** | Intent 完了後の振り返り → 学習 |
 | **Operator** | インタラクティブセッション |
 
@@ -196,7 +196,7 @@ Intent 完了後の振り返りを行い、改善 Intent を生成する学習�
 
 - Flow 選択が適切だったかの評価
 - パターン検出（テンプレート化できる繰り返しパターン）
-- 規約化判断（ルール化すべき規約の特定）
+- 規約化判断（CLAUDE.md に追記すべき規約の特定）
 - CLAUDE.md / Skills の有効性検証（History の傾向分析から不要な記述を検出）
 
 ### 成果物

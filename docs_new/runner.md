@@ -52,7 +52,7 @@ Intent 受取
   │    └─ needs_clarification → Intent を一時停止、inbox へ
   │
   ├─ implement ステップ（Task ごと）
-  │    worktree 作成 → Task ファイル配置 → Implement Agent 呼び出し
+  │    worktree 作成 → setup commands → Task ファイル配置 → Implement Agent 呼び出し
   │    └─ コミット数 > 0 で成功
   │
   ├─ rebase
@@ -70,6 +70,25 @@ Intent 受取
   └─ reflect ステップ
        Reflect Agent 呼び出し（子を持たない Intent の完了後に自動実行）
 ```
+
+### Worktree Setup
+
+git worktree には追跡ファイルしか含まれない。`.gitignore` 対象の生成物（API クライアント、`node_modules` 等）は worktree に存在しないため、Implement Agent 起動前にセットアップが必要になる場合がある。
+
+`pfl-forge.yaml` の `worktree_setup` にコマンドを列挙すると、Runner が worktree 作成後・Implement Agent 起動前に逐次実行する。
+
+```yaml
+worktree_setup:
+  - "npm install"
+  - "npm run generate-api-client"
+```
+
+Tips:
+
+- **キャッシュ活用**: `npm install` は lockfile + ローカルキャッシュがあれば数秒で終わる。初回以外は軽い
+- **親リポからコピー**: 重い生成物は `rsync` で親リポからコピーすると高速。`rsync -a ../../node_modules .` のように書ける
+- **コード依存の生成物に注意**: API クライアント生成のようにソースコードに依存する生成物は、symlink やコピーではなく毎回生成すべき
+- **未設定でも動く**: worktree_setup は省略可。生成物に依存しないプロジェクトでは不要
 
 ### Analyze → Task の関係
 

@@ -33,7 +33,7 @@
 | `implementation_steps` | `Vec<String>` | あり | そのまま |
 | `context` | `String` | あり | そのまま |
 | `complexity` | `String` | あり | そのまま |
-| `status` | `WorkStatus` | あり | バリアント微調整（`Executing` → `Implementing`） |
+| `status` | `WorkStatus` | あり | バリアント微調整済み（`Implementing`） |
 | — | — | `intent_id` | 追加（親 Intent への参照） |
 | — | — | `depends_on` | 追加（同一 Intent 内の Task 間依存） |
 

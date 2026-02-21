@@ -13,7 +13,7 @@ use crate::intent::registry::Intent;
 pub enum WorkStatus {
   #[default]
   Pending,
-  Executing,
+  Implementing,
   Completed,
   Failed,
 }
@@ -63,7 +63,11 @@ fn task_filename(task_id: &str, index: u32) -> String {
   format!("{task_id}-{index:03}.yaml")
 }
 
-pub fn write_tasks(repo_path: &Path, intent: &Intent, deep: &AnalysisResult) -> Result<Vec<PathBuf>> {
+pub fn write_tasks(
+  repo_path: &Path,
+  intent: &Intent,
+  deep: &AnalysisResult,
+) -> Result<Vec<PathBuf>> {
   let dir = work_dir(repo_path);
   std::fs::create_dir_all(&dir)?;
 

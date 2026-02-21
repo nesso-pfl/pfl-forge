@@ -106,10 +106,10 @@ Pending
   ↓
 Triaging
   ├─→ NeedsClarification → (ユーザー回答) → Pending → Triaging
-  └─→ Executing
+  └─→ Implementing
        ├─→ Reviewing
        │    ├─→ Success (terminal)
-       │    └─→ Executing (review rejected, retry)
+       │    └─→ Implementing (review rejected, retry)
        └─→ Error (自動再試行)
 ```
 

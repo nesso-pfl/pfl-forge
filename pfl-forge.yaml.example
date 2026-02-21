@@ -2,7 +2,7 @@
 base_branch: main
 parallel_workers: 4
 models:
-  triage_deep: sonnet
+  analyze: sonnet
   default: sonnet
   complex: opus
 worker_tools:
@@ -12,12 +12,11 @@ worker_tools:
   - Edit
   - Glob
   - Grep
-triage_tools:
+analyze_tools:
   - Read
   - Glob
   - Grep
 poll_interval_secs: 300
 worktree_dir: .pfl-worktrees
-state_file: .forge/state.yaml
 worker_timeout_secs: 1200
-triage_timeout_secs: 600
+analyze_timeout_secs: 600

@@ -16,24 +16,22 @@ pub struct Config {
   pub worker_tools: Vec<String>,
   #[serde(default = "default_poll_interval")]
   pub poll_interval_secs: u64,
-  #[serde(default = "default_triage_tools")]
-  pub triage_tools: Vec<String>,
+  #[serde(default = "default_analyze_tools")]
+  pub analyze_tools: Vec<String>,
   #[serde(default = "default_worktree_dir")]
   pub worktree_dir: String,
-  #[serde(default = "default_state_file")]
-  pub state_file: PathBuf,
   #[serde(default = "default_worker_timeout")]
   pub worker_timeout_secs: u64,
-  #[serde(default = "default_triage_timeout")]
-  pub triage_timeout_secs: u64,
+  #[serde(default = "default_analyze_timeout")]
+  pub analyze_timeout_secs: u64,
   #[serde(default = "default_max_review_retries")]
   pub max_review_retries: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelSettings {
-  #[serde(default = "default_triage_deep_model")]
-  pub triage_deep: String,
+  #[serde(default = "default_analyze_model")]
+  pub analyze: String,
   #[serde(default = "default_model")]
   pub default: String,
   #[serde(default = "default_complex_model")]
@@ -43,7 +41,7 @@ pub struct ModelSettings {
 impl Default for ModelSettings {
   fn default() -> Self {
     Self {
-      triage_deep: default_triage_deep_model(),
+      analyze: default_analyze_model(),
       default: default_model(),
       complex: default_complex_model(),
     }
@@ -72,22 +70,19 @@ fn default_poll_interval() -> u64 {
 fn default_worktree_dir() -> String {
   ".pfl-worktrees".to_string()
 }
-fn default_state_file() -> PathBuf {
-  PathBuf::from(".forge/state.yaml")
-}
 fn default_worker_timeout() -> u64 {
   1200
 }
-fn default_triage_timeout() -> u64 {
+fn default_analyze_timeout() -> u64 {
   600
 }
 fn default_max_review_retries() -> u32 {
   2
 }
-fn default_triage_tools() -> Vec<String> {
+fn default_analyze_tools() -> Vec<String> {
   vec!["Read".into(), "Glob".into(), "Grep".into()]
 }
-fn default_triage_deep_model() -> String {
+fn default_analyze_model() -> String {
   "sonnet".to_string()
 }
 fn default_model() -> String {

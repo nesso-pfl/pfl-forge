@@ -53,7 +53,7 @@ pub fn review(
     diff = truncate_diff(&diff, 50000),
   );
 
-  let timeout = Some(Duration::from_secs(config.triage_timeout_secs));
+  let timeout = Some(Duration::from_secs(config.analyze_timeout_secs));
 
   info!("reviewing: {intent}");
   let result: ReviewResult = runner.run_json(

@@ -33,7 +33,7 @@ pub fn analyze(
   runner: &impl Claude,
   repo_path: &std::path::Path,
 ) -> Result<AnalysisResult> {
-  let deep_model = model::resolve(&config.models.triage_deep);
+  let deep_model = model::resolve(&config.models.analyze);
 
   let prompt = format!(
     r#"Intent {id}: {title}
@@ -44,7 +44,7 @@ pub fn analyze(
     body = intent.body,
   );
 
-  let timeout = Some(Duration::from_secs(config.triage_timeout_secs));
+  let timeout = Some(Duration::from_secs(config.analyze_timeout_secs));
 
   info!("analyzing: {intent}");
   let result: AnalysisResult =

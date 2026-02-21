@@ -16,9 +16,8 @@
 
 ソース:
 - **Human** — `.forge/intent-drafts/*.md` に Markdown で作成 → pfl-forge が `.forge/intents/` に変換
-- **Audit** — Audit Agent が `.forge/observations.yaml` に記録 → Reflect が評価し Intent 化
 - **Epiphany** — 実装中にエージェントが判断: action 必要 → `.forge/intents/` に生成、それ以外 → `.forge/observations.yaml` に記録
-- **Reflection** — Reflect Agent が `.forge/intents/` に直接生成
+- **Reflection** — Reflect Agent が `.forge/intents/` に直接生成（Audit の Observation からの Intent 化を含む）
 
 ### 柔軟 Flow
 

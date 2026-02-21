@@ -166,6 +166,9 @@ fn parse_claude_json_output<T: DeserializeOwned>(raw: &str) -> Result<T> {
     .map_err(|e| ForgeError::Claude(format!("failed to parse result as expected type: {e}")))
 }
 
+/// `claude -p --output-format json` の応答は常にきれいな JSON とは限らない。
+/// markdown コードブロックで囲まれていたり、前後に説明テキストが付くことがある。
+/// この関数はそうした出力から JSON 部分だけを切り出す。
 fn extract_json(text: &str) -> &str {
   // Try to find JSON in a code block
   if let Some(start) = text.find("```json") {
@@ -199,25 +202,25 @@ mod tests {
   use super::*;
 
   #[test]
-  fn extract_json_returns_plain_json_as_is() {
+  fn test_extract_json_raw() {
     let input = r#"{"actionable": true, "complexity": "low"}"#;
     assert_eq!(extract_json(input), input);
   }
 
   #[test]
-  fn extract_json_strips_markdown_code_block() {
+  fn test_extract_json_code_block() {
     let input = "Here's the result:\n```json\n{\"actionable\": true}\n```\n";
     assert_eq!(extract_json(input), "{\"actionable\": true}");
   }
 
   #[test]
-  fn extract_json_finds_json_within_surrounding_text() {
+  fn test_extract_json_with_surrounding_text() {
     let input = "The analysis shows: {\"key\": \"value\"} end";
     assert_eq!(extract_json(input), "{\"key\": \"value\"}");
   }
 
   #[test]
-  fn parse_claude_output_extracts_result_field_as_typed_json() {
+  fn test_parse_claude_json_output() {
     #[derive(serde::Deserialize)]
     struct TestOutput {
       actionable: bool,

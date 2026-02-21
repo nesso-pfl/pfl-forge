@@ -112,7 +112,7 @@ mod tests {
   use super::*;
 
   #[test]
-  fn test_default_config() {
+  fn empty_yaml_produces_valid_config_defaults() {
     let yaml = "{}";
     let config: Config = serde_yaml::from_str(yaml).unwrap();
     assert_eq!(config.parallel_workers, 4);

@@ -4,9 +4,22 @@
 
 ### Unit Test（`src/` 内 `#[cfg(test)]`）
 
-関数単位のテスト。private 関数も対象。テスト名は関数ベース（例: `test_extract_json_raw`）。
+private 関数やヘルパーの関数単位テスト。pub API のテストは `tests/` に書く。
 
-対象: JSON パース、ヘルパー関数、config デフォルト値など。
+命名規則: `<関数名>_<条件や入力>_<期待結果>`。`test_` プレフィックスは不要（`#[test]` 属性で十分）。
+
+```
+// good: 関数名 + 何が起きるか
+extract_json_strips_code_block_markers
+parse_claude_json_output_extracts_result_field
+empty_yaml_produces_valid_config_defaults
+
+// bad: test_ 二重、条件が曖昧
+test_extract_json_code_block
+test_default_config
+```
+
+モジュールパス（`claude::runner::tests::`）が場所を示すので、テスト名は入力条件と期待結果に集中する。
 
 ### Spec Test（`tests/`）
 

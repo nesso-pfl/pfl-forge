@@ -40,12 +40,20 @@ Runner が全エージェント呼び出しを管理する。Intent は `.forge/
 - `inbox` — 承認待ち Intent の一覧
 - `approve <ids>` — Intent の承認
 
-## Development
+## Testing
 
 ```sh
 cargo build
 cargo test
 ```
+
+テストは2層に分かれる:
+
+- **`src/` 内の `#[cfg(test)]`** — 関数単位のユニットテスト。private 関数も対象。テスト名は関数ベース（例: `test_extract_json_raw`）
+- **`tests/`** — 仕様ベースの振る舞いテスト。pub API のみ対象。docs の構造に対応:
+  - `tests/agent/` — 各エージェントの入出力仕様（Claude trait のモック経由）
+  - `tests/runner/` — Flow 実行・リトライ・ステップ順序
+  - `tests/data_model/` — Intent / Task / Observation の YAML パース・バリデーション
 
 ## Key conventions
 

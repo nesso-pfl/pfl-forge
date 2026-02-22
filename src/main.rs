@@ -119,8 +119,21 @@ async fn run(cli: Cli) -> Result<()> {
     }
     Commands::Parent { model } => agent::operator::launch(&config, model.as_deref()),
     Commands::Create { title, body } => {
-      info!("create: {} - {}", title, body);
-      info!("not yet implemented in new architecture");
+      let repo_path = Config::repo_path();
+      let intents_dir = repo_path.join(".forge").join("intents");
+      std::fs::create_dir_all(&intents_dir)?;
+
+      let id = runner::slugify(&title);
+      let path = intents_dir.join(format!("{id}.yaml"));
+      if path.exists() {
+        eprintln!("intent already exists: {id}");
+        std::process::exit(1);
+      }
+
+      let yaml =
+        format!("title: \"{title}\"\nbody: |\n  {body}\nsource: human\nstatus: proposed\n");
+      std::fs::write(&path, yaml)?;
+      println!("created: {id}");
       Ok(())
     }
     Commands::Audit { path } => {
@@ -162,12 +175,69 @@ async fn run(cli: Cli) -> Result<()> {
       Ok(())
     }
     Commands::Inbox => {
-      info!("inbox: not yet implemented in new architecture");
+      let repo_path = Config::repo_path();
+      let intents_dir = repo_path.join(".forge").join("intents");
+      let intents = pfl_forge::intent::registry::Intent::fetch_all(&intents_dir)?;
+
+      let inbox: Vec<_> = intents
+        .iter()
+        .filter(|i| {
+          matches!(
+            i.status,
+            pfl_forge::intent::registry::IntentStatus::Proposed
+          ) || i.needs_clarification()
+            || matches!(
+              i.status,
+              pfl_forge::intent::registry::IntentStatus::Blocked
+                | pfl_forge::intent::registry::IntentStatus::Error
+            )
+        })
+        .collect();
+
+      if inbox.is_empty() {
+        println!("inbox is empty");
+      } else {
+        for i in &inbox {
+          let risk = i.risk.as_deref().unwrap_or("-");
+          let source = &i.source;
+          let status = format!("{:?}", i.status).to_lowercase();
+          let clarification = if i.needs_clarification() {
+            " [needs clarification]"
+          } else {
+            ""
+          };
+          println!(
+            "{id}  {status}  risk={risk}  source={source}{clarification}",
+            id = i.id(),
+          );
+          println!("  {}", i.title);
+        }
+        println!("\n{} item(s)", inbox.len());
+      }
       Ok(())
     }
     Commands::Approve { ids } => {
-      info!("approve: {ids}");
-      info!("not yet implemented in new architecture");
+      let repo_path = Config::repo_path();
+      let intents_dir = repo_path.join(".forge").join("intents");
+      let intents = pfl_forge::intent::registry::Intent::fetch_all(&intents_dir)?;
+
+      for raw_id in ids.split(',') {
+        let id = raw_id.trim();
+        if id.is_empty() {
+          continue;
+        }
+        match intents.iter().find(|i| i.id() == id) {
+          Some(intent) => {
+            let mut updated = intent.clone();
+            updated.status = pfl_forge::intent::registry::IntentStatus::Approved;
+            runner::update_intent_file(&repo_path, &updated)?;
+            println!("{id}: approved");
+          }
+          None => {
+            eprintln!("{id}: not found");
+          }
+        }
+      }
       Ok(())
     }
   }

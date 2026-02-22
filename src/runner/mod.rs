@@ -683,7 +683,7 @@ fn has_children(repo_path: &Path, intent_id: &str) -> bool {
     .any(|i| i.parent.as_deref() == Some(intent_id))
 }
 
-fn slugify(s: &str) -> String {
+pub fn slugify(s: &str) -> String {
   s.to_lowercase()
     .chars()
     .map(|c| if c.is_alphanumeric() { c } else { '-' })

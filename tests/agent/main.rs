@@ -1,3 +1,5 @@
+mod mock_claude;
+
 mod analyze;
 mod audit;
 mod implement;

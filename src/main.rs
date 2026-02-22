@@ -1,21 +1,12 @@
-mod agent;
-mod claude;
-mod config;
-mod error;
-mod git;
-mod intent;
-mod knowledge;
-mod prompt;
-mod runner;
-mod task;
-
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use tracing::{error, info};
 
-use crate::config::Config;
-use crate::error::Result;
+use pfl_forge::agent;
+use pfl_forge::config::Config;
+use pfl_forge::error::Result;
+use pfl_forge::git;
 
 #[derive(Parser)]
 #[command(

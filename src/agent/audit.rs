@@ -35,6 +35,7 @@ pub fn audit(
   runner: &impl Claude,
   repo_path: &Path,
   target_path: Option<&str>,
+  intent_id: &str,
 ) -> Result<AuditResult> {
   let audit_model = model::resolve(&config.models.audit);
 
@@ -67,7 +68,7 @@ pub fn audit(
       content: obs.content.clone(),
       evidence,
       source: "audit".to_string(),
-      intent_id: "audit".to_string(),
+      intent_id: intent_id.to_string(),
       processed: false,
       created_at: Some(chrono::Utc::now().to_rfc3339()),
     };

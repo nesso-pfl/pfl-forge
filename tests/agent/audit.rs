@@ -19,7 +19,7 @@ fn 監査結果からobservationを記録する() {
   let dir = tempfile::tempdir().unwrap();
   std::fs::create_dir_all(dir.path().join(".forge")).unwrap();
 
-  let result = audit::audit(&config, &mock, dir.path(), None).unwrap();
+  let result = audit::audit(&config, &mock, dir.path(), None, "test-audit").unwrap();
 
   assert_eq!(result.observations.len(), 2);
   assert!(result.observations[0]
@@ -41,7 +41,7 @@ fn intentは生成しない() {
   let dir = tempfile::tempdir().unwrap();
   std::fs::create_dir_all(dir.path().join(".forge")).unwrap();
 
-  let result = audit::audit(&config, &mock, dir.path(), None).unwrap();
+  let result = audit::audit(&config, &mock, dir.path(), None, "test-audit").unwrap();
 
   // AuditResult only contains observations, no intents
   assert_eq!(result.observations.len(), 2);
@@ -56,7 +56,14 @@ fn パス引数で監査対象を絞れる() {
   let dir = tempfile::tempdir().unwrap();
   std::fs::create_dir_all(dir.path().join(".forge")).unwrap();
 
-  audit::audit(&config, &mock, dir.path(), Some("src/handler/")).unwrap();
+  audit::audit(
+    &config,
+    &mock,
+    dir.path(),
+    Some("src/handler/"),
+    "test-audit",
+  )
+  .unwrap();
 
   let call = mock.last_call();
   assert!(call.prompt.contains("src/handler/"));
@@ -69,7 +76,7 @@ fn configのauditモデルを使用する() {
   let dir = tempfile::tempdir().unwrap();
   std::fs::create_dir_all(dir.path().join(".forge")).unwrap();
 
-  audit::audit(&config, &mock, dir.path(), None).unwrap();
+  audit::audit(&config, &mock, dir.path(), None, "test-audit").unwrap();
 
   let call = mock.last_call();
   // Uses models.audit (defaults to opus)
@@ -83,6 +90,6 @@ fn claudeエラーを伝播する() {
   let dir = tempfile::tempdir().unwrap();
   std::fs::create_dir_all(dir.path().join(".forge")).unwrap();
 
-  let result = audit::audit(&config, &mock, dir.path(), None);
+  let result = audit::audit(&config, &mock, dir.path(), None, "test-audit");
   assert!(result.is_err());
 }

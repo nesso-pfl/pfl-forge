@@ -586,9 +586,19 @@ fn run_audit_report_flow(
 ) -> Result<IntentResult> {
   let mut step_results = Vec::new();
 
-  // Audit
+  // Audit: extract target path from intent body if specified
+  let target_path = intent
+    .body
+    .strip_prefix("Audit the codebase at path: ")
+    .map(|s| s.trim().to_string());
   let start = Instant::now();
-  let audit_result = audit::audit(config, claude, repo_path, None);
+  let audit_result = audit::audit(
+    config,
+    claude,
+    repo_path,
+    target_path.as_deref(),
+    intent.id(),
+  );
   step_results.push(StepResult {
     step: "audit".into(),
     duration_secs: start.elapsed().as_secs(),
@@ -693,4 +703,28 @@ pub fn update_intent_file(repo_path: &Path, intent: &Intent) -> Result<()> {
   let content = serde_yaml::to_string(intent)?;
   std::fs::write(&path, content)?;
   Ok(())
+}
+
+pub fn create_audit_intent(repo_path: &Path, target: &str) -> Result<Intent> {
+  let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
+  let id = format!("audit-{timestamp}");
+  let body = if target == "." {
+    "Audit the entire codebase.".to_string()
+  } else {
+    format!("Audit the codebase at path: {target}")
+  };
+
+  let yaml =
+    format!("title: Audit {target}\nbody: {body}\ntype: audit\nsource: human\nstatus: approved\n");
+
+  let intents_dir = repo_path.join(".forge").join("intents");
+  std::fs::create_dir_all(&intents_dir)?;
+  std::fs::write(intents_dir.join(format!("{id}.yaml")), &yaml)?;
+
+  // Read back to get a properly parsed Intent with file_stem set
+  let intents = Intent::fetch_all(&intents_dir)?;
+  intents
+    .into_iter()
+    .find(|i| i.id() == id)
+    .ok_or_else(|| crate::error::ForgeError::Parse("failed to create audit intent".into()))
 }

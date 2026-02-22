@@ -124,8 +124,41 @@ async fn run(cli: Cli) -> Result<()> {
       Ok(())
     }
     Commands::Audit { path } => {
-      info!("audit target: {:?}", path.as_deref().unwrap_or("."));
-      info!("not yet implemented in new architecture");
+      let repo_path = Config::repo_path();
+      let claude = ClaudeRunner::new(config.analyze_tools.clone());
+
+      // Create internal audit intent
+      let target = path.as_deref().unwrap_or(".");
+      let mut intent = runner::create_audit_intent(&repo_path, target)?;
+
+      let result = runner::process_intent(&mut intent, &config, &claude, &repo_path)?;
+
+      // Display observations
+      let obs_path = repo_path.join(".forge").join("observations.yaml");
+      let observations = pfl_forge::knowledge::observation::load(&obs_path)?;
+      let audit_obs: Vec<_> = observations
+        .iter()
+        .filter(|o| o.intent_id == intent.id())
+        .collect();
+
+      if audit_obs.is_empty() {
+        println!("no observations found");
+      } else {
+        println!("{} observation(s):", audit_obs.len());
+        for obs in &audit_obs {
+          println!("  - {}", obs.content);
+          for ev in &obs.evidence {
+            println!("    [{:?}] {}", ev.evidence_type, ev.reference);
+          }
+        }
+      }
+
+      let status = match &result.outcome {
+        pfl_forge::knowledge::history::Outcome::Success => "success",
+        pfl_forge::knowledge::history::Outcome::Failed => "failed",
+        pfl_forge::knowledge::history::Outcome::Escalated => "escalated",
+      };
+      println!("audit: {status}");
       Ok(())
     }
     Commands::Inbox => {

@@ -1,6 +1,6 @@
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use pfl_forge::claude::runner::Claude;
@@ -9,20 +9,20 @@ use pfl_forge::error::{ForgeError, Result};
 use pfl_forge::intent::registry::Intent;
 
 pub struct MockClaude {
-  responses: RefCell<Vec<Result<String>>>,
-  pub calls: RefCell<Vec<String>>,
+  responses: Mutex<Vec<Result<String>>>,
+  pub calls: Mutex<Vec<String>>,
 }
 
 impl MockClaude {
   pub fn with_sequence(responses: Vec<Result<String>>) -> Self {
     Self {
-      responses: RefCell::new(responses),
-      calls: RefCell::new(Vec::new()),
+      responses: Mutex::new(responses),
+      calls: Mutex::new(Vec::new()),
     }
   }
 
   pub fn call_count(&self) -> usize {
-    self.calls.borrow().len()
+    self.calls.lock().unwrap().len()
   }
 }
 
@@ -36,8 +36,8 @@ impl Claude for MockClaude {
     _timeout: Option<Duration>,
     _session_id: Option<&str>,
   ) -> Result<String> {
-    self.calls.borrow_mut().push(prompt.to_string());
-    let mut responses = self.responses.borrow_mut();
+    self.calls.lock().unwrap().push(prompt.to_string());
+    let mut responses = self.responses.lock().unwrap();
     if responses.len() > 1 {
       let resp = responses.remove(0);
       match resp {

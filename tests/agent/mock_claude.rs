@@ -1,5 +1,5 @@
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::Duration;
 
 use pfl_forge::claude::runner::Claude;
@@ -15,8 +15,8 @@ pub struct CapturedCall {
 }
 
 pub struct MockClaude {
-  responses: RefCell<Vec<Result<String>>>,
-  pub calls: RefCell<Vec<CapturedCall>>,
+  responses: Mutex<Vec<Result<String>>>,
+  pub calls: Mutex<Vec<CapturedCall>>,
 }
 
 impl MockClaude {
@@ -25,15 +25,15 @@ impl MockClaude {
     let escaped = inner_json.replace('\\', "\\\\").replace('"', "\\\"");
     let response = format!(r#"{{"result": "{escaped}"}}"#);
     Self {
-      responses: RefCell::new(vec![Ok(response)]),
-      calls: RefCell::new(Vec::new()),
+      responses: Mutex::new(vec![Ok(response)]),
+      calls: Mutex::new(Vec::new()),
     }
   }
 
   pub fn with_error(msg: &str) -> Self {
     Self {
-      responses: RefCell::new(vec![Err(ForgeError::Claude(msg.to_string()))]),
-      calls: RefCell::new(Vec::new()),
+      responses: Mutex::new(vec![Err(ForgeError::Claude(msg.to_string()))]),
+      calls: Mutex::new(Vec::new()),
     }
   }
 
@@ -42,22 +42,23 @@ impl MockClaude {
   /// If responses are exhausted, returns the last one repeatedly.
   pub fn with_sequence(responses: Vec<Result<String>>) -> Self {
     Self {
-      responses: RefCell::new(responses),
-      calls: RefCell::new(Vec::new()),
+      responses: Mutex::new(responses),
+      calls: Mutex::new(Vec::new()),
     }
   }
 
   pub fn last_call(&self) -> CapturedCall {
     self
       .calls
-      .borrow()
+      .lock()
+      .unwrap()
       .last()
       .expect("no calls recorded")
       .clone()
   }
 
   pub fn call_count(&self) -> usize {
-    self.calls.borrow().len()
+    self.calls.lock().unwrap().len()
   }
 }
 
@@ -86,14 +87,14 @@ impl Claude for MockClaude {
     timeout: Option<Duration>,
     _session_id: Option<&str>,
   ) -> Result<String> {
-    self.calls.borrow_mut().push(CapturedCall {
+    self.calls.lock().unwrap().push(CapturedCall {
       prompt: prompt.to_string(),
       system_prompt: system_prompt.to_string(),
       model: model.to_string(),
       cwd: cwd.to_path_buf(),
       timeout,
     });
-    let mut responses = self.responses.borrow_mut();
+    let mut responses = self.responses.lock().unwrap();
     if responses.len() > 1 {
       let resp = responses.remove(0);
       match resp {

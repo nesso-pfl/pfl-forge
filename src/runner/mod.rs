@@ -54,13 +54,13 @@ pub struct IntentResult {
 
 pub fn run_intents(
   config: &Config,
-  claude: &impl Claude,
+  claude: &(impl Claude + Sync),
   repo_path: &Path,
   dry_run: bool,
 ) -> Result<Vec<(String, IntentResult)>> {
   let intents_dir = repo_path.join(".forge").join("intents");
   let all_intents = Intent::fetch_all(&intents_dir)?;
-  let targets: Vec<Intent> = all_intents
+  let mut targets: Vec<Intent> = all_intents
     .into_iter()
     .filter(|i| i.status == IntentStatus::Approved || i.status == IntentStatus::Implementing)
     .collect();
@@ -77,16 +77,34 @@ pub fn run_intents(
     return Ok(Vec::new());
   }
 
+  let batch_size = config.parallel_workers.max(1);
   let mut results = Vec::new();
-  for mut intent in targets {
-    let id = intent.id().to_string();
-    match process_intent(&mut intent, config, claude, repo_path) {
-      Ok(result) => {
-        info!("{}: {:?}", id, result.outcome);
-        results.push((id, result));
-      }
-      Err(e) => {
-        warn!("{}: error: {e}", id);
+
+  for batch in targets.chunks_mut(batch_size) {
+    let batch_results: Vec<_> = std::thread::scope(|s| {
+      let handles: Vec<_> = batch
+        .iter_mut()
+        .map(|intent| {
+          s.spawn(|| {
+            let id = intent.id().to_string();
+            let result = process_intent(intent, config, claude, repo_path);
+            (id, result)
+          })
+        })
+        .collect();
+
+      handles.into_iter().map(|h| h.join().unwrap()).collect()
+    });
+
+    for (id, result) in batch_results {
+      match result {
+        Ok(r) => {
+          info!("{}: {:?}", id, r.outcome);
+          results.push((id, r));
+        }
+        Err(e) => {
+          warn!("{}: error: {e}", id);
+        }
       }
     }
   }

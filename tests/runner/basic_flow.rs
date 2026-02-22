@@ -60,7 +60,8 @@ fn dry_runではanalyzeを実行しない() {
 fn 複数intentを順次処理する() {
   let (_dir, repo) = setup_repo_with_intent("first");
   add_intent(&repo, "second", "approved");
-  let config = default_config();
+  let mut config = default_config();
+  config.parallel_workers = 1; // Sequential: mock responses depend on order
 
   let mock = MockClaude::with_sequence(vec![
     // first intent
@@ -491,7 +492,8 @@ fn worktreeがなければ最初からやり直す() {
 fn approvedとimplementingの両方を処理する() {
   let (_dir, repo) = setup_repo_with_intent("approved-one");
   add_implementing_intent(&repo, "impl-one", Some("analyze"), None);
-  let config = default_config();
+  let mut config = default_config();
+  config.parallel_workers = 1; // Sequential: mock responses depend on order
 
   // Create worktree for the implementing intent
   setup_worktree_with_tasks(&repo, &config, "impl-one");

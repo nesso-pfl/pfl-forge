@@ -167,6 +167,10 @@ resume 時に保存済みの `session_id` を `claude -p --resume <session_id>` 
 
 ## 並列タスク協調
 
+### 並列 Intent 実行
+
+`run_intents` は `parallel_workers`（default: 4）を並列度として、複数の Intent を同時処理する。各 Intent は独立した worktree で実行されるため安全に並列化できる。`std::thread::scope` によるバッチ処理で実現。
+
 ### コンテキスト注入
 
 analyze 実行時に、他の active な Intent の情報を Analyze Agent に注入する:

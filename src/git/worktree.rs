@@ -5,6 +5,10 @@ use tracing::{debug, info};
 
 use crate::error::{self, ForgeError, Result};
 
+pub fn path_for(repo_path: &Path, worktree_dir: &str, branch: &str) -> PathBuf {
+  repo_path.join(worktree_dir).join(branch)
+}
+
 pub fn create(
   repo_path: &Path,
   worktree_dir: &str,

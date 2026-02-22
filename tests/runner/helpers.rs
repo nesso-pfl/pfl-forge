@@ -34,6 +34,7 @@ impl Claude for MockClaude {
     _model: &str,
     _cwd: &Path,
     _timeout: Option<Duration>,
+    _session_id: Option<&str>,
   ) -> Result<String> {
     self.calls.borrow_mut().push(prompt.to_string());
     let mut responses = self.responses.borrow_mut();
@@ -204,4 +205,56 @@ pub fn load_intent(repo_path: &Path, intent_id: &str) -> Intent {
     .into_iter()
     .find(|i| i.id() == intent_id)
     .unwrap()
+}
+
+pub fn add_implementing_intent(
+  repo_path: &Path,
+  intent_id: &str,
+  last_step: Option<&str>,
+  session_id: Option<&str>,
+) {
+  let intents_dir = repo_path.join(".forge").join("intents");
+  let mut yaml =
+    format!("title: {intent_id}\nbody: Body of {intent_id}\nsource: human\nstatus: implementing\n");
+  if let Some(step) = last_step {
+    yaml.push_str(&format!("last_step: {step}\n"));
+  }
+  if let Some(sid) = session_id {
+    yaml.push_str(&format!("session_id: {sid}\n"));
+  }
+  std::fs::write(intents_dir.join(format!("{intent_id}.yaml")), yaml).unwrap();
+}
+
+pub fn setup_worktree_with_tasks(repo_path: &Path, config: &Config, intent_id: &str) -> PathBuf {
+  let branch = format!("forge/{intent_id}");
+  let worktree_path = pfl_forge::git::worktree::create(
+    repo_path,
+    &config.worktree_dir,
+    &branch,
+    &config.base_branch,
+  )
+  .unwrap();
+  pfl_forge::git::worktree::ensure_gitignore_forge(&worktree_path).unwrap();
+
+  // Write tasks.yaml
+  let tasks_yaml = format!(
+    r#"- id: {intent_id}
+  title: {intent_id}
+  intent_id: {intent_id}
+  status: pending
+  complexity: low
+  plan: Do something
+  relevant_files:
+    - src/lib.rs
+  implementation_steps:
+    - Step 1
+  context: ""
+  depends_on: []
+"#
+  );
+  let forge_dir = worktree_path.join(".forge");
+  std::fs::create_dir_all(&forge_dir).unwrap();
+  std::fs::write(forge_dir.join("tasks.yaml"), tasks_yaml).unwrap();
+
+  worktree_path
 }

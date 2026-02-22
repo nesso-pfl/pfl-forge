@@ -4,7 +4,7 @@ use pfl_forge::runner;
 
 use crate::helpers::*;
 
-// --- run_approved ---
+// --- run_intents ---
 
 #[test]
 fn approvedのintentのみ処理する() {
@@ -19,7 +19,7 @@ fn approvedのintentのみ処理する() {
     json_response(approved_review_json()),
   ]);
 
-  let results = runner::run_approved(&config, &mock, &repo, false).unwrap();
+  let results = runner::run_intents(&config, &mock, &repo, false).unwrap();
 
   assert_eq!(results.len(), 1);
   assert_eq!(results[0].0, "target");
@@ -37,7 +37,7 @@ fn approved_intentがなければ空を返す() {
 
   let mock = MockClaude::with_sequence(vec![]);
 
-  let results = runner::run_approved(&config, &mock, &repo, false).unwrap();
+  let results = runner::run_intents(&config, &mock, &repo, false).unwrap();
 
   assert!(results.is_empty());
   assert_eq!(mock.call_count(), 0);
@@ -50,7 +50,7 @@ fn dry_runではanalyzeを実行しない() {
 
   let mock = MockClaude::with_sequence(vec![]);
 
-  let results = runner::run_approved(&config, &mock, &repo, true).unwrap();
+  let results = runner::run_intents(&config, &mock, &repo, true).unwrap();
 
   assert!(results.is_empty());
   assert_eq!(mock.call_count(), 0);
@@ -73,7 +73,7 @@ fn 複数intentを順次処理する() {
     json_response(approved_review_json()),
   ]);
 
-  let results = runner::run_approved(&config, &mock, &repo, false).unwrap();
+  let results = runner::run_intents(&config, &mock, &repo, false).unwrap();
 
   assert_eq!(results.len(), 2);
   assert_eq!(results[0].1.outcome, Outcome::Success);
@@ -428,4 +428,88 @@ fn historyにstep_resultsが含まれる() {
   assert!(step_names.contains(&"implement"));
   assert!(step_names.contains(&"review"));
   assert_eq!(entry.flow, vec!["analyze", "implement", "review"]);
+}
+
+// --- Resume ---
+
+#[test]
+fn implementing_intentを再開する() {
+  // last_step=analyze + worktree with tasks.yaml → skip analyze
+  let (_dir, repo) = setup_repo_with_intent("resume-target");
+  let config = default_config();
+
+  // Overwrite the intent as implementing with last_step=analyze
+  add_implementing_intent(&repo, "resume-target", Some("analyze"), None);
+
+  // Create worktree with tasks.yaml
+  setup_worktree_with_tasks(&repo, &config, "resume-target");
+
+  // Only implement + review needed (no analyze)
+  let mock = MockClaude::with_sequence(vec![
+    raw_response("Implementation done"),
+    json_response(approved_review_json()),
+  ]);
+
+  let mut intent = load_intent(&repo, "resume-target");
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  assert_eq!(result.outcome, Outcome::Success);
+  assert_eq!(intent.status, IntentStatus::Done);
+  // Only 2 calls: implement + review (analyze skipped)
+  assert_eq!(mock.call_count(), 2);
+  let steps: Vec<&str> = result
+    .step_results
+    .iter()
+    .map(|s| s.step.as_str())
+    .collect();
+  assert!(!steps.contains(&"analyze"));
+}
+
+#[test]
+fn worktreeがなければ最初からやり直す() {
+  // last_step=analyze but no worktree → run from start
+  let (_dir, repo) = setup_repo_with_intent("resume-no-wt");
+  add_implementing_intent(&repo, "resume-no-wt", Some("analyze"), None);
+  let config = default_config();
+
+  // analyze + implement + review
+  let mock = MockClaude::with_sequence(vec![
+    json_response(analysis_json()),
+    raw_response("Done"),
+    json_response(approved_review_json()),
+  ]);
+
+  let mut intent = load_intent(&repo, "resume-no-wt");
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  assert_eq!(result.outcome, Outcome::Success);
+  // 3 calls: analyze + implement + review
+  assert_eq!(mock.call_count(), 3);
+}
+
+#[test]
+fn approvedとimplementingの両方を処理する() {
+  let (_dir, repo) = setup_repo_with_intent("approved-one");
+  add_implementing_intent(&repo, "impl-one", Some("analyze"), None);
+  let config = default_config();
+
+  // Create worktree for the implementing intent
+  setup_worktree_with_tasks(&repo, &config, "impl-one");
+
+  let mock = MockClaude::with_sequence(vec![
+    // approved-one: analyze + implement + review
+    json_response(analysis_json()),
+    raw_response("Done 1"),
+    json_response(approved_review_json()),
+    // impl-one: implement + review (resume, analyze skipped)
+    raw_response("Done 2"),
+    json_response(approved_review_json()),
+  ]);
+
+  let results = runner::run_intents(&config, &mock, &repo, false).unwrap();
+
+  assert_eq!(results.len(), 2);
+  assert!(results.iter().all(|(_, r)| r.outcome == Outcome::Success));
+  // 5 total calls
+  assert_eq!(mock.call_count(), 5);
 }

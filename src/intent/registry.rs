@@ -39,6 +39,10 @@ pub struct Intent {
   #[serde(default)]
   pub clarifications: Vec<Clarification>,
   pub created_at: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub last_step: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub session_id: Option<String>,
 }
 
 impl Intent {

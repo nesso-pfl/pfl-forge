@@ -15,6 +15,7 @@ pub trait Claude {
     model: &str,
     cwd: &Path,
     timeout: Option<Duration>,
+    session_id: Option<&str>,
   ) -> Result<String>;
 
   fn run_json<T: DeserializeOwned>(
@@ -25,7 +26,7 @@ pub trait Claude {
     cwd: &Path,
     timeout: Option<Duration>,
   ) -> Result<T> {
-    let raw = self.run_prompt(prompt, system_prompt, model, cwd, timeout)?;
+    let raw = self.run_prompt(prompt, system_prompt, model, cwd, timeout, None)?;
     parse_claude_json_output(&raw)
   }
 }
@@ -49,6 +50,7 @@ impl Claude for ClaudeRunner {
     model: &str,
     cwd: &Path,
     timeout: Option<Duration>,
+    session_id: Option<&str>,
   ) -> Result<String> {
     let tools_csv = self.allowed_tools.join(",");
 
@@ -61,6 +63,10 @@ impl Claude for ClaudeRunner {
       .args(["--allowedTools", &tools_csv])
       .current_dir(cwd)
       .env_remove("CLAUDE_CODE_ENTRYPOINT");
+
+    if let Some(sid) = session_id {
+      cmd.args(["--resume", sid]);
+    }
 
     if !system_prompt.is_empty() {
       cmd.args(["--append-system-prompt", system_prompt]);

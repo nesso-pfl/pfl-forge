@@ -52,7 +52,7 @@ pub struct IntentResult {
   pub failure_reason: Option<String>,
 }
 
-pub fn run_approved(
+pub fn run_intents(
   config: &Config,
   claude: &impl Claude,
   repo_path: &Path,
@@ -60,25 +60,25 @@ pub fn run_approved(
 ) -> Result<Vec<(String, IntentResult)>> {
   let intents_dir = repo_path.join(".forge").join("intents");
   let all_intents = Intent::fetch_all(&intents_dir)?;
-  let approved: Vec<Intent> = all_intents
+  let targets: Vec<Intent> = all_intents
     .into_iter()
-    .filter(|i| i.status == IntentStatus::Approved)
+    .filter(|i| i.status == IntentStatus::Approved || i.status == IntentStatus::Implementing)
     .collect();
 
-  if approved.is_empty() {
+  if targets.is_empty() {
     info!("no approved intents found");
     return Ok(Vec::new());
   }
 
   if dry_run {
-    for intent in &approved {
+    for intent in &targets {
       info!("[dry-run] would process: {}", intent);
     }
     return Ok(Vec::new());
   }
 
   let mut results = Vec::new();
-  for mut intent in approved {
+  for mut intent in targets {
     let id = intent.id().to_string();
     match process_intent(&mut intent, config, claude, repo_path) {
       Ok(result) => {
@@ -101,8 +101,12 @@ pub fn process_intent(
 ) -> Result<IntentResult> {
   let flow = default_flow(intent.intent_type.as_deref());
   let flow_names: Vec<String> = flow.iter().map(|s| s.name().to_string()).collect();
+  let resuming = intent.status == IntentStatus::Implementing;
 
-  info!("processing intent {}: flow={:?}", intent, flow_names);
+  info!(
+    "processing intent {}: flow={:?} resuming={resuming}",
+    intent, flow_names
+  );
   intent.status = IntentStatus::Implementing;
   update_intent_file(repo_path, intent)?;
 
@@ -112,79 +116,113 @@ pub fn process_intent(
 
   let mut step_results = Vec::new();
 
-  // Analyze
-  let start = Instant::now();
-  let analysis_outcome = analyze::analyze(intent, config, claude, repo_path)?;
-  step_results.push(StepResult {
-    step: "analyze".into(),
-    duration_secs: start.elapsed().as_secs(),
-  });
+  // Check if we can resume from a previous run
+  let worktree_path_for_resume =
+    git::worktree::path_for(repo_path, &config.worktree_dir, &intent.branch_name());
+  let can_resume_from_analyze = resuming
+    && intent.last_step.as_deref() == Some("analyze")
+    && worktree_path_for_resume
+      .join(".forge")
+      .join("tasks.yaml")
+      .exists();
 
-  // Handle non-task outcomes
-  let task_specs = match analysis_outcome {
-    AnalysisOutcome::Tasks(specs) => specs,
-    AnalysisOutcome::NeedsClarification { clarifications } => {
-      intent.status = IntentStatus::Blocked;
-      for q in &clarifications {
-        intent
-          .clarifications
-          .push(crate::intent::registry::Clarification {
-            question: q.clone(),
-            answer: None,
-          });
-      }
-      update_intent_file(repo_path, intent)?;
-      return Ok(IntentResult {
-        flow: flow_names,
-        step_results,
-        outcome: Outcome::Failed,
-        failure_reason: Some("needs clarification".into()),
-      });
+  let (mut tasks, worktree_path) = if can_resume_from_analyze {
+    // Resume: read tasks from worktree, skip analyze
+    info!("resuming from analyze: reading tasks from worktree");
+    let tasks = task::read_all_tasks(&worktree_path_for_resume)?;
+    (tasks, worktree_path_for_resume)
+  } else {
+    // Normal: run analyze
+    if resuming {
+      info!("resume data not found, running from start");
     }
-    AnalysisOutcome::ChildIntents(children) => {
-      let intents_dir = repo_path.join(".forge").join("intents");
-      for child in &children {
-        let child_id = slugify(&child.title);
-        let yaml = format!(
-          "title: {title}\nbody: {body}\nsource: analyze\nparent: {parent}\n",
-          title = child.title,
-          body = child.body,
-          parent = intent.id(),
-        );
-        std::fs::write(intents_dir.join(format!("{child_id}.yaml")), &yaml)?;
+
+    // Analyze
+    let start = Instant::now();
+    let analysis_outcome = analyze::analyze(intent, config, claude, repo_path)?;
+    step_results.push(StepResult {
+      step: "analyze".into(),
+      duration_secs: start.elapsed().as_secs(),
+    });
+
+    // Handle non-task outcomes
+    let task_specs = match analysis_outcome {
+      AnalysisOutcome::Tasks(specs) => specs,
+      AnalysisOutcome::NeedsClarification { clarifications } => {
+        intent.status = IntentStatus::Blocked;
+        for q in &clarifications {
+          intent
+            .clarifications
+            .push(crate::intent::registry::Clarification {
+              question: q.clone(),
+              answer: None,
+            });
+        }
+        update_intent_file(repo_path, intent)?;
+        return Ok(IntentResult {
+          flow: flow_names,
+          step_results,
+          outcome: Outcome::Failed,
+          failure_reason: Some("needs clarification".into()),
+        });
       }
-      intent.status = IntentStatus::Done;
-      update_intent_file(repo_path, intent)?;
-      return Ok(IntentResult {
-        flow: flow_names,
-        step_results,
-        outcome: Outcome::Success,
-        failure_reason: None,
-      });
+      AnalysisOutcome::ChildIntents(children) => {
+        let intents_dir = repo_path.join(".forge").join("intents");
+        for child in &children {
+          let child_id = slugify(&child.title);
+          let yaml = format!(
+            "title: {title}\nbody: {body}\nsource: analyze\nparent: {parent}\n",
+            title = child.title,
+            body = child.body,
+            parent = intent.id(),
+          );
+          std::fs::write(intents_dir.join(format!("{child_id}.yaml")), &yaml)?;
+        }
+        intent.status = IntentStatus::Done;
+        update_intent_file(repo_path, intent)?;
+        return Ok(IntentResult {
+          flow: flow_names,
+          step_results,
+          outcome: Outcome::Success,
+          failure_reason: None,
+        });
+      }
+    };
+
+    // Convert specs to tasks
+    let tasks: Vec<Task> = task_specs
+      .iter()
+      .map(|spec| Task::from_spec(intent, spec))
+      .collect();
+
+    // Worktree setup (shared by all tasks)
+    let worktree_path = git::worktree::create(
+      repo_path,
+      &config.worktree_dir,
+      &intent.branch_name(),
+      &config.base_branch,
+    )?;
+    git::worktree::ensure_gitignore_forge(&worktree_path)?;
+    // Write first task yaml for backward compat
+    if let Some(first) = tasks.first() {
+      task::write_task_yaml(&worktree_path, first)?;
     }
+    // Persist all tasks for resume
+    task::write_all_tasks(&worktree_path, &tasks)?;
+    run_worktree_setup(&worktree_path, &config.worktree_setup)?;
+
+    intent.last_step = Some("analyze".into());
+    update_intent_file(repo_path, intent)?;
+
+    (tasks, worktree_path)
   };
 
-  // Convert specs to tasks
-  let mut tasks: Vec<Task> = task_specs
-    .iter()
-    .map(|spec| Task::from_spec(intent, spec))
-    .collect();
-
-  // Worktree setup (shared by all tasks)
-  let worktree_path = git::worktree::create(
-    repo_path,
-    &config.worktree_dir,
-    &intent.branch_name(),
-    &config.base_branch,
-  )?;
-  git::worktree::ensure_gitignore_forge(&worktree_path)?;
-  // Write first task yaml for backward compat
-  if let Some(first) = tasks.first() {
-    task::write_task_yaml(&worktree_path, first)?;
-  }
-  run_worktree_setup(&worktree_path, &config.worktree_setup)?;
-
   // Run tasks in dependency order
+  let resume_session_id = if resuming {
+    intent.session_id.clone()
+  } else {
+    None
+  };
   let timeout = std::time::Duration::from_secs(config.worker_timeout_secs);
   let task_outcomes = run_tasks_in_order(
     intent,
@@ -195,6 +233,7 @@ pub fn process_intent(
     &worktree_path,
     timeout,
     &mut step_results,
+    resume_session_id.as_deref(),
   );
 
   // Aggregate task outcomes
@@ -251,7 +290,7 @@ enum TaskOutcome {
 }
 
 fn run_tasks_in_order(
-  intent: &Intent,
+  intent: &mut Intent,
   tasks: &mut [Task],
   config: &Config,
   claude: &impl Claude,
@@ -259,6 +298,7 @@ fn run_tasks_in_order(
   worktree_path: &Path,
   timeout: std::time::Duration,
   step_results: &mut Vec<StepResult>,
+  resume_session_id: Option<&str>,
 ) -> Vec<TaskOutcome> {
   let task_ids: Vec<String> = tasks.iter().map(|t| t.id.clone()).collect();
   let mut outcomes: Vec<Option<TaskOutcome>> = vec![None; tasks.len()];
@@ -297,6 +337,8 @@ fn run_tasks_in_order(
     // Write current task yaml for implement agent
     let _ = task::write_task_yaml(worktree_path, task);
 
+    // Use resume session_id only for the first task
+    let sid = if idx == 0 { resume_session_id } else { None };
     let outcome = run_implement_review_cycle(
       intent,
       task,
@@ -307,6 +349,7 @@ fn run_tasks_in_order(
       selected_model,
       timeout,
       step_results,
+      sid,
     );
 
     match &outcome {
@@ -369,7 +412,7 @@ fn aggregate_task_outcomes(
 }
 
 fn run_implement_review_cycle(
-  intent: &Intent,
+  intent: &mut Intent,
   task: &mut Task,
   config: &Config,
   claude: &impl Claude,
@@ -378,11 +421,19 @@ fn run_implement_review_cycle(
   selected_model: &str,
   timeout: std::time::Duration,
   step_results: &mut Vec<StepResult>,
+  resume_session_id: Option<&str>,
 ) -> TaskOutcome {
   let mut review_feedback: Option<ReviewResult> = None;
   let max_retries = config.max_review_retries;
 
   for attempt in 0..=max_retries {
+    // Use resume session_id only on the first attempt
+    let sid = if attempt == 0 {
+      resume_session_id
+    } else {
+      None
+    };
+
     // Implement
     task.status = WorkStatus::Implementing;
     let start = Instant::now();
@@ -393,6 +444,7 @@ fn run_implement_review_cycle(
       worktree_path,
       Some(timeout),
       review_feedback.as_ref(),
+      sid,
     );
     step_results.push(StepResult {
       step: "implement".into(),
@@ -403,6 +455,17 @@ fn run_implement_review_cycle(
       task.status = WorkStatus::Failed;
       return TaskOutcome::Failed(format!("implement failed: {e}"));
     }
+
+    // Read session_id from worktree if written by implement agent
+    let session_id_path = worktree_path.join(".forge").join("session_id");
+    if let Ok(sid) = std::fs::read_to_string(&session_id_path) {
+      let sid = sid.trim().to_string();
+      if !sid.is_empty() {
+        intent.session_id = Some(sid);
+      }
+    }
+    intent.last_step = Some("implement".into());
+    update_intent_file(repo_path, intent).ok();
 
     // Rebase
     let start = Instant::now();
@@ -437,7 +500,15 @@ fn run_implement_review_cycle(
 
       // Reimplementation attempt
       let start = Instant::now();
-      let reimpl = implement::run(intent, claude, selected_model, &new_wt, Some(timeout), None);
+      let reimpl = implement::run(
+        intent,
+        claude,
+        selected_model,
+        &new_wt,
+        Some(timeout),
+        None,
+        None,
+      );
       step_results.push(StepResult {
         step: "implement".into(),
         duration_secs: start.elapsed().as_secs(),

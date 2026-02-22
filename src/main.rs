@@ -89,7 +89,7 @@ async fn run(cli: Cli) -> Result<()> {
     Commands::Run { dry_run } => {
       let repo_path = Config::repo_path();
       let claude = ClaudeRunner::new(config.worker_tools.clone());
-      let results = runner::run_approved(&config, &claude, &repo_path, dry_run)?;
+      let results = runner::run_intents(&config, &claude, &repo_path, dry_run)?;
       for (id, result) in &results {
         let status = match &result.outcome {
           pfl_forge::knowledge::history::Outcome::Success => "success",

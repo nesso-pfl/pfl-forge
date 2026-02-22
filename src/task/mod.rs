@@ -121,3 +121,18 @@ pub fn write_task_yaml(worktree_path: &Path, task: &Task) -> Result<()> {
   std::fs::write(forge_dir.join("task.yaml"), content)?;
   Ok(())
 }
+
+pub fn write_all_tasks(worktree_path: &Path, tasks: &[Task]) -> Result<()> {
+  let forge_dir = worktree_path.join(".forge");
+  std::fs::create_dir_all(&forge_dir)?;
+  let content = serde_yaml::to_string(tasks)?;
+  std::fs::write(forge_dir.join("tasks.yaml"), content)?;
+  Ok(())
+}
+
+pub fn read_all_tasks(worktree_path: &Path) -> Result<Vec<Task>> {
+  let path = worktree_path.join(".forge").join("tasks.yaml");
+  let content = std::fs::read_to_string(&path)?;
+  let tasks: Vec<Task> = serde_yaml::from_str(&content)?;
+  Ok(tasks)
+}

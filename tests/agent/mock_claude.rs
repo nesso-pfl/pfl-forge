@@ -84,6 +84,7 @@ impl Claude for MockClaude {
     model: &str,
     cwd: &Path,
     timeout: Option<Duration>,
+    _session_id: Option<&str>,
   ) -> Result<String> {
     self.calls.borrow_mut().push(CapturedCall {
       prompt: prompt.to_string(),

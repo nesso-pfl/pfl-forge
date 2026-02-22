@@ -15,6 +15,7 @@ pub fn run(
   worktree_path: &Path,
   timeout: Option<Duration>,
   review_feedback: Option<&ReviewResult>,
+  session_id: Option<&str>,
 ) -> Result<String, crate::error::ForgeError> {
   let mut prompt = format!(
     r#"## Task {id}: {title}
@@ -48,5 +49,6 @@ pub fn run(
     selected_model,
     worktree_path,
     timeout,
+    session_id,
   )
 }

@@ -11,6 +11,12 @@ fn デフォルトflowはanalyze_implement_review() {
 }
 
 #[test]
+fn skill_extraction種別はobserve_abstract_record() {
+  let flow = default_flow(Some("skill_extraction"));
+  assert_eq!(flow, vec![Step::Observe, Step::Abstract, Step::Record]);
+}
+
+#[test]
 fn audit種別はaudit_reportフローを使う() {
   use helpers::*;
   use pfl_forge::intent::registry::IntentStatus;
@@ -93,6 +99,71 @@ fn depends_onで依存タスク完了までimplementを遅延する() {
   assert_eq!(result.outcome, Outcome::Success);
   // 5 calls: analyze + (impl+review)*2
   assert_eq!(mock.call_count(), 5);
+}
+
+#[test]
+fn skill_extraction種別はobserve_abstract_recordフローを使う() {
+  use helpers::*;
+  use pfl_forge::intent::registry::IntentStatus;
+  use pfl_forge::knowledge::history::Outcome;
+  use pfl_forge::runner;
+
+  let (_dir, repo) = setup_repo_with_skill_intent("skill-test");
+  let mut intent = load_intent(&repo, "skill-test");
+  let config = default_config();
+
+  let mock = MockClaude::with_sequence(vec![
+    json_response(observe_result_json()),
+    json_response(abstract_result_json()),
+  ]);
+
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  assert_eq!(result.flow, vec!["observe", "abstract", "record"]);
+  assert_eq!(result.outcome, Outcome::Success);
+  assert_eq!(intent.status, IntentStatus::Done);
+
+  let steps: Vec<&str> = result
+    .step_results
+    .iter()
+    .map(|s| s.step.as_str())
+    .collect();
+  assert_eq!(steps, vec!["observe", "abstract", "record"]);
+  assert_eq!(mock.call_count(), 2); // observe + abstract (record is non-agent)
+
+  // Verify skill file was written
+  let skill_path = repo
+    .join(".claude")
+    .join("skills")
+    .join("test-driven")
+    .join("SKILL.md");
+  assert!(skill_path.exists());
+}
+
+#[test]
+fn skill_extractionでパターンなしなら早期終了する() {
+  use helpers::*;
+  use pfl_forge::intent::registry::IntentStatus;
+  use pfl_forge::knowledge::history::Outcome;
+  use pfl_forge::runner;
+
+  let (_dir, repo) = setup_repo_with_skill_intent("skill-empty");
+  let mut intent = load_intent(&repo, "skill-empty");
+  let config = default_config();
+
+  let mock = MockClaude::with_sequence(vec![json_response(r#"{"patterns":[]}"#)]);
+
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  assert_eq!(result.outcome, Outcome::Success);
+  assert_eq!(intent.status, IntentStatus::Done);
+  // Only observe step (no abstract/record since no patterns)
+  let steps: Vec<&str> = result
+    .step_results
+    .iter()
+    .map(|s| s.step.as_str())
+    .collect();
+  assert_eq!(steps, vec!["observe"]);
 }
 
 // --- 基本実行フロー + 自動挿入ステップ ---

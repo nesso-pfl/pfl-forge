@@ -5,7 +5,7 @@ use tracing::{info, warn};
 
 use crate::agent::analyze::{ActiveIntentContext, AnalysisOutcome};
 use crate::agent::review::ReviewResult;
-use crate::agent::{analyze, audit, implement, reflect, review};
+use crate::agent::{analyze, audit, implement, reflect, review, skill};
 use crate::claude::runner::{parse_metadata, Claude};
 use crate::config::Config;
 use crate::error::Result;
@@ -22,6 +22,9 @@ pub enum Step {
   Review,
   Audit,
   Report,
+  Observe,
+  Abstract,
+  Record,
 }
 
 impl Step {
@@ -33,6 +36,9 @@ impl Step {
       Step::Review => "review",
       Step::Audit => "audit",
       Step::Report => "report",
+      Step::Observe => "observe",
+      Step::Abstract => "abstract",
+      Step::Record => "record",
     }
   }
 }
@@ -40,6 +46,7 @@ impl Step {
 pub fn default_flow(intent_type: Option<&str>) -> Vec<Step> {
   match intent_type {
     Some("audit") => vec![Step::Audit, Step::Report],
+    Some("skill_extraction") => vec![Step::Observe, Step::Abstract, Step::Record],
     _ => vec![Step::Analyze, Step::Implement, Step::Review],
   }
 }
@@ -130,6 +137,10 @@ pub fn process_intent(
 
   if flow.contains(&Step::Audit) {
     return run_audit_report_flow(intent, config, claude, repo_path, flow_names);
+  }
+
+  if flow.contains(&Step::Observe) {
+    return run_skill_extraction_flow(intent, config, claude, repo_path, flow_names);
   }
 
   let mut step_results = Vec::new();
@@ -666,6 +677,105 @@ fn run_audit_report_flow(
     Err(e) => {
       intent.status = IntentStatus::Error;
       (Outcome::Failed, Some(format!("audit failed: {e}")))
+    }
+  };
+
+  update_intent_file(repo_path, intent)?;
+
+  let entry = HistoryEntry {
+    intent_id: intent.id().to_string(),
+    intent_type: intent.intent_type.clone(),
+    intent_risk: intent.risk.clone(),
+    title: intent.title.clone(),
+    flow: flow_names.clone(),
+    step_results: step_results.clone(),
+    outcome: outcome.clone(),
+    failure_reason: failure_reason.clone(),
+    observations: vec![],
+    created_at: Some(chrono::Utc::now().to_rfc3339()),
+  };
+  if let Err(e) = history::write(repo_path, &entry) {
+    warn!("failed to write history: {e}");
+  }
+
+  Ok(IntentResult {
+    flow: flow_names,
+    step_results,
+    outcome,
+    failure_reason,
+  })
+}
+
+fn run_skill_extraction_flow(
+  intent: &mut Intent,
+  config: &Config,
+  claude: &impl Claude,
+  repo_path: &Path,
+  flow_names: Vec<String>,
+) -> Result<IntentResult> {
+  let mut step_results = Vec::new();
+
+  // Observe: analyze history to find patterns
+  let start = Instant::now();
+  let observe_result = skill::observe(config, claude, repo_path);
+  let observe_meta = observe_result.as_ref().ok().map(|(_, m)| m.clone());
+  step_results.push(StepResult {
+    step: "observe".into(),
+    duration_secs: start.elapsed().as_secs(),
+    metadata: observe_meta,
+  });
+
+  let (outcome, failure_reason) = match observe_result {
+    Ok((observe, _meta)) => {
+      if observe.patterns.is_empty() {
+        info!("skill extraction: no patterns found");
+        intent.status = IntentStatus::Done;
+        (Outcome::Success, None)
+      } else {
+        // Abstract: generalize patterns into skill templates
+        let start = Instant::now();
+        let abstract_result =
+          skill::abstract_patterns(config, claude, repo_path, &observe.patterns);
+        let abstract_meta = abstract_result.as_ref().ok().map(|(_, m)| m.clone());
+        step_results.push(StepResult {
+          step: "abstract".into(),
+          duration_secs: start.elapsed().as_secs(),
+          metadata: abstract_meta,
+        });
+
+        match abstract_result {
+          Ok((abstract_out, _meta)) => {
+            // Record: write skill drafts as SKILL.md files
+            let start = Instant::now();
+            let record_result = skill::record(repo_path, &abstract_out.skills);
+            step_results.push(StepResult {
+              step: "record".into(),
+              duration_secs: start.elapsed().as_secs(),
+              metadata: None,
+            });
+
+            match record_result {
+              Ok(written) => {
+                info!("skill extraction: wrote {} skills", written.len());
+                intent.status = IntentStatus::Done;
+                (Outcome::Success, None)
+              }
+              Err(e) => {
+                intent.status = IntentStatus::Error;
+                (Outcome::Failed, Some(format!("record failed: {e}")))
+              }
+            }
+          }
+          Err(e) => {
+            intent.status = IntentStatus::Error;
+            (Outcome::Failed, Some(format!("abstract failed: {e}")))
+          }
+        }
+      }
+    }
+    Err(e) => {
+      intent.status = IntentStatus::Error;
+      (Outcome::Failed, Some(format!("observe failed: {e}")))
     }
   };
 

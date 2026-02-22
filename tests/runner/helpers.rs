@@ -191,6 +191,39 @@ pub fn audit_result_json() -> &'static str {
   r#"{"observations":[{"content":"Found unused import","evidence":[{"type":"file","ref":"src/main.rs:3"}]}]}"#
 }
 
+pub fn observe_result_json() -> &'static str {
+  r#"{"patterns":[{"name":"test-first","description":"Write tests before impl","frequency":3,"examples":["i1","i2"]}]}"#
+}
+
+pub fn abstract_result_json() -> &'static str {
+  r#"{"skills":[{"name":"test-driven","description":"Write tests first","instructions":"1. Write tests\n2. Implement"}]}"#
+}
+
+pub fn setup_repo_with_skill_intent(intent_id: &str) -> (tempfile::TempDir, PathBuf) {
+  let dir = tempfile::tempdir().unwrap();
+  let repo_path = dir.path().join("repo");
+
+  std::fs::create_dir_all(&repo_path).unwrap();
+
+  let intents_dir = repo_path.join(".forge").join("intents");
+  std::fs::create_dir_all(&intents_dir).unwrap();
+
+  // Create history so observe has something to process
+  let history_dir = repo_path.join(".forge").join("knowledge").join("history");
+  std::fs::create_dir_all(&history_dir).unwrap();
+  std::fs::write(
+    history_dir.join("h1.yaml"),
+    "intent_id: h1\ntitle: Feature A\nflow: [analyze, implement, review]\nstep_results:\n  - step: analyze\n    duration_secs: 10\noutcome: success\n",
+  ).unwrap();
+
+  let yaml = format!(
+    "title: Extract skills\nbody: Run skill extraction\nsource: human\ntype: skill_extraction\nstatus: approved\n"
+  );
+  std::fs::write(intents_dir.join(format!("{intent_id}.yaml")), yaml).unwrap();
+
+  (dir, repo_path)
+}
+
 pub fn add_intent(repo_path: &Path, intent_id: &str, status: &str) {
   let intents_dir = repo_path.join(".forge").join("intents");
   let yaml =

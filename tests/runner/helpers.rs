@@ -158,6 +158,30 @@ pub fn setup_repo_with_conflict(intent_id: &str) -> (tempfile::TempDir, PathBuf)
   (dir, repo_path)
 }
 
+pub fn setup_repo_with_audit_intent(intent_id: &str) -> (tempfile::TempDir, PathBuf) {
+  let dir = tempfile::tempdir().unwrap();
+  let repo_path = dir.path().join("repo");
+
+  std::fs::create_dir_all(&repo_path).unwrap();
+
+  // Create .forge directories
+  let intents_dir = repo_path.join(".forge").join("intents");
+  std::fs::create_dir_all(&intents_dir).unwrap();
+  let knowledge_dir = repo_path.join(".forge").join("knowledge").join("history");
+  std::fs::create_dir_all(&knowledge_dir).unwrap();
+
+  let yaml = format!(
+    "title: Audit codebase\nbody: Run audit\nsource: human\ntype: audit\nstatus: approved\n"
+  );
+  std::fs::write(intents_dir.join(format!("{intent_id}.yaml")), yaml).unwrap();
+
+  (dir, repo_path)
+}
+
+pub fn audit_result_json() -> &'static str {
+  r#"{"observations":[{"content":"Found unused import","evidence":[{"type":"file","ref":"src/main.rs:3"}]}]}"#
+}
+
 pub fn load_intent(repo_path: &Path, intent_id: &str) -> Intent {
   let intents_dir = repo_path.join(".forge").join("intents");
   Intent::fetch_all(&intents_dir)

@@ -4,7 +4,7 @@ use std::time::Instant;
 use tracing::{info, warn};
 
 use crate::agent::review::ReviewResult;
-use crate::agent::{analyze, implement, reflect, review};
+use crate::agent::{analyze, audit, implement, reflect, review};
 use crate::claude::runner::Claude;
 use crate::config::Config;
 use crate::error::Result;
@@ -63,6 +63,10 @@ pub fn process_intent(
   info!("processing intent {}: flow={:?}", intent, flow_names);
   intent.status = IntentStatus::Implementing;
   update_intent_file(repo_path, intent)?;
+
+  if flow.contains(&Step::Audit) {
+    return run_audit_report_flow(intent, config, claude, repo_path, flow_names);
+  }
 
   let mut step_results = Vec::new();
 
@@ -307,6 +311,77 @@ fn run_implement_review_cycle(
   }
 
   unreachable!()
+}
+
+fn run_audit_report_flow(
+  intent: &mut Intent,
+  config: &Config,
+  claude: &impl Claude,
+  repo_path: &Path,
+  flow_names: Vec<String>,
+) -> Result<IntentResult> {
+  let mut step_results = Vec::new();
+
+  // Audit
+  let start = Instant::now();
+  let audit_result = audit::audit(config, claude, repo_path, None);
+  step_results.push(StepResult {
+    step: "audit".into(),
+    duration_secs: start.elapsed().as_secs(),
+  });
+
+  let (outcome, failure_reason) = match audit_result {
+    Ok(result) => {
+      // Report: read observations and output summary
+      let start = Instant::now();
+      let obs_path = repo_path.join(".forge").join("observations.yaml");
+      let observations = crate::knowledge::observation::load(&obs_path).unwrap_or_default();
+      info!("report: {} observations", observations.len());
+      for obs in &observations {
+        info!("  - {}", obs.content);
+      }
+      step_results.push(StepResult {
+        step: "report".into(),
+        duration_secs: start.elapsed().as_secs(),
+      });
+
+      intent.status = IntentStatus::Done;
+      info!(
+        "audit complete: {} observations found",
+        result.observations.len()
+      );
+      (Outcome::Success, None)
+    }
+    Err(e) => {
+      intent.status = IntentStatus::Error;
+      (Outcome::Failed, Some(format!("audit failed: {e}")))
+    }
+  };
+
+  update_intent_file(repo_path, intent)?;
+
+  let entry = HistoryEntry {
+    intent_id: intent.id().to_string(),
+    intent_type: intent.intent_type.clone(),
+    intent_risk: intent.risk.clone(),
+    title: intent.title.clone(),
+    flow: flow_names.clone(),
+    step_results: step_results.clone(),
+    outcome: outcome.clone(),
+    failure_reason: failure_reason.clone(),
+    observations: vec![],
+    created_at: Some(chrono::Utc::now().to_rfc3339()),
+  };
+  if let Err(e) = history::write(repo_path, &entry) {
+    warn!("failed to write history: {e}");
+  }
+
+  Ok(IntentResult {
+    flow: flow_names,
+    step_results,
+    outcome,
+    failure_reason,
+  })
 }
 
 fn has_children(repo_path: &Path, intent_id: &str) -> bool {

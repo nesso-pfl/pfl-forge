@@ -11,8 +11,32 @@ fn default_flow_is_analyze_implement_review() {
 }
 
 #[test]
-#[ignore]
-fn audit_type_uses_audit_report_flow() {}
+fn audit_type_uses_audit_report_flow() {
+  use helpers::*;
+  use pfl_forge::intent::registry::IntentStatus;
+  use pfl_forge::knowledge::history::Outcome;
+  use pfl_forge::runner;
+
+  let (_dir, repo) = setup_repo_with_audit_intent("audit-test");
+  let mut intent = load_intent(&repo, "audit-test");
+  let config = default_config();
+
+  let mock = MockClaude::with_sequence(vec![json_response(audit_result_json())]);
+
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  assert_eq!(result.flow, vec!["audit", "report"]);
+  assert_eq!(result.outcome, Outcome::Success);
+  assert_eq!(intent.status, IntentStatus::Done);
+
+  let steps: Vec<&str> = result
+    .step_results
+    .iter()
+    .map(|s| s.step.as_str())
+    .collect();
+  assert_eq!(steps, vec!["audit", "report"]);
+  assert_eq!(mock.call_count(), 1);
+}
 
 // --- Flow 調整ルール ---
 

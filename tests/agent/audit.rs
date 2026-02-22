@@ -72,8 +72,8 @@ fn uses_audit_model_from_config() {
   audit::audit(&config, &mock, dir.path(), None).unwrap();
 
   let call = mock.last_call();
-  // Uses models.analyze (defaults to sonnet) as audit model
-  assert_eq!(call.model, pfl_forge::claude::model::SONNET);
+  // Uses models.audit (defaults to opus)
+  assert_eq!(call.model, pfl_forge::claude::model::OPUS);
 }
 
 #[test]

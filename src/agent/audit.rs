@@ -36,7 +36,7 @@ pub fn audit(
   repo_path: &Path,
   target_path: Option<&str>,
 ) -> Result<AuditResult> {
-  let audit_model = model::resolve(&config.models.analyze);
+  let audit_model = model::resolve(&config.models.audit);
 
   let prompt = match target_path {
     Some(path) => format!("Audit the codebase at path: {path}"),

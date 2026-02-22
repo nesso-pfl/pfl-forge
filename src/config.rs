@@ -36,6 +36,8 @@ pub struct ModelSettings {
   pub default: String,
   #[serde(default = "default_complex_model")]
   pub complex: String,
+  #[serde(default = "default_audit_model")]
+  pub audit: String,
 }
 
 impl Default for ModelSettings {
@@ -44,6 +46,7 @@ impl Default for ModelSettings {
       analyze: default_analyze_model(),
       default: default_model(),
       complex: default_complex_model(),
+      audit: default_audit_model(),
     }
   }
 }
@@ -89,6 +92,9 @@ fn default_model() -> String {
   "sonnet".to_string()
 }
 fn default_complex_model() -> String {
+  "opus".to_string()
+}
+fn default_audit_model() -> String {
   "opus".to_string()
 }
 

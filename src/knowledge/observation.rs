@@ -13,6 +13,20 @@ pub enum EvidenceType {
   Decision,
 }
 
+impl std::str::FromStr for EvidenceType {
+  type Err = String;
+
+  fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    match s {
+      "file" => Ok(Self::File),
+      "skill" => Ok(Self::Skill),
+      "history" => Ok(Self::History),
+      "decision" => Ok(Self::Decision),
+      _ => Err(format!("unknown evidence type: {s}")),
+    }
+  }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Evidence {
   #[serde(rename = "type")]

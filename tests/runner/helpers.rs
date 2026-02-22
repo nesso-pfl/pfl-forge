@@ -84,6 +84,10 @@ pub fn rejected_review_json() -> &'static str {
   r#"{"approved":false,"issues":["Missing tests"],"suggestions":["Add unit tests"]}"#
 }
 
+pub fn reflect_json() -> &'static str {
+  r#"{"intents":[]}"#
+}
+
 fn git(cwd: &Path, args: &[&str]) -> std::process::Output {
   Command::new("git")
     .args(args)

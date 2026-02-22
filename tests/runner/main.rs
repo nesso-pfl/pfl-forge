@@ -24,19 +24,9 @@ fn needs_clarification_pauses_intent() {}
 #[ignore]
 fn depends_on_delays_implement_until_dependency_done() {}
 
-// --- 基本実行フロー ---
+// --- 基本実行フロー + 自動挿入ステップ ---
 
 mod basic_flow;
-
-// --- 自動挿入ステップ ---
-
-#[test]
-#[ignore]
-fn reflect_runs_after_leaf_intent_completion() {}
-
-#[test]
-#[ignore]
-fn reflect_skipped_for_parent_intent_with_children() {}
 
 // --- Worktree Setup ---
 

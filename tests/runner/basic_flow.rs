@@ -151,6 +151,79 @@ fn rebase_runs_between_implement_and_review() {
   assert!(rebase_pos < review_pos, "rebase should come before review");
 }
 
+// --- Reflect 自動挿入 ---
+
+#[test]
+fn reflect_runs_after_leaf_intent_completion() {
+  let (_dir, repo) = setup_repo_with_intent("leaf-intent");
+  let mut intent = load_intent(&repo, "leaf-intent");
+  let config = default_config();
+
+  // Add an observation so reflect actually calls Claude
+  let obs_path = repo.join(".forge").join("observations.yaml");
+  let obs = pfl_forge::knowledge::observation::Observation {
+    content: "found duplicated logic".into(),
+    evidence: vec![],
+    source: "implement".into(),
+    intent_id: "leaf-intent".into(),
+    processed: false,
+    created_at: None,
+  };
+  pfl_forge::knowledge::observation::append(&obs_path, &obs).unwrap();
+
+  // analyze → implement → review(approved) → reflect
+  let mock = MockClaude::with_sequence(vec![
+    json_response(analysis_json()),
+    raw_response("Done"),
+    json_response(approved_review_json()),
+    json_response(reflect_json()), // reflect call
+  ]);
+
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  let steps: Vec<&str> = result
+    .step_results
+    .iter()
+    .map(|s| s.step.as_str())
+    .collect();
+  assert!(steps.contains(&"reflect"), "steps: {:?}", steps);
+  assert_eq!(mock.call_count(), 4);
+}
+
+#[test]
+fn reflect_skipped_for_parent_intent_with_children() {
+  let (_dir, repo) = setup_repo_with_intent("parent-intent");
+  let mut intent = load_intent(&repo, "parent-intent");
+  let config = default_config();
+
+  // Create a child intent that references parent-intent
+  let intents_dir = repo.join(".forge").join("intents");
+  let child_yaml = "title: Child task\nbody: Sub-task\nsource: human\nparent: parent-intent\n";
+  std::fs::write(intents_dir.join("child-task.yaml"), child_yaml).unwrap();
+
+  // analyze → implement → review(approved), no reflect
+  let mock = MockClaude::with_sequence(vec![
+    json_response(analysis_json()),
+    raw_response("Done"),
+    json_response(approved_review_json()),
+  ]);
+
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  assert_eq!(result.outcome, Outcome::Success);
+  let steps: Vec<&str> = result
+    .step_results
+    .iter()
+    .map(|s| s.step.as_str())
+    .collect();
+  assert!(
+    !steps.contains(&"reflect"),
+    "reflect should be skipped for parent, steps: {:?}",
+    steps
+  );
+  assert_eq!(mock.call_count(), 3); // no reflect call
+}
+
 // --- コンフリクト解決 ---
 
 #[test]

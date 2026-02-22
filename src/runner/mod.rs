@@ -4,7 +4,7 @@ use std::time::Instant;
 use tracing::{info, warn};
 
 use crate::agent::review::ReviewResult;
-use crate::agent::{analyze, implement, review};
+use crate::agent::{analyze, implement, reflect, review};
 use crate::claude::runner::Claude;
 use crate::config::Config;
 use crate::error::Result;
@@ -140,6 +140,19 @@ pub fn process_intent(
   };
   if let Err(e) = history::write(repo_path, &entry) {
     warn!("failed to write history: {e}");
+  }
+
+  // Reflect: run after successful leaf intent completion
+  if outcome == Outcome::Success && !has_children(repo_path, intent.id()) {
+    let start = Instant::now();
+    match reflect::reflect(intent, config, claude, repo_path) {
+      Ok(r) => info!("reflect: generated {} intents", r.intents.len()),
+      Err(e) => warn!("reflect failed: {e}"),
+    }
+    step_results.push(StepResult {
+      step: "reflect".into(),
+      duration_secs: start.elapsed().as_secs(),
+    });
   }
 
   Ok(IntentResult {
@@ -293,6 +306,14 @@ fn run_implement_review_cycle(
   }
 
   unreachable!()
+}
+
+fn has_children(repo_path: &Path, intent_id: &str) -> bool {
+  let intents_dir = repo_path.join(".forge").join("intents");
+  Intent::fetch_all(&intents_dir)
+    .unwrap_or_default()
+    .iter()
+    .any(|i| i.parent.as_deref() == Some(intent_id))
 }
 
 pub fn update_intent_file(repo_path: &Path, intent: &Intent) -> Result<()> {

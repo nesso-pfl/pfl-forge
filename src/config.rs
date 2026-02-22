@@ -120,7 +120,7 @@ mod tests {
   use super::*;
 
   #[test]
-  fn empty_yaml_produces_valid_config_defaults() {
+  fn 空のyamlで有効なデフォルト設定が生成される() {
     let yaml = "{}";
     let config: Config = serde_yaml::from_str(yaml).unwrap();
     assert_eq!(config.parallel_workers, 4);

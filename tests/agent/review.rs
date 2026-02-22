@@ -64,7 +64,7 @@ fn setup_git_repo() -> tempfile::TempDir {
 }
 
 #[test]
-fn returns_approved_review_result() {
+fn 承認されたレビュー結果を返す() {
   let json = r#"{"approved":true,"issues":[],"suggestions":[]}"#;
   let mock = MockClaude::with_json(json);
   let config = default_config();
@@ -78,7 +78,7 @@ fn returns_approved_review_result() {
 }
 
 #[test]
-fn returns_rejected_with_issues() {
+fn 却下時にissueを返す() {
   let json = r#"{"approved":false,"issues":["Missing tests"],"suggestions":["Add unit tests"]}"#;
   let mock = MockClaude::with_json(json);
   let config = default_config();
@@ -93,7 +93,7 @@ fn returns_rejected_with_issues() {
 }
 
 #[test]
-fn includes_diff_and_plan_in_prompt() {
+fn プロンプトにdiffとplanを含める() {
   let json = r#"{"approved":true,"issues":[],"suggestions":[]}"#;
   let mock = MockClaude::with_json(json);
   let config = default_config();
@@ -109,7 +109,7 @@ fn includes_diff_and_plan_in_prompt() {
 }
 
 #[test]
-fn uses_default_model_from_config() {
+fn configのデフォルトモデルを使用する() {
   let json = r#"{"approved":true,"issues":[],"suggestions":[]}"#;
   let mock = MockClaude::with_json(json);
   let config = default_config();
@@ -124,7 +124,7 @@ fn uses_default_model_from_config() {
 }
 
 #[test]
-fn truncates_large_diff() {
+fn 大きなdiffを切り詰める() {
   let json = r#"{"approved":true,"issues":[],"suggestions":[]}"#;
   let mock = MockClaude::with_json(json);
   let config = default_config();
@@ -168,7 +168,7 @@ fn truncates_large_diff() {
 }
 
 #[test]
-fn propagates_claude_error() {
+fn claudeエラーを伝播する() {
   let mock = MockClaude::with_error("API error");
   let config = default_config();
   let intent = sample_intent();

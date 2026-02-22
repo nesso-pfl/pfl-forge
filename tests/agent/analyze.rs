@@ -27,7 +27,7 @@ fn analysis_json() -> String {
 }
 
 #[test]
-fn returns_tasks_from_successful_analysis() {
+fn 成功した分析からタスクスペックを返す() {
   let mock = MockClaude::with_json(&analysis_json());
   let config = default_config();
   let intent = sample_intent();
@@ -47,7 +47,7 @@ fn returns_tasks_from_successful_analysis() {
 }
 
 #[test]
-fn returns_multiple_tasks_with_depends_on() {
+fn 複数タスクとdepends_onを返す() {
   let json = r#"{"tasks":[{"id":"task-a","title":"Setup DB","complexity":"low","plan":"Create schema","relevant_files":["db.rs"],"implementation_steps":["Add migration"],"context":"","depends_on":[]},{"id":"task-b","title":"Add API","complexity":"medium","plan":"Build endpoint","relevant_files":["api.rs"],"implementation_steps":["Add route"],"context":"","depends_on":["task-a"]}]}"#;
   let mock = MockClaude::with_json(json);
   let config = default_config();
@@ -66,7 +66,7 @@ fn returns_multiple_tasks_with_depends_on() {
 }
 
 #[test]
-fn returns_child_intents_when_problem_too_large() {
+fn 問題が大きい場合は子intentを返す() {
   let json = r#"{"outcome":"child_intents","child_intents":[{"title":"Sub task A","body":"Do A"},{"title":"Sub task B","body":"Do B"}]}"#;
   let mock = MockClaude::with_json(json);
   let config = default_config();
@@ -85,7 +85,7 @@ fn returns_child_intents_when_problem_too_large() {
 }
 
 #[test]
-fn returns_needs_clarification_when_info_insufficient() {
+fn 情報不足の場合はclarificationを返す() {
   let json =
     r#"{"outcome":"needs_clarification","clarifications":["What is the target API version?"]}"#;
   let mock = MockClaude::with_json(json);
@@ -104,7 +104,7 @@ fn returns_needs_clarification_when_info_insufficient() {
 }
 
 #[test]
-fn uses_analyze_model_from_config() {
+fn configのanalyzeモデルを使用する() {
   let mock = MockClaude::with_json(&analysis_json());
   let config = default_config();
   let intent = sample_intent();
@@ -116,7 +116,7 @@ fn uses_analyze_model_from_config() {
 }
 
 #[test]
-fn uses_analyze_timeout_from_config() {
+fn configのanalyzeタイムアウトを使用する() {
   let mock = MockClaude::with_json(&analysis_json());
   let config = default_config();
   let intent = sample_intent();
@@ -128,7 +128,7 @@ fn uses_analyze_timeout_from_config() {
 }
 
 #[test]
-fn prompt_contains_intent_id_title_body() {
+fn プロンプトにintentのid_title_bodyが含まれる() {
   let mock = MockClaude::with_json(&analysis_json());
   let config = default_config();
   let intent = sample_intent();
@@ -142,7 +142,7 @@ fn prompt_contains_intent_id_title_body() {
 }
 
 #[test]
-fn propagates_claude_error() {
+fn claudeエラーを伝播する() {
   let mock = MockClaude::with_error("API rate limit exceeded");
   let config = default_config();
   let intent = sample_intent();

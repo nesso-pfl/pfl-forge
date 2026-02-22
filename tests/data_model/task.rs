@@ -21,7 +21,7 @@ fn sample_analysis() -> AnalysisResult {
 // --- Task 生成 ---
 
 #[test]
-fn from_analysis_populates_all_fields() {
+fn from_analysisで全フィールドが設定される() {
   let dir = tempfile::tempdir().unwrap();
   let yaml = "title: Test task\nbody: Implement feature X\nsource: human\n";
   std::fs::write(dir.path().join("task-42.yaml"), yaml).unwrap();
@@ -41,7 +41,7 @@ fn from_analysis_populates_all_fields() {
 }
 
 #[test]
-fn from_analysis_sets_status_pending() {
+fn from_analysisでステータスがpendingになる() {
   let intent = sample_intent();
   let analysis = sample_analysis();
   let task = Task::from_analysis(&intent, &analysis);
@@ -51,21 +51,21 @@ fn from_analysis_sets_status_pending() {
 // --- complexity ---
 
 #[test]
-fn complexity_low_selects_default_model() {
+fn 低complexityはデフォルトモデルを選択する() {
   let settings = ModelSettings::default();
   let model = Complexity::Low.select_model(&settings);
   assert_eq!(model, SONNET);
 }
 
 #[test]
-fn complexity_high_selects_complex_model() {
+fn 高complexityはcomplexモデルを選択する() {
   let settings = ModelSettings::default();
   let model = Complexity::High.select_model(&settings);
   assert_eq!(model, OPUS);
 }
 
 #[test]
-fn unknown_complexity_defaults_to_medium() {
+fn 不明なcomplexityはmediumにデフォルトする() {
   let intent = sample_intent();
   let mut analysis = sample_analysis();
   analysis.complexity = "unknown_value".into();
@@ -76,7 +76,7 @@ fn unknown_complexity_defaults_to_medium() {
 // --- YAML I/O ---
 
 #[test]
-fn write_and_read_task_yaml_roundtrip() {
+fn task_yamlの書き込みと読み込みが往復する() {
   let intent = sample_intent();
   let analysis = sample_analysis();
   let task = Task::from_analysis(&intent, &analysis);
@@ -92,7 +92,7 @@ fn write_and_read_task_yaml_roundtrip() {
 }
 
 #[test]
-fn set_task_status_updates_yaml_file() {
+fn set_task_statusでyamlファイルが更新される() {
   let dir = tempfile::tempdir().unwrap();
   let intent = sample_intent();
   let analysis = sample_analysis();

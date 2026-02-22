@@ -5,13 +5,13 @@ mod helpers;
 use pfl_forge::runner::{default_flow, Step};
 
 #[test]
-fn default_flow_is_analyze_implement_review() {
+fn デフォルトflowはanalyze_implement_review() {
   let flow = default_flow(None);
   assert_eq!(flow, vec![Step::Analyze, Step::Implement, Step::Review]);
 }
 
 #[test]
-fn audit_type_uses_audit_report_flow() {
+fn audit種別はaudit_reportフローを使う() {
   use helpers::*;
   use pfl_forge::intent::registry::IntentStatus;
   use pfl_forge::knowledge::history::Outcome;
@@ -41,7 +41,7 @@ fn audit_type_uses_audit_report_flow() {
 // --- Flow 調整ルール ---
 
 #[test]
-fn needs_clarification_pauses_intent() {
+fn clarificationが必要な場合はintentを一時停止する() {
   use helpers::*;
   use pfl_forge::intent::registry::IntentStatus;
   use pfl_forge::knowledge::history::Outcome;
@@ -67,7 +67,7 @@ fn needs_clarification_pauses_intent() {
 }
 
 #[test]
-fn depends_on_delays_implement_until_dependency_done() {
+fn depends_onで依存タスク完了までimplementを遅延する() {
   use helpers::*;
   use pfl_forge::intent::registry::IntentStatus;
   use pfl_forge::knowledge::history::Outcome;
@@ -102,7 +102,7 @@ mod basic_flow;
 // --- Worktree Setup ---
 
 #[test]
-fn runs_worktree_setup_commands_before_implement() {
+fn implement前にworktreeセットアップコマンドを実行する() {
   use helpers::*;
   use pfl_forge::runner;
 

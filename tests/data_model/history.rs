@@ -3,7 +3,7 @@ use pfl_forge::knowledge::history::{self, HistoryEntry, Outcome, StepResult};
 // --- YAML パース ---
 
 #[test]
-fn parses_history_yaml_with_all_fields() {
+fn 全フィールド付きのhistory_yamlをパースする() {
   let yaml = r#"
 intent_id: fix-login
 intent_type: fix
@@ -38,7 +38,7 @@ created_at: "2026-01-01T00:00:00Z"
 }
 
 #[test]
-fn outcome_supports_success_failed_escalated() {
+fn outcomeはsuccess_failed_escalatedをサポートする() {
   for (yaml_val, expected) in [
     ("success", Outcome::Success),
     ("failed", Outcome::Failed),
@@ -51,7 +51,7 @@ fn outcome_supports_success_failed_escalated() {
 }
 
 #[test]
-fn failure_reason_is_optional() {
+fn failure_reasonは省略可能() {
   let yaml = "intent_id: t\ntitle: t\nflow: []\noutcome: success\n";
   let entry: HistoryEntry = serde_yaml::from_str(yaml).unwrap();
   assert!(entry.failure_reason.is_none());
@@ -65,7 +65,7 @@ fn failure_reason_is_optional() {
 // --- 読み書き ---
 
 #[test]
-fn writes_history_entry_to_yaml() {
+fn historyエントリをyamlに書き込む() {
   let dir = tempfile::tempdir().unwrap();
   let entry = HistoryEntry {
     intent_id: "test-intent".into(),
@@ -87,7 +87,7 @@ fn writes_history_entry_to_yaml() {
 }
 
 #[test]
-fn includes_step_results_with_duration() {
+fn step_resultsに所要時間が含まれる() {
   let dir = tempfile::tempdir().unwrap();
   let entry = HistoryEntry {
     intent_id: "perf-test".into(),
@@ -120,7 +120,7 @@ fn includes_step_results_with_duration() {
 }
 
 #[test]
-fn includes_observation_references() {
+fn observation参照が含まれる() {
   let dir = tempfile::tempdir().unwrap();
   let entry = HistoryEntry {
     intent_id: "obs-test".into(),

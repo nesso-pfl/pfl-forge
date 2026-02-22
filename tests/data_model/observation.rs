@@ -3,7 +3,7 @@ use pfl_forge::knowledge::observation::{self, Evidence, EvidenceType, Observatio
 // --- YAML パース ---
 
 #[test]
-fn parses_observation_yaml_with_all_fields() {
+fn 全フィールド付きのobservation_yamlをパースする() {
   let yaml = r#"
 - content: "Duplicate validation logic found"
   evidence:
@@ -27,7 +27,7 @@ fn parses_observation_yaml_with_all_fields() {
 }
 
 #[test]
-fn evidence_type_supports_file_skill_history_decision() {
+fn evidenceのtypeがfile_skill_history_decisionをサポートする() {
   let yaml = r#"
 - content: "test"
   evidence:
@@ -51,7 +51,7 @@ fn evidence_type_supports_file_skill_history_decision() {
 }
 
 #[test]
-fn processed_defaults_to_false() {
+fn processedのデフォルトはfalse() {
   let yaml = r#"
 - content: "something"
   source: audit
@@ -64,7 +64,7 @@ fn processed_defaults_to_false() {
 // --- 読み書き ---
 
 #[test]
-fn appends_observation_to_yaml_file() {
+fn observationをyamlファイルに追記する() {
   let dir = tempfile::tempdir().unwrap();
   let path = dir.path().join("observations.yaml");
 
@@ -99,7 +99,7 @@ fn appends_observation_to_yaml_file() {
 }
 
 #[test]
-fn collects_unprocessed_observations() {
+fn 未処理のobservationを収集する() {
   let observations = vec![
     Observation {
       content: "processed".into(),
@@ -125,7 +125,7 @@ fn collects_unprocessed_observations() {
 }
 
 #[test]
-fn marks_observations_as_processed() {
+fn observationを処理済みにマークする() {
   let dir = tempfile::tempdir().unwrap();
   let path = dir.path().join("observations.yaml");
 

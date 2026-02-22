@@ -213,25 +213,25 @@ mod tests {
   use super::*;
 
   #[test]
-  fn extract_json_returns_raw_json_unchanged() {
+  fn 生のjsonをそのまま返す() {
     let input = r#"{"actionable": true, "complexity": "low"}"#;
     assert_eq!(extract_json(input), input);
   }
 
   #[test]
-  fn extract_json_strips_code_block_markers() {
+  fn コードブロックマーカーを除去する() {
     let input = "Here's the result:\n```json\n{\"actionable\": true}\n```\n";
     assert_eq!(extract_json(input), "{\"actionable\": true}");
   }
 
   #[test]
-  fn extract_json_extracts_json_from_surrounding_text() {
+  fn 前後のテキストからjsonを抽出する() {
     let input = "The analysis shows: {\"key\": \"value\"} end";
     assert_eq!(extract_json(input), "{\"key\": \"value\"}");
   }
 
   #[test]
-  fn parse_claude_json_output_extracts_result_field() {
+  fn claude出力からresultフィールドを抽出する() {
     #[derive(serde::Deserialize)]
     struct TestOutput {
       actionable: bool,

@@ -3,7 +3,7 @@ use pfl_forge::intent::registry::Intent;
 // --- YAML パース ---
 
 #[test]
-fn parses_intent_yaml_with_all_fields() {
+fn 全フィールド付きのintent_yamlをパースする() {
   let yaml = r#"
 title: "Add user authentication"
 body: "Implement OAuth2 login flow"
@@ -29,7 +29,7 @@ created_at: "2026-01-01T00:00:00Z"
 }
 
 #[test]
-fn id_is_filename_stem() {
+fn idはファイル名のstemになる() {
   let dir = tempfile::tempdir().unwrap();
   let yaml = "title: test\nbody: test body\nsource: human\n";
   std::fs::write(dir.path().join("my-intent-id.yaml"), yaml).unwrap();
@@ -39,7 +39,7 @@ fn id_is_filename_stem() {
 }
 
 #[test]
-fn optional_fields_default_to_none() {
+fn 省略可能フィールドはnoneにデフォルトする() {
   let yaml = "title: minimal\nbody: just the basics\nsource: human\n";
   let intent: Intent = serde_yaml::from_str(yaml).unwrap();
   assert!(intent.intent_type.is_none());
@@ -52,7 +52,7 @@ fn optional_fields_default_to_none() {
 // --- needs_clarification ---
 
 #[test]
-fn needs_clarification_when_answer_is_null() {
+fn answerがnullの場合はclarification必要() {
   let yaml = r#"
 title: test
 body: body
@@ -66,7 +66,7 @@ clarifications:
 }
 
 #[test]
-fn no_clarification_needed_when_all_answered() {
+fn 全回答済みならclarification不要() {
   let yaml = r#"
 title: test
 body: body
@@ -80,7 +80,7 @@ clarifications:
 }
 
 #[test]
-fn no_clarification_needed_when_empty() {
+fn clarificationが空ならclarification不要() {
   let yaml = "title: test\nbody: body\nsource: human\n";
   let intent: Intent = serde_yaml::from_str(yaml).unwrap();
   assert!(!intent.needs_clarification());
@@ -89,7 +89,7 @@ fn no_clarification_needed_when_empty() {
 // --- fetch_all ---
 
 #[test]
-fn fetch_all_loads_yaml_files_from_directory() {
+fn ディレクトリからyamlファイルを読み込む() {
   let dir = tempfile::tempdir().unwrap();
   let yaml_a = "title: Alpha\nbody: first\nsource: human\n";
   let yaml_b = "title: Beta\nbody: second\nsource: reflection\n";
@@ -103,7 +103,7 @@ fn fetch_all_loads_yaml_files_from_directory() {
 }
 
 #[test]
-fn fetch_all_skips_non_yaml_files() {
+fn yaml以外のファイルをスキップする() {
   let dir = tempfile::tempdir().unwrap();
   let yaml = "title: Valid\nbody: intent\nsource: human\n";
   std::fs::write(dir.path().join("valid.yaml"), yaml).unwrap();
@@ -116,7 +116,7 @@ fn fetch_all_skips_non_yaml_files() {
 }
 
 #[test]
-fn fetch_all_returns_empty_for_missing_directory() {
+fn 存在しないディレクトリでは空を返す() {
   let dir = tempfile::tempdir().unwrap();
   let missing = dir.path().join("nonexistent");
 
@@ -127,7 +127,7 @@ fn fetch_all_returns_empty_for_missing_directory() {
 // --- intent-drafts ---
 
 #[test]
-fn parses_intent_draft_markdown_with_frontmatter() {
+fn frontmatter付きのintent_draftをパースする() {
   let md = "\
 ---
 type: feature
@@ -149,7 +149,7 @@ Users currently have no way to reset their password.
 }
 
 #[test]
-fn intent_draft_allows_omitting_type_and_risk() {
+fn intent_draftでtypeとriskを省略できる() {
   let md = "\
 ---
 ---

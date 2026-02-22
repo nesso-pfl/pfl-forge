@@ -13,7 +13,7 @@ fn audit_json() -> &'static str {
 }
 
 #[test]
-fn records_observations_from_audit() {
+fn 監査結果からobservationを記録する() {
   let mock = MockClaude::with_json(audit_json());
   let config = default_config();
   let dir = tempfile::tempdir().unwrap();
@@ -35,7 +35,7 @@ fn records_observations_from_audit() {
 }
 
 #[test]
-fn does_not_generate_intents() {
+fn intentは生成しない() {
   let mock = MockClaude::with_json(audit_json());
   let config = default_config();
   let dir = tempfile::tempdir().unwrap();
@@ -50,7 +50,7 @@ fn does_not_generate_intents() {
 }
 
 #[test]
-fn accepts_path_argument_to_scope_audit() {
+fn パス引数で監査対象を絞れる() {
   let mock = MockClaude::with_json(audit_json());
   let config = default_config();
   let dir = tempfile::tempdir().unwrap();
@@ -63,7 +63,7 @@ fn accepts_path_argument_to_scope_audit() {
 }
 
 #[test]
-fn uses_audit_model_from_config() {
+fn configのauditモデルを使用する() {
   let mock = MockClaude::with_json(audit_json());
   let config = default_config();
   let dir = tempfile::tempdir().unwrap();
@@ -77,7 +77,7 @@ fn uses_audit_model_from_config() {
 }
 
 #[test]
-fn propagates_claude_error() {
+fn claudeエラーを伝播する() {
   let mock = MockClaude::with_error("API error");
   let config = default_config();
   let dir = tempfile::tempdir().unwrap();

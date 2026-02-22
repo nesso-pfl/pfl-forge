@@ -14,7 +14,7 @@ fn sample_intent() -> Intent {
 }
 
 #[test]
-fn runs_implementation_with_intent_context() {
+fn intentコンテキストで実装を実行する() {
   let mock = MockClaude::with_json("{}");
   let intent = sample_intent();
   let dir = tempfile::tempdir().unwrap();
@@ -28,7 +28,7 @@ fn runs_implementation_with_intent_context() {
 }
 
 #[test]
-fn selects_default_model_for_low_complexity() {
+fn 低complexityではデフォルトモデルを選択する() {
   let mock = MockClaude::with_json("{}");
   let intent = sample_intent();
   let dir = tempfile::tempdir().unwrap();
@@ -40,7 +40,7 @@ fn selects_default_model_for_low_complexity() {
 }
 
 #[test]
-fn selects_complex_model_for_high_complexity() {
+fn 高complexityではcomplexモデルを選択する() {
   let mock = MockClaude::with_json("{}");
   let intent = sample_intent();
   let dir = tempfile::tempdir().unwrap();
@@ -52,7 +52,7 @@ fn selects_complex_model_for_high_complexity() {
 }
 
 #[test]
-fn includes_review_feedback_in_prompt_on_retry() {
+fn リトライ時にレビューフィードバックをプロンプトに含める() {
   let mock = MockClaude::with_json("{}");
   let intent = sample_intent();
   let dir = tempfile::tempdir().unwrap();
@@ -71,7 +71,7 @@ fn includes_review_feedback_in_prompt_on_retry() {
 }
 
 #[test]
-fn omits_review_section_on_first_run() {
+fn 初回実行時はレビューセクションを省略する() {
   let mock = MockClaude::with_json("{}");
   let intent = sample_intent();
   let dir = tempfile::tempdir().unwrap();
@@ -83,7 +83,7 @@ fn omits_review_section_on_first_run() {
 }
 
 #[test]
-fn propagates_claude_error() {
+fn claudeエラーを伝播する() {
   let mock = MockClaude::with_error("process crashed");
   let intent = sample_intent();
   let dir = tempfile::tempdir().unwrap();

@@ -41,7 +41,7 @@ fn reflect_json() -> &'static str {
 }
 
 #[test]
-fn generates_intents_from_observations() {
+fn observationからintentを生成する() {
   let dir = tempfile::tempdir().unwrap();
   std::fs::create_dir_all(dir.path().join(".forge")).unwrap();
   let intent = sample_intent(dir.path());
@@ -65,7 +65,7 @@ fn generates_intents_from_observations() {
 }
 
 #[test]
-fn generated_intents_have_reflection_source() {
+fn 生成されたintentのsourceがreflectionになる() {
   let dir = tempfile::tempdir().unwrap();
   std::fs::create_dir_all(dir.path().join(".forge")).unwrap();
   let intent = sample_intent(dir.path());
@@ -86,7 +86,7 @@ fn generated_intents_have_reflection_source() {
 }
 
 #[test]
-fn processes_only_unprocessed_observations() {
+fn 未処理のobservationのみを処理する() {
   let dir = tempfile::tempdir().unwrap();
   std::fs::create_dir_all(dir.path().join(".forge")).unwrap();
   let intent = sample_intent(dir.path());
@@ -124,7 +124,7 @@ fn processes_only_unprocessed_observations() {
 }
 
 #[test]
-fn marks_observations_as_processed() {
+fn observationを処理済みにマークする() {
   let dir = tempfile::tempdir().unwrap();
   std::fs::create_dir_all(dir.path().join(".forge")).unwrap();
   let intent = sample_intent(dir.path());
@@ -142,7 +142,7 @@ fn marks_observations_as_processed() {
 }
 
 #[test]
-fn propagates_claude_error() {
+fn claudeエラーを伝播する() {
   let dir = tempfile::tempdir().unwrap();
   std::fs::create_dir_all(dir.path().join(".forge")).unwrap();
   let intent = sample_intent(dir.path());

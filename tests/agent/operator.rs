@@ -1,11 +1,11 @@
 #[test]
 #[ignore]
-fn launches_interactive_session_with_bash_tool() {}
+fn bashツールでインタラクティブセッションを起動する() {}
 
 #[test]
 #[ignore]
-fn removes_claudecode_env_vars() {}
+fn claudecode環境変数を除去する() {}
 
 #[test]
 #[ignore]
-fn appends_system_prompt() {}
+fn システムプロンプトを追加する() {}

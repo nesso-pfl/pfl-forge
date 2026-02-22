@@ -7,7 +7,7 @@ use crate::helpers::*;
 // --- 基本実行 ---
 
 #[test]
-fn all_tasks_done_marks_intent_done() {
+fn 全タスク成功でintentがdoneになる() {
   let (_dir, repo) = setup_repo_with_intent("fix-bug");
   let mut intent = load_intent(&repo, "fix-bug");
   let config = default_config();
@@ -29,7 +29,7 @@ fn all_tasks_done_marks_intent_done() {
 // --- 失敗時のステータス集約 ---
 
 #[test]
-fn all_tasks_failed_marks_intent_error() {
+fn 全タスク失敗でintentがerrorになる() {
   let (_dir, repo) = setup_repo_with_intent("fail-task");
   let mut intent = load_intent(&repo, "fail-task");
   let config = default_config();
@@ -48,10 +48,9 @@ fn all_tasks_failed_marks_intent_error() {
 }
 
 #[test]
-fn partial_task_failure_marks_intent_blocked() {
+fn 単一タスクのレビュー失敗でintentがerrorになる() {
   // With a single task, review failure after max retries → Error (not Blocked).
   // Blocked requires multiple tasks where some succeed and some fail.
-  // For single-task intents, review failure → Error.
   let (_dir, repo) = setup_repo_with_intent("partial");
   let mut intent = load_intent(&repo, "partial");
   let mut config = default_config();
@@ -74,7 +73,7 @@ fn partial_task_failure_marks_intent_blocked() {
 // --- 複数タスク ---
 
 #[test]
-fn multi_task_partial_failure_marks_intent_blocked() {
+fn 複数タスクで一部失敗するとintentがblockedになる() {
   // 2 independent tasks: task-a succeeds, task-b fails → intent Blocked
   let (_dir, repo) = setup_repo_with_intent("partial-multi");
   let mut intent = load_intent(&repo, "partial-multi");
@@ -94,7 +93,7 @@ fn multi_task_partial_failure_marks_intent_blocked() {
 }
 
 #[test]
-fn dependency_failure_skips_dependent_tasks() {
+fn 依存先の失敗で依存タスクをスキップする() {
   // task-b depends_on task-a; task-a fails → task-b skipped
   let (_dir, repo) = setup_repo_with_intent("dep-skip");
   let mut intent = load_intent(&repo, "dep-skip");
@@ -117,7 +116,7 @@ fn dependency_failure_skips_dependent_tasks() {
 // --- Review リトライ ---
 
 #[test]
-fn rejected_review_retries_implement_review_cycle() {
+fn レビュー却下時にimplement_reviewサイクルをリトライする() {
   let (_dir, repo) = setup_repo_with_intent("retry-task");
   let mut intent = load_intent(&repo, "retry-task");
   let mut config = default_config();
@@ -141,7 +140,7 @@ fn rejected_review_retries_implement_review_cycle() {
 }
 
 #[test]
-fn retry_exhaustion_marks_task_failed() {
+fn リトライ上限でタスクが失敗する() {
   let (_dir, repo) = setup_repo_with_intent("exhaust");
   let mut intent = load_intent(&repo, "exhaust");
   let mut config = default_config();
@@ -166,7 +165,7 @@ fn retry_exhaustion_marks_task_failed() {
 // --- Rebase ---
 
 #[test]
-fn rebase_runs_between_implement_and_review() {
+fn rebaseがimplementとreviewの間に実行される() {
   let (_dir, repo) = setup_repo_with_intent("rebase-test");
   let mut intent = load_intent(&repo, "rebase-test");
   let config = default_config();
@@ -190,14 +189,14 @@ fn rebase_runs_between_implement_and_review() {
   let impl_pos = steps.iter().position(|s| *s == "implement").unwrap();
   let rebase_pos = steps.iter().position(|s| *s == "rebase").unwrap();
   let review_pos = steps.iter().position(|s| *s == "review").unwrap();
-  assert!(impl_pos < rebase_pos, "implement should come before rebase");
-  assert!(rebase_pos < review_pos, "rebase should come before review");
+  assert!(impl_pos < rebase_pos);
+  assert!(rebase_pos < review_pos);
 }
 
 // --- Reflect 自動挿入 ---
 
 #[test]
-fn reflect_runs_after_leaf_intent_completion() {
+fn リーフintent完了後にreflectが実行される() {
   let (_dir, repo) = setup_repo_with_intent("leaf-intent");
   let mut intent = load_intent(&repo, "leaf-intent");
   let config = default_config();
@@ -234,7 +233,7 @@ fn reflect_runs_after_leaf_intent_completion() {
 }
 
 #[test]
-fn reflect_skipped_for_parent_intent_with_children() {
+fn 子intentを持つ親intentではreflectをスキップする() {
   let (_dir, repo) = setup_repo_with_intent("parent-intent");
   let mut intent = load_intent(&repo, "parent-intent");
   let config = default_config();
@@ -259,18 +258,14 @@ fn reflect_skipped_for_parent_intent_with_children() {
     .iter()
     .map(|s| s.step.as_str())
     .collect();
-  assert!(
-    !steps.contains(&"reflect"),
-    "reflect should be skipped for parent, steps: {:?}",
-    steps
-  );
-  assert_eq!(mock.call_count(), 3); // no reflect call
+  assert!(!steps.contains(&"reflect"), "steps: {:?}", steps);
+  assert_eq!(mock.call_count(), 3);
 }
 
 // --- コンフリクト解決 ---
 
 #[test]
-fn rebase_failure_triggers_reimplementation() {
+fn rebase失敗時に再実装する() {
   let (_dir, repo) = setup_repo_with_conflict("conflict-rebase");
   let mut intent = load_intent(&repo, "conflict-rebase");
   let config = default_config();
@@ -292,7 +287,7 @@ fn rebase_failure_triggers_reimplementation() {
 }
 
 #[test]
-fn reimplementation_failure_escalates_to_human() {
+fn 再実装失敗時にエスカレートする() {
   let (_dir, repo) = setup_repo_with_conflict("conflict-escalate");
   let mut intent = load_intent(&repo, "conflict-escalate");
   let config = default_config();
@@ -317,7 +312,7 @@ fn reimplementation_failure_escalates_to_human() {
 // --- History 記録 ---
 
 #[test]
-fn records_history_after_intent_completion() {
+fn intent完了後にhistoryを記録する() {
   let (_dir, repo) = setup_repo_with_intent("history-test");
   let mut intent = load_intent(&repo, "history-test");
   let config = default_config();
@@ -337,7 +332,7 @@ fn records_history_after_intent_completion() {
 }
 
 #[test]
-fn history_includes_step_results_and_cost() {
+fn historyにstep_resultsが含まれる() {
   let (_dir, repo) = setup_repo_with_intent("cost-test");
   let mut intent = load_intent(&repo, "cost-test");
   let config = default_config();

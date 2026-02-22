@@ -32,8 +32,10 @@ risk: low
 status: approved
 parent: null
 created_at: 2025-02-22T10:00:00Z
+last_step: analyze          # 中断時の最終ステップ（省略可）
+session_id: d44db260-...    # Claude Code セッション ID（省略可）
 clarifications:
-  - question: "メールアドレスの形式チェックは RFC 5322 準拠？それとも簡易チェック？"
+  - question: "メールアドレスの形式チェックは RFC 5322 準拠？それとは簡易チェック？"
     answer: "RFC 5322 準拠で"
   - question: "既存ユーザーのデータも再検証する？"
     answer: null

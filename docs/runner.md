@@ -101,7 +101,36 @@ Tips:
 
 Analyze は Intent を 1 つ以上の Task に分解する。各 Task が独立した implement 実行単位になる。Task 間に `depends_on` がある場合は依存順に逐次実行し、独立した Task は並列実行できる。
 
-### --resume によるセッション継続
+### 中断からの再開（Resume）
+
+Implement 途中でプロセスがクラッシュすると、Intent は `implementing` のまま残る。Runner は `last_step` と `session_id` を Intent YAML に記録し、次回の `run` で中断箇所から再開する。
+
+`run` コマンドは `approved` と `implementing` の両方を処理対象にする。
+
+#### 状態の記録
+
+各ステップ完了後に Runner が Intent YAML を更新する:
+
+- **`last_step`** — 最後に完了したステップ名（`analyze`, `implement` など）
+- **`session_id`** — Implement Agent が worktree の `.forge/session_id` に書き出す Claude Code セッション ID。Runner がこれを読んで Intent YAML に保存する
+
+#### 再開の判定
+
+| `last_step` | worktree + `tasks.yaml` | 動作 |
+|-------------|------------------------|------|
+| `analyze` | あり | analyze スキップ、worktree から Task を読み戻し、implement から再開 |
+| `analyze` | なし | 最初からやり直し（analyze から） |
+| それ以外 / 未設定 | — | 最初からやり直し |
+
+#### タスクの永続化
+
+analyze 完了後、Runner は全 Task を worktree の `.forge/tasks.yaml` に書き出す。resume 時はこのファイルから Task を復元する。
+
+#### session_id の活用
+
+resume 時に保存済みの `session_id` を `claude -p --resume <session_id>` として Implement Agent に渡す。これにより前回の探索コンテキストを引き継ぎ、トークン消費を抑える。
+
+### --resume によるセッション継続（ステップ内）
 
 - **Analyze**: `needs_clarification` → 人間が回答 → `--resume` で同一セッション継続
 - **Implement**: `review` で rejected → `--resume` で同一セッションに review feedback を注入

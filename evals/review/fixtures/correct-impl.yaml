@@ -1,0 +1,5 @@
+intent:
+  title: "Add unit tests for config parsing"
+  body: "Add tests for edge cases in config parsing"
+expectations:
+  should_approve: true

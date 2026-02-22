@@ -1,0 +1,13 @@
+intent:
+  title: "Add a health check endpoint"
+  body: "Add a GET /health endpoint that returns 200 OK with {\"status\": \"ok\"}"
+expectations:
+  relevant_files_contain:
+    - "src/"
+  plan_mentions:
+    - "health"
+    - "endpoint"
+  has_implementation_steps: true
+  complexity_is_one_of:
+    - low
+    - medium

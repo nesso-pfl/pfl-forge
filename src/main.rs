@@ -63,6 +63,14 @@ enum Commands {
     /// Comma-separated intent IDs
     ids: String,
   },
+  /// Run prompt evaluation fixtures
+  Eval {
+    /// Agent to evaluate (analyze, review)
+    agent: String,
+    /// Specific fixture name (default: all)
+    #[arg(long)]
+    fixture: Option<String>,
+  },
 }
 
 #[tokio::main]
@@ -275,6 +283,54 @@ async fn run(cli: Cli) -> Result<()> {
           println!("  {}", i.title);
         }
         println!("\n{} item(s)", inbox.len());
+      }
+      Ok(())
+    }
+    Commands::Eval { agent, fixture } => {
+      let repo_path = Config::repo_path();
+      let evals_dir = repo_path.join("evals").join(&agent).join("fixtures");
+      let fixtures = pfl_forge::eval::load_fixtures(&evals_dir)?;
+
+      if fixtures.is_empty() {
+        println!("no fixtures found in {}", evals_dir.display());
+        return Ok(());
+      }
+
+      let claude = ClaudeRunner::new(config.analyze_tools.clone(), config.mcp_config.clone());
+      let mut total = 0;
+      let mut passed = 0;
+
+      for (name, fix) in &fixtures {
+        if let Some(ref f) = fixture {
+          if name != f {
+            continue;
+          }
+        }
+
+        let result = match agent.as_str() {
+          "analyze" => pfl_forge::eval::eval_analyze(name, fix, &config, &claude, &repo_path)?,
+          other => {
+            eprintln!("eval not implemented for agent: {other}");
+            return Ok(());
+          }
+        };
+
+        let status = if result.all_passed() { "PASS" } else { "FAIL" };
+        println!("{status} {name}");
+        for check in &result.checks {
+          let mark = if check.passed { "  +" } else { "  -" };
+          println!("{mark} {} ({})", check.name, check.detail);
+        }
+
+        total += 1;
+        if result.all_passed() {
+          passed += 1;
+        }
+      }
+
+      println!("\n{passed}/{total} fixtures passed");
+      if passed < total {
+        std::process::exit(1);
       }
       Ok(())
     }

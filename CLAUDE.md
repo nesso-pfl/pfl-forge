@@ -12,6 +12,7 @@ Multi-agent task processor powered by Claude Code.
 - `src/claude/` — Claude Code CLI (`claude -p`) のラッパー
 - `src/git/` — worktree/branch 操作（rebase・gitignore 管理を含む）
 - `src/prompt/` — 各エージェントの system prompt（`.md` ファイル、`include_str!` で埋め込み）
+- `src/eval.rs` — プロンプト評価フレームワーク（フィクスチャ読み込み・チェック実行）
 - `src/main.rs` — CLI のみ、runner に委譲
 
 Runner が全エージェント呼び出しを管理する。Intent は `.forge/intents/*.yaml`、Observation は `.forge/observations.yaml`。
@@ -40,6 +41,7 @@ Runner が全エージェント呼び出しを管理する。Intent は `.forge/
 - `audit [path]` — コードベース監査 → Observation 記録
 - `inbox` — 承認待ち Intent の一覧
 - `approve <ids>` — Intent の承認
+- `eval <agent>` — プロンプト評価（evals/ フィクスチャを実行）
 
 ## Testing
 

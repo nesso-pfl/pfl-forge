@@ -1,0 +1,10 @@
+intent:
+  title: "Extract error handling into a shared module"
+  body: "Multiple files have duplicated error handling logic. Extract common error types and handling into a shared module."
+expectations:
+  relevant_files_contain:
+    - "src/"
+  plan_mentions:
+    - "error"
+  has_implementation_steps: true
+  min_relevant_files: 2

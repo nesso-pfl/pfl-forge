@@ -2,6 +2,7 @@ pub mod agent;
 pub mod claude;
 pub mod config;
 pub mod error;
+pub mod eval;
 pub mod git;
 pub mod intent;
 pub mod knowledge;

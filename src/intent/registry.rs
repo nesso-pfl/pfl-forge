@@ -58,6 +58,23 @@ impl Intent {
     self.clarifications.iter().any(|c| c.answer.is_none())
   }
 
+  pub fn synthetic(title: &str, body: &str) -> Self {
+    Self {
+      file_stem: "eval-fixture".to_string(),
+      title: title.to_string(),
+      body: body.to_string(),
+      intent_type: None,
+      source: "eval".to_string(),
+      risk: None,
+      status: Default::default(),
+      parent: None,
+      clarifications: vec![],
+      created_at: None,
+      last_step: None,
+      session_id: None,
+    }
+  }
+
   pub fn fetch_all(intents_dir: &Path) -> Result<Vec<Intent>> {
     if !intents_dir.exists() {
       info!("intents: 0");

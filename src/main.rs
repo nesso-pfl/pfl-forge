@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use pfl_forge::agent;
 use pfl_forge::claude::runner::ClaudeRunner;
@@ -104,8 +104,29 @@ async fn run(cli: Cli) -> Result<()> {
       Ok(())
     }
     Commands::Watch => {
-      info!("watch: not yet implemented in new architecture");
-      Ok(())
+      let repo_path = Config::repo_path();
+      let claude = ClaudeRunner::new(config.worker_tools.clone());
+      let interval = std::time::Duration::from_secs(config.poll_interval_secs);
+
+      info!("watch: polling every {}s", config.poll_interval_secs);
+      loop {
+        match runner::run_intents(&config, &claude, &repo_path, false) {
+          Ok(results) => {
+            for (id, result) in &results {
+              let status = match &result.outcome {
+                pfl_forge::knowledge::history::Outcome::Success => "success",
+                pfl_forge::knowledge::history::Outcome::Failed => "failed",
+                pfl_forge::knowledge::history::Outcome::Escalated => "escalated",
+              };
+              info!("{id}: {status}");
+            }
+          }
+          Err(e) => {
+            warn!("watch cycle error: {e}");
+          }
+        }
+        std::thread::sleep(interval);
+      }
     }
     Commands::Status => {
       let repo_path = Config::repo_path();

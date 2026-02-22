@@ -55,5 +55,34 @@ mod basic_flow;
 // --- Worktree Setup ---
 
 #[test]
-#[ignore]
-fn runs_worktree_setup_commands_before_implement() {}
+fn runs_worktree_setup_commands_before_implement() {
+  use helpers::*;
+  use pfl_forge::runner;
+
+  let (_dir, repo) = setup_repo_with_intent("setup-test");
+  let mut intent = load_intent(&repo, "setup-test");
+  let mut config = default_config();
+  config.worktree_setup = vec!["touch setup_marker.txt".to_string()];
+
+  let mock = MockClaude::with_sequence(vec![
+    json_response(analysis_json()),
+    raw_response("Done"),
+    json_response(approved_review_json()),
+  ]);
+
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+  assert_eq!(
+    result.outcome,
+    pfl_forge::knowledge::history::Outcome::Success
+  );
+
+  // Verify setup command ran in the worktree
+  let worktree_path = repo
+    .join(&config.worktree_dir)
+    .join("forge")
+    .join("setup-test");
+  assert!(
+    worktree_path.join("setup_marker.txt").exists(),
+    "worktree setup command should have created marker file"
+  );
+}

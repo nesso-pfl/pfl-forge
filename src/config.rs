@@ -26,6 +26,8 @@ pub struct Config {
   pub analyze_timeout_secs: u64,
   #[serde(default = "default_max_review_retries")]
   pub max_review_retries: u32,
+  #[serde(default)]
+  pub worktree_setup: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

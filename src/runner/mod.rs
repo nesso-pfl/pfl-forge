@@ -90,6 +90,7 @@ pub fn process_intent(
   )?;
   git::worktree::ensure_gitignore_forge(&worktree_path)?;
   task::write_task_yaml(&worktree_path, &task)?;
+  run_worktree_setup(&worktree_path, &config.worktree_setup)?;
 
   // Implement + Review cycle
   let selected_model = task.complexity().select_model(&config.models);
@@ -382,6 +383,23 @@ fn run_audit_report_flow(
     outcome,
     failure_reason,
   })
+}
+
+fn run_worktree_setup(worktree_path: &Path, commands: &[String]) -> Result<()> {
+  for cmd in commands {
+    info!("worktree setup: {cmd}");
+    let output = std::process::Command::new("sh")
+      .args(["-c", cmd])
+      .current_dir(worktree_path)
+      .output()?;
+    if !output.status.success() {
+      let stderr = String::from_utf8_lossy(&output.stderr);
+      return Err(crate::error::ForgeError::Git(format!(
+        "worktree setup command failed: {cmd}: {stderr}"
+      )));
+    }
+  }
+  Ok(())
 }
 
 fn has_children(repo_path: &Path, intent_id: &str) -> bool {

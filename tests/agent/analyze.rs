@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use pfl_forge::agent::analyze::{self, AnalysisOutcome};
+use pfl_forge::agent::analyze::{self, ActiveIntentContext, AnalysisOutcome};
 use pfl_forge::claude::model::SONNET;
 use pfl_forge::config::Config;
 use pfl_forge::intent::registry::Intent;
@@ -33,7 +33,7 @@ fn 成功した分析からタスクスペックを返す() {
   let intent = sample_intent();
 
   let (outcome, _meta) =
-    analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+    analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
 
   let specs = match outcome {
     AnalysisOutcome::Tasks(s) => s,
@@ -55,7 +55,7 @@ fn 複数タスクとdepends_onを返す() {
   let intent = sample_intent();
 
   let (outcome, _meta) =
-    analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+    analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
 
   let specs = match outcome {
     AnalysisOutcome::Tasks(s) => s,
@@ -75,7 +75,7 @@ fn 問題が大きい場合は子intentを返す() {
   let intent = sample_intent();
 
   let (outcome, _meta) =
-    analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+    analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
 
   match outcome {
     AnalysisOutcome::ChildIntents(children) => {
@@ -96,7 +96,7 @@ fn 情報不足の場合はclarificationを返す() {
   let intent = sample_intent();
 
   let (outcome, _meta) =
-    analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+    analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
 
   match outcome {
     AnalysisOutcome::NeedsClarification { clarifications } => {
@@ -113,7 +113,7 @@ fn configのanalyzeモデルを使用する() {
   let config = default_config();
   let intent = sample_intent();
 
-  analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+  analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
 
   let call = mock.last_call();
   assert_eq!(call.model, SONNET);
@@ -125,7 +125,7 @@ fn configのanalyzeタイムアウトを使用する() {
   let config = default_config();
   let intent = sample_intent();
 
-  analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+  analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
 
   let call = mock.last_call();
   assert_eq!(call.timeout, Some(Duration::from_secs(600)));
@@ -137,7 +137,7 @@ fn プロンプトにintentのid_title_bodyが含まれる() {
   let config = default_config();
   let intent = sample_intent();
 
-  analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+  analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
 
   let call = mock.last_call();
   assert!(call.prompt.contains("add-tests"));
@@ -146,12 +146,48 @@ fn プロンプトにintentのid_title_bodyが含まれる() {
 }
 
 #[test]
+fn active_intentのコンテキストをプロンプトに含める() {
+  let mock = MockClaude::with_json(&analysis_json());
+  let config = default_config();
+  let intent = sample_intent();
+
+  let active = vec![ActiveIntentContext {
+    id: "other-intent".into(),
+    title: "Refactor auth".into(),
+    status: "implementing".into(),
+    relevant_files: vec!["src/auth.rs".into(), "src/session.rs".into()],
+    plan: Some("Extract auth logic into separate module".into()),
+  }];
+
+  analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &active).unwrap();
+
+  let call = mock.last_call();
+  assert!(call.prompt.contains("Active Intents"));
+  assert!(call.prompt.contains("other-intent"));
+  assert!(call.prompt.contains("Refactor auth"));
+  assert!(call.prompt.contains("src/auth.rs"));
+  assert!(call.prompt.contains("Extract auth logic"));
+}
+
+#[test]
+fn active_intentが空ならセクションを省略する() {
+  let mock = MockClaude::with_json(&analysis_json());
+  let config = default_config();
+  let intent = sample_intent();
+
+  analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
+
+  let call = mock.last_call();
+  assert!(!call.prompt.contains("Active Intents"));
+}
+
+#[test]
 fn claudeエラーを伝播する() {
   let mock = MockClaude::with_error("API rate limit exceeded");
   let config = default_config();
   let intent = sample_intent();
 
-  let result = analyze::analyze(&intent, &config, &mock, std::path::Path::new("."));
+  let result = analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]);
   assert!(result.is_err());
   let err = result.unwrap_err().to_string();
   assert!(err.contains("rate limit"), "error was: {err}");

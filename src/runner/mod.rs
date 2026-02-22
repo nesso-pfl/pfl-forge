@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use tracing::{info, warn};
 
-use crate::agent::analyze::AnalysisOutcome;
+use crate::agent::analyze::{ActiveIntentContext, AnalysisOutcome};
 use crate::agent::review::ReviewResult;
 use crate::agent::{analyze, audit, implement, reflect, review};
 use crate::claude::runner::{parse_metadata, Claude};
@@ -137,9 +137,13 @@ pub fn process_intent(
       info!("resume data not found, running from start");
     }
 
+    // Gather active intent contexts for dependency detection
+    let active_intents = gather_active_intents(repo_path, config, intent.id());
+
     // Analyze
     let start = Instant::now();
-    let (analysis_outcome, analyze_meta) = analyze::analyze(intent, config, claude, repo_path)?;
+    let (analysis_outcome, analyze_meta) =
+      analyze::analyze(intent, config, claude, repo_path, &active_intents)?;
     step_results.push(StepResult {
       step: "analyze".into(),
       duration_secs: start.elapsed().as_secs(),
@@ -718,6 +722,50 @@ pub fn update_intent_file(repo_path: &Path, intent: &Intent) -> Result<()> {
   let content = serde_yaml::to_string(intent)?;
   std::fs::write(&path, content)?;
   Ok(())
+}
+
+fn gather_active_intents(
+  repo_path: &Path,
+  config: &Config,
+  current_id: &str,
+) -> Vec<ActiveIntentContext> {
+  let intents_dir = repo_path.join(".forge").join("intents");
+  let intents = Intent::fetch_all(&intents_dir).unwrap_or_default();
+
+  intents
+    .into_iter()
+    .filter(|i| {
+      i.id() != current_id
+        && matches!(
+          i.status,
+          IntentStatus::Approved | IntentStatus::Implementing
+        )
+    })
+    .map(|i| {
+      let status = format!("{:?}", i.status).to_lowercase();
+      // Try to read tasks from worktree for relevant_files and plan
+      let wt_path = git::worktree::path_for(repo_path, &config.worktree_dir, &i.branch_name());
+      let (relevant_files, plan) = task::read_all_tasks(&wt_path)
+        .ok()
+        .map(|tasks| {
+          let files: Vec<String> = tasks
+            .iter()
+            .flat_map(|t| t.relevant_files.iter().cloned())
+            .collect();
+          let plan = tasks.first().map(|t| t.plan.clone());
+          (files, plan)
+        })
+        .unwrap_or_default();
+
+      ActiveIntentContext {
+        id: i.id().to_string(),
+        title: i.title.clone(),
+        status,
+        relevant_files,
+        plan,
+      }
+    })
+    .collect()
 }
 
 pub fn create_audit_intent(repo_path: &Path, target: &str) -> Result<Intent> {

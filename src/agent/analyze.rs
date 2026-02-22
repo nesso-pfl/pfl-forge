@@ -10,6 +10,16 @@ use crate::error::Result;
 use crate::intent::registry::Intent;
 use crate::prompt;
 
+/// Summary of another active intent, passed to Analyze Agent for dependency detection.
+#[derive(Debug, Clone)]
+pub struct ActiveIntentContext {
+  pub id: String,
+  pub title: String,
+  pub status: String,
+  pub relevant_files: Vec<String>,
+  pub plan: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisResult {
   pub complexity: String,
@@ -115,10 +125,11 @@ pub fn analyze(
   config: &Config,
   runner: &impl Claude,
   repo_path: &std::path::Path,
+  active_intents: &[ActiveIntentContext],
 ) -> Result<(AnalysisOutcome, ClaudeMetadata)> {
   let deep_model = model::resolve(&config.models.analyze);
 
-  let prompt = format!(
+  let mut prompt = format!(
     r#"Intent {id}: {title}
 
 {body}"#,
@@ -126,6 +137,20 @@ pub fn analyze(
     title = intent.title,
     body = intent.body,
   );
+
+  if !active_intents.is_empty() {
+    prompt.push_str("\n\n## Active Intents\n\n");
+    for ai in active_intents {
+      prompt.push_str(&format!("- **{}** ({}): {}\n", ai.id, ai.status, ai.title));
+      if !ai.relevant_files.is_empty() {
+        prompt.push_str(&format!("  files: {}\n", ai.relevant_files.join(", ")));
+      }
+      if let Some(plan) = &ai.plan {
+        let summary: String = plan.chars().take(200).collect();
+        prompt.push_str(&format!("  plan: {summary}\n"));
+      }
+    }
+  }
 
   let timeout = Some(Duration::from_secs(config.analyze_timeout_secs));
 

@@ -4,6 +4,83 @@ use pfl_forge::runner;
 
 use crate::helpers::*;
 
+// --- run_approved ---
+
+#[test]
+fn approvedのintentのみ処理する() {
+  let (_dir, repo) = setup_repo_with_intent("target");
+  add_intent(&repo, "proposed-one", "proposed");
+  add_intent(&repo, "done-one", "done");
+  let config = default_config();
+
+  let mock = MockClaude::with_sequence(vec![
+    json_response(analysis_json()),
+    raw_response("Done"),
+    json_response(approved_review_json()),
+  ]);
+
+  let results = runner::run_approved(&config, &mock, &repo, false).unwrap();
+
+  assert_eq!(results.len(), 1);
+  assert_eq!(results[0].0, "target");
+  assert_eq!(results[0].1.outcome, Outcome::Success);
+  // 3 calls: analyze + implement + review (only for the approved intent)
+  assert_eq!(mock.call_count(), 3);
+}
+
+#[test]
+fn approved_intentがなければ空を返す() {
+  let (_dir, repo) = setup_repo_with_intent("some-intent");
+  // Change the existing intent to proposed
+  add_intent(&repo, "some-intent", "proposed");
+  let config = default_config();
+
+  let mock = MockClaude::with_sequence(vec![]);
+
+  let results = runner::run_approved(&config, &mock, &repo, false).unwrap();
+
+  assert!(results.is_empty());
+  assert_eq!(mock.call_count(), 0);
+}
+
+#[test]
+fn dry_runではanalyzeを実行しない() {
+  let (_dir, repo) = setup_repo_with_intent("dry-target");
+  let config = default_config();
+
+  let mock = MockClaude::with_sequence(vec![]);
+
+  let results = runner::run_approved(&config, &mock, &repo, true).unwrap();
+
+  assert!(results.is_empty());
+  assert_eq!(mock.call_count(), 0);
+}
+
+#[test]
+fn 複数intentを順次処理する() {
+  let (_dir, repo) = setup_repo_with_intent("first");
+  add_intent(&repo, "second", "approved");
+  let config = default_config();
+
+  let mock = MockClaude::with_sequence(vec![
+    // first intent
+    json_response(analysis_json()),
+    raw_response("Done 1"),
+    json_response(approved_review_json()),
+    // second intent
+    json_response(analysis_json()),
+    raw_response("Done 2"),
+    json_response(approved_review_json()),
+  ]);
+
+  let results = runner::run_approved(&config, &mock, &repo, false).unwrap();
+
+  assert_eq!(results.len(), 2);
+  assert_eq!(results[0].1.outcome, Outcome::Success);
+  assert_eq!(results[1].1.outcome, Outcome::Success);
+  assert_eq!(mock.call_count(), 6);
+}
+
 // --- 基本実行 ---
 
 #[test]

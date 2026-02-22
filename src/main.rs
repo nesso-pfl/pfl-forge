@@ -4,9 +4,11 @@ use clap::{Parser, Subcommand};
 use tracing::{error, info};
 
 use pfl_forge::agent;
+use pfl_forge::claude::runner::ClaudeRunner;
 use pfl_forge::config::Config;
 use pfl_forge::error::Result;
 use pfl_forge::git;
+use pfl_forge::runner;
 
 #[derive(Parser)]
 #[command(
@@ -84,8 +86,21 @@ async fn run(cli: Cli) -> Result<()> {
   let config = Config::load(&cli.config)?;
 
   match cli.command {
-    Commands::Run { dry_run: _ } => {
-      info!("run: not yet implemented in new architecture");
+    Commands::Run { dry_run } => {
+      let repo_path = Config::repo_path();
+      let claude = ClaudeRunner::new(config.worker_tools.clone());
+      let results = runner::run_approved(&config, &claude, &repo_path, dry_run)?;
+      for (id, result) in &results {
+        let status = match &result.outcome {
+          pfl_forge::knowledge::history::Outcome::Success => "success",
+          pfl_forge::knowledge::history::Outcome::Failed => "failed",
+          pfl_forge::knowledge::history::Outcome::Escalated => "escalated",
+        };
+        println!("{id}: {status}");
+      }
+      if results.is_empty() && !dry_run {
+        println!("no approved intents to process");
+      }
       Ok(())
     }
     Commands::Watch => {

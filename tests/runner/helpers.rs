@@ -190,6 +190,13 @@ pub fn audit_result_json() -> &'static str {
   r#"{"observations":[{"content":"Found unused import","evidence":[{"type":"file","ref":"src/main.rs:3"}]}]}"#
 }
 
+pub fn add_intent(repo_path: &Path, intent_id: &str, status: &str) {
+  let intents_dir = repo_path.join(".forge").join("intents");
+  let yaml =
+    format!("title: {intent_id}\nbody: Body of {intent_id}\nsource: human\nstatus: {status}\n");
+  std::fs::write(intents_dir.join(format!("{intent_id}.yaml")), yaml).unwrap();
+}
+
 pub fn load_intent(repo_path: &Path, intent_id: &str) -> Intent {
   let intents_dir = repo_path.join(".forge").join("intents");
   Intent::fetch_all(&intents_dir)

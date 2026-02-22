@@ -52,6 +52,47 @@ pub struct IntentResult {
   pub failure_reason: Option<String>,
 }
 
+pub fn run_approved(
+  config: &Config,
+  claude: &impl Claude,
+  repo_path: &Path,
+  dry_run: bool,
+) -> Result<Vec<(String, IntentResult)>> {
+  let intents_dir = repo_path.join(".forge").join("intents");
+  let all_intents = Intent::fetch_all(&intents_dir)?;
+  let approved: Vec<Intent> = all_intents
+    .into_iter()
+    .filter(|i| i.status == IntentStatus::Approved)
+    .collect();
+
+  if approved.is_empty() {
+    info!("no approved intents found");
+    return Ok(Vec::new());
+  }
+
+  if dry_run {
+    for intent in &approved {
+      info!("[dry-run] would process: {}", intent);
+    }
+    return Ok(Vec::new());
+  }
+
+  let mut results = Vec::new();
+  for mut intent in approved {
+    let id = intent.id().to_string();
+    match process_intent(&mut intent, config, claude, repo_path) {
+      Ok(result) => {
+        info!("{}: {:?}", id, result.outcome);
+        results.push((id, result));
+      }
+      Err(e) => {
+        warn!("{}: error: {e}", id);
+      }
+    }
+  }
+  Ok(results)
+}
+
 pub fn process_intent(
   intent: &mut Intent,
   config: &Config,

@@ -1,11 +1,76 @@
-#[test]
-#[ignore]
-fn bashツールでインタラクティブセッションを起動する() {}
+use pfl_forge::agent::operator;
 
 #[test]
-#[ignore]
-fn claudecode環境変数を除去する() {}
+fn intentがない場合のメッセージ() {
+  let dir = tempfile::tempdir().unwrap();
+  let msg = operator::build_initial_message(dir.path());
+  assert!(msg.contains("No intents found"));
+}
 
 #[test]
-#[ignore]
-fn システムプロンプトを追加する() {}
+fn 状態サマリにintentの件数が含まれる() {
+  let dir = tempfile::tempdir().unwrap();
+  let intents_dir = dir.path().join(".forge").join("intents");
+  std::fs::create_dir_all(&intents_dir).unwrap();
+
+  std::fs::write(
+    intents_dir.join("feat-a.yaml"),
+    "title: Feature A\nbody: Do A\nsource: human\nstatus: approved\n",
+  )
+  .unwrap();
+  std::fs::write(
+    intents_dir.join("feat-b.yaml"),
+    "title: Feature B\nbody: Do B\nsource: human\nstatus: done\n",
+  )
+  .unwrap();
+
+  let msg = operator::build_initial_message(dir.path());
+  assert!(msg.contains("Total: 2 intents"));
+  assert!(msg.contains("approved: 1"));
+  assert!(msg.contains("done: 1"));
+}
+
+#[test]
+fn inboxにproposedとblockedが含まれる() {
+  let dir = tempfile::tempdir().unwrap();
+  let intents_dir = dir.path().join(".forge").join("intents");
+  std::fs::create_dir_all(&intents_dir).unwrap();
+
+  std::fs::write(
+    intents_dir.join("pending.yaml"),
+    "title: Pending feature\nbody: body\nsource: human\nstatus: proposed\n",
+  )
+  .unwrap();
+  std::fs::write(
+    intents_dir.join("stuck.yaml"),
+    "title: Stuck feature\nbody: body\nsource: human\nstatus: blocked\n",
+  )
+  .unwrap();
+  std::fs::write(
+    intents_dir.join("ok.yaml"),
+    "title: Done feature\nbody: body\nsource: human\nstatus: done\n",
+  )
+  .unwrap();
+
+  let msg = operator::build_initial_message(dir.path());
+  assert!(msg.contains("## Inbox"));
+  assert!(msg.contains("pending"));
+  assert!(msg.contains("stuck"));
+  assert!(!msg.contains("ok")); // done intents shouldn't be in inbox
+}
+
+#[test]
+fn clarification待ちintentにラベルがつく() {
+  let dir = tempfile::tempdir().unwrap();
+  let intents_dir = dir.path().join(".forge").join("intents");
+  std::fs::create_dir_all(&intents_dir).unwrap();
+
+  std::fs::write(
+    intents_dir.join("clarify.yaml"),
+    "title: Needs info\nbody: body\nsource: human\nstatus: blocked\nclarifications:\n  - question: What API?\n",
+  )
+  .unwrap();
+
+  let msg = operator::build_initial_message(dir.path());
+  assert!(msg.contains("[needs clarification]"));
+}

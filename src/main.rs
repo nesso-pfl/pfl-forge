@@ -176,7 +176,10 @@ async fn run(cli: Cli) -> Result<()> {
       println!("{cleaned} worktree(s) cleaned");
       Ok(())
     }
-    Commands::Parent { model } => agent::operator::launch(&config, model.as_deref()),
+    Commands::Parent { model } => {
+      let repo_path = Config::repo_path();
+      agent::operator::launch(&config, model.as_deref(), &repo_path)
+    }
     Commands::Create { title, body } => {
       let repo_path = Config::repo_path();
       let intents_dir = repo_path.join(".forge").join("intents");

@@ -15,7 +15,7 @@ pub struct CapturedCall {
 }
 
 pub struct MockClaude {
-  response: Result<String>,
+  responses: RefCell<Vec<Result<String>>>,
   pub calls: RefCell<Vec<CapturedCall>>,
 }
 
@@ -25,14 +25,24 @@ impl MockClaude {
     let escaped = inner_json.replace('\\', "\\\\").replace('"', "\\\"");
     let response = format!(r#"{{"result": "{escaped}"}}"#);
     Self {
-      response: Ok(response),
+      responses: RefCell::new(vec![Ok(response)]),
       calls: RefCell::new(Vec::new()),
     }
   }
 
   pub fn with_error(msg: &str) -> Self {
     Self {
-      response: Err(ForgeError::Claude(msg.to_string())),
+      responses: RefCell::new(vec![Err(ForgeError::Claude(msg.to_string()))]),
+      calls: RefCell::new(Vec::new()),
+    }
+  }
+
+  /// Create a mock that returns responses in sequence.
+  /// Each call to `run_prompt` pops the next response.
+  /// If responses are exhausted, returns the last one repeatedly.
+  pub fn with_sequence(responses: Vec<Result<String>>) -> Self {
+    Self {
+      responses: RefCell::new(responses),
       calls: RefCell::new(Vec::new()),
     }
   }
@@ -45,6 +55,25 @@ impl MockClaude {
       .expect("no calls recorded")
       .clone()
   }
+
+  pub fn call_count(&self) -> usize {
+    self.calls.borrow().len()
+  }
+}
+
+/// Wrap inner_json in Claude's result envelope.
+pub fn json_response(inner_json: &str) -> Result<String> {
+  let escaped = inner_json.replace('\\', "\\\\").replace('"', "\\\"");
+  Ok(format!(r#"{{"result": "{escaped}"}}"#))
+}
+
+/// Wrap raw string in Claude's result envelope (for implement which returns raw text).
+pub fn raw_response(text: &str) -> Result<String> {
+  Ok(format!(r#"{{"result": "{}"}}"#, text.replace('"', "\\\"")))
+}
+
+pub fn error_response(msg: &str) -> Result<String> {
+  Err(ForgeError::Claude(msg.to_string()))
 }
 
 impl Claude for MockClaude {
@@ -63,9 +92,20 @@ impl Claude for MockClaude {
       cwd: cwd.to_path_buf(),
       timeout,
     });
-    match &self.response {
-      Ok(s) => Ok(s.clone()),
-      Err(e) => Err(ForgeError::Claude(format!("{e}"))),
+    let mut responses = self.responses.borrow_mut();
+    if responses.len() > 1 {
+      let resp = responses.remove(0);
+      match resp {
+        Ok(s) => Ok(s),
+        Err(e) => Err(ForgeError::Claude(format!("{e}"))),
+      }
+    } else if let Some(resp) = responses.first() {
+      match resp {
+        Ok(s) => Ok(s.clone()),
+        Err(e) => Err(ForgeError::Claude(format!("{e}"))),
+      }
+    } else {
+      Err(ForgeError::Claude("no responses configured".into()))
     }
   }
 }

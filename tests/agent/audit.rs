@@ -19,7 +19,7 @@ fn 監査結果からobservationを記録する() {
   let dir = tempfile::tempdir().unwrap();
   std::fs::create_dir_all(dir.path().join(".forge")).unwrap();
 
-  let result = audit::audit(&config, &mock, dir.path(), None, "test-audit").unwrap();
+  let (result, _meta) = audit::audit(&config, &mock, dir.path(), None, "test-audit").unwrap();
 
   assert_eq!(result.observations.len(), 2);
   assert!(result.observations[0]
@@ -41,7 +41,7 @@ fn intentは生成しない() {
   let dir = tempfile::tempdir().unwrap();
   std::fs::create_dir_all(dir.path().join(".forge")).unwrap();
 
-  let result = audit::audit(&config, &mock, dir.path(), None, "test-audit").unwrap();
+  let (result, _meta) = audit::audit(&config, &mock, dir.path(), None, "test-audit").unwrap();
 
   // AuditResult only contains observations, no intents
   assert_eq!(result.observations.len(), 2);

@@ -99,10 +99,12 @@ fn step_resultsに所要時間が含まれる() {
       StepResult {
         step: "analyze".into(),
         duration_secs: 45,
+        metadata: None,
       },
       StepResult {
         step: "implement".into(),
         duration_secs: 300,
+        metadata: None,
       },
     ],
     outcome: Outcome::Success,

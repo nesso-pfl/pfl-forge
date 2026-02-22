@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::claude::model;
-use crate::claude::runner::Claude;
+use crate::claude::runner::{Claude, ClaudeMetadata};
 use crate::config::Config;
 use crate::error::{ForgeError, Result};
 use crate::intent::registry::Intent;
@@ -27,7 +27,7 @@ pub fn review(
   runner: &impl Claude,
   worktree_path: &Path,
   base_branch: &str,
-) -> Result<ReviewResult> {
+) -> Result<(ReviewResult, ClaudeMetadata)> {
   let review_model = model::resolve(&config.models.default);
 
   let diff = get_diff(worktree_path, base_branch)?;
@@ -56,7 +56,7 @@ pub fn review(
   let timeout = Some(Duration::from_secs(config.analyze_timeout_secs));
 
   info!("reviewing: {intent}");
-  let result: ReviewResult = runner.run_json(
+  let (result, metadata): (ReviewResult, _) = runner.run_json_with_meta(
     &prompt,
     prompt::REVIEW,
     review_model,
@@ -71,7 +71,7 @@ pub fn review(
     result.suggestions.len(),
   );
 
-  Ok(result)
+  Ok((result, metadata))
 }
 
 fn get_diff(worktree_path: &Path, base_branch: &str) -> Result<String> {

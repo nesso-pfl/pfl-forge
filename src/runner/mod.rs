@@ -6,7 +6,7 @@ use tracing::{info, warn};
 use crate::agent::analyze::AnalysisOutcome;
 use crate::agent::review::ReviewResult;
 use crate::agent::{analyze, audit, implement, reflect, review};
-use crate::claude::runner::Claude;
+use crate::claude::runner::{parse_metadata, Claude};
 use crate::config::Config;
 use crate::error::Result;
 use crate::git;
@@ -139,10 +139,11 @@ pub fn process_intent(
 
     // Analyze
     let start = Instant::now();
-    let analysis_outcome = analyze::analyze(intent, config, claude, repo_path)?;
+    let (analysis_outcome, analyze_meta) = analyze::analyze(intent, config, claude, repo_path)?;
     step_results.push(StepResult {
       step: "analyze".into(),
       duration_secs: start.elapsed().as_secs(),
+      metadata: Some(analyze_meta),
     });
 
     // Handle non-task outcomes
@@ -262,13 +263,16 @@ pub fn process_intent(
   // Reflect: run after successful leaf intent completion
   if outcome == Outcome::Success && !has_children(repo_path, intent.id()) {
     let start = Instant::now();
-    match reflect::reflect(intent, config, claude, repo_path) {
-      Ok(r) => info!("reflect: generated {} intents", r.intents.len()),
+    let reflect_result = reflect::reflect(intent, config, claude, repo_path);
+    let reflect_meta = reflect_result.as_ref().ok().map(|(_, m)| m.clone());
+    match reflect_result {
+      Ok((r, _)) => info!("reflect: generated {} intents", r.intents.len()),
       Err(e) => warn!("reflect failed: {e}"),
     }
     step_results.push(StepResult {
       step: "reflect".into(),
       duration_secs: start.elapsed().as_secs(),
+      metadata: reflect_meta,
     });
   }
 
@@ -446,9 +450,11 @@ fn run_implement_review_cycle(
       review_feedback.as_ref(),
       sid,
     );
+    let impl_meta = impl_result.as_ref().ok().map(|raw| parse_metadata(raw));
     step_results.push(StepResult {
       step: "implement".into(),
       duration_secs: start.elapsed().as_secs(),
+      metadata: impl_meta,
     });
 
     if let Err(e) = impl_result {
@@ -474,6 +480,7 @@ fn run_implement_review_cycle(
     step_results.push(StepResult {
       step: "rebase".into(),
       duration_secs: start.elapsed().as_secs(),
+      metadata: None,
     });
 
     if !rebase_ok {
@@ -509,9 +516,11 @@ fn run_implement_review_cycle(
         None,
         None,
       );
+      let reimpl_meta = reimpl.as_ref().ok().map(|raw| parse_metadata(raw));
       step_results.push(StepResult {
         step: "implement".into(),
         duration_secs: start.elapsed().as_secs(),
+        metadata: reimpl_meta,
       });
 
       if reimpl.is_err() {
@@ -526,6 +535,7 @@ fn run_implement_review_cycle(
       step_results.push(StepResult {
         step: "rebase".into(),
         duration_secs: start.elapsed().as_secs(),
+        metadata: None,
       });
 
       if !rebase_ok2 {
@@ -544,17 +554,19 @@ fn run_implement_review_cycle(
       worktree_path,
       &config.base_branch,
     );
+    let review_meta = review_result.as_ref().ok().map(|(_, m)| m.clone());
     step_results.push(StepResult {
       step: "review".into(),
       duration_secs: start.elapsed().as_secs(),
+      metadata: review_meta,
     });
 
     match review_result {
-      Ok(result) if result.approved => {
+      Ok((result, _meta)) if result.approved => {
         task.status = WorkStatus::Completed;
         return TaskOutcome::Done;
       }
-      Ok(result) => {
+      Ok((result, _meta)) => {
         info!(
           "review rejected (attempt {}/{})",
           attempt + 1,
@@ -599,13 +611,15 @@ fn run_audit_report_flow(
     target_path.as_deref(),
     intent.id(),
   );
+  let audit_meta = audit_result.as_ref().ok().map(|(_, m)| m.clone());
   step_results.push(StepResult {
     step: "audit".into(),
     duration_secs: start.elapsed().as_secs(),
+    metadata: audit_meta,
   });
 
   let (outcome, failure_reason) = match audit_result {
-    Ok(result) => {
+    Ok((result, _meta)) => {
       // Report: read observations and output summary
       let start = Instant::now();
       let obs_path = repo_path.join(".forge").join("observations.yaml");
@@ -617,6 +631,7 @@ fn run_audit_report_flow(
       step_results.push(StepResult {
         step: "report".into(),
         duration_secs: start.elapsed().as_secs(),
+        metadata: None,
       });
 
       intent.status = IntentStatus::Done;

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::claude::model;
-use crate::claude::runner::Claude;
+use crate::claude::runner::{Claude, ClaudeMetadata};
 use crate::config::Config;
 use crate::error::Result;
 use crate::intent::registry::Intent;
@@ -33,14 +33,14 @@ pub fn reflect(
   config: &Config,
   runner: &impl Claude,
   repo_path: &Path,
-) -> Result<ReflectResult> {
+) -> Result<(ReflectResult, ClaudeMetadata)> {
   let obs_path = repo_path.join(".forge").join("observations.yaml");
   let all_obs = observation::load(&obs_path)?;
   let unprocessed: Vec<&Observation> = observation::unprocessed(&all_obs);
 
   if unprocessed.is_empty() {
     info!("reflect: no unprocessed observations");
-    return Ok(ReflectResult { intents: vec![] });
+    return Ok((ReflectResult { intents: vec![] }, ClaudeMetadata::default()));
   }
 
   let reflect_model = model::resolve(&config.models.default);
@@ -56,8 +56,8 @@ pub fn reflect(
   let timeout = Some(Duration::from_secs(config.analyze_timeout_secs));
 
   info!("reflecting on {} observations", unprocessed.len());
-  let result: ReflectResult =
-    runner.run_json(&prompt, prompt::REFLECT, reflect_model, repo_path, timeout)?;
+  let (result, metadata): (ReflectResult, _) =
+    runner.run_json_with_meta(&prompt, prompt::REFLECT, reflect_model, repo_path, timeout)?;
 
   // Write generated intents to .forge/intents/
   let intents_dir = repo_path.join(".forge").join("intents");
@@ -80,7 +80,7 @@ pub fn reflect(
   observation::mark_processed(&obs_path, &intent.id())?;
 
   info!("reflect: generated {} intents", result.intents.len());
-  Ok(result)
+  Ok((result, metadata))
 }
 
 #[derive(Serialize)]

@@ -72,7 +72,8 @@ fn 承認されたレビュー結果を返す() {
   let task = sample_task();
   let repo = setup_git_repo();
 
-  let result = review::review(&intent, &task, &config, &mock, repo.path(), "main").unwrap();
+  let (result, _meta) =
+    review::review(&intent, &task, &config, &mock, repo.path(), "main").unwrap();
   assert!(result.approved);
   assert!(result.issues.is_empty());
 }
@@ -86,7 +87,8 @@ fn 却下時にissueを返す() {
   let task = sample_task();
   let repo = setup_git_repo();
 
-  let result = review::review(&intent, &task, &config, &mock, repo.path(), "main").unwrap();
+  let (result, _meta) =
+    review::review(&intent, &task, &config, &mock, repo.path(), "main").unwrap();
   assert!(!result.approved);
   assert_eq!(result.issues, vec!["Missing tests"]);
   assert_eq!(result.suggestions, vec!["Add unit tests"]);

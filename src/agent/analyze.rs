@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::claude::model;
-use crate::claude::runner::Claude;
+use crate::claude::runner::{Claude, ClaudeMetadata};
 use crate::config::Config;
 use crate::error::Result;
 use crate::intent::registry::Intent;
@@ -115,7 +115,7 @@ pub fn analyze(
   config: &Config,
   runner: &impl Claude,
   repo_path: &std::path::Path,
-) -> Result<AnalysisOutcome> {
+) -> Result<(AnalysisOutcome, ClaudeMetadata)> {
   let deep_model = model::resolve(&config.models.analyze);
 
   let prompt = format!(
@@ -130,8 +130,8 @@ pub fn analyze(
   let timeout = Some(Duration::from_secs(config.analyze_timeout_secs));
 
   info!("analyzing: {intent}");
-  let raw: RawAnalysis =
-    runner.run_json(&prompt, prompt::ANALYZE, deep_model, repo_path, timeout)?;
+  let (raw, metadata): (RawAnalysis, _) =
+    runner.run_json_with_meta(&prompt, prompt::ANALYZE, deep_model, repo_path, timeout)?;
   let outcome = AnalysisOutcome::from(raw);
 
   match &outcome {
@@ -157,5 +157,5 @@ pub fn analyze(
     }
   }
 
-  Ok(outcome)
+  Ok((outcome, metadata))
 }

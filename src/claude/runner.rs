@@ -3,9 +3,32 @@ use std::process::Command;
 use std::time::Duration;
 
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
 use crate::error::{ForgeError, Result};
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ClaudeMetadata {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub session_id: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub cost_usd: Option<f64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub duration_ms: Option<u64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub duration_api_ms: Option<u64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub input_tokens: Option<u64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub output_tokens: Option<u64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub cache_read_input_tokens: Option<u64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub cache_creation_input_tokens: Option<u64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub num_turns: Option<u64>,
+}
 
 pub trait Claude {
   fn run_prompt(
@@ -28,6 +51,20 @@ pub trait Claude {
   ) -> Result<T> {
     let raw = self.run_prompt(prompt, system_prompt, model, cwd, timeout, None)?;
     parse_claude_json_output(&raw)
+  }
+
+  fn run_json_with_meta<T: DeserializeOwned>(
+    &self,
+    prompt: &str,
+    system_prompt: &str,
+    model: &str,
+    cwd: &Path,
+    timeout: Option<Duration>,
+  ) -> Result<(T, ClaudeMetadata)> {
+    let raw = self.run_prompt(prompt, system_prompt, model, cwd, timeout, None)?;
+    let metadata = parse_metadata(&raw);
+    let result = parse_claude_json_output(&raw)?;
+    Ok((result, metadata))
   }
 }
 
@@ -183,6 +220,37 @@ fn parse_claude_json_output<T: DeserializeOwned>(raw: &str) -> Result<T> {
     .map_err(|e| ForgeError::Claude(format!("failed to parse result as expected type: {e}")))
 }
 
+/// Extract metadata from the Claude JSON wrapper (session_id, tokens, cost, etc.)
+pub fn parse_metadata(raw: &str) -> ClaudeMetadata {
+  let wrapper: serde_json::Value = match serde_json::from_str(raw) {
+    Ok(v) => v,
+    Err(_) => return ClaudeMetadata::default(),
+  };
+  let usage = wrapper.get("usage");
+  ClaudeMetadata {
+    session_id: wrapper
+      .get("session_id")
+      .and_then(|v| v.as_str())
+      .map(String::from),
+    cost_usd: wrapper.get("total_cost_usd").and_then(|v| v.as_f64()),
+    duration_ms: wrapper.get("duration_ms").and_then(|v| v.as_u64()),
+    duration_api_ms: wrapper.get("duration_api_ms").and_then(|v| v.as_u64()),
+    num_turns: wrapper.get("num_turns").and_then(|v| v.as_u64()),
+    input_tokens: usage
+      .and_then(|u| u.get("input_tokens"))
+      .and_then(|v| v.as_u64()),
+    output_tokens: usage
+      .and_then(|u| u.get("output_tokens"))
+      .and_then(|v| v.as_u64()),
+    cache_read_input_tokens: usage
+      .and_then(|u| u.get("cache_read_input_tokens"))
+      .and_then(|v| v.as_u64()),
+    cache_creation_input_tokens: usage
+      .and_then(|u| u.get("cache_creation_input_tokens"))
+      .and_then(|v| v.as_u64()),
+  }
+}
+
 /// `claude -p --output-format json` の応答は常にきれいな JSON とは限らない。
 /// markdown コードブロックで囲まれていたり、前後に説明テキストが付くことがある。
 /// この関数はそうした出力から JSON 部分だけを切り出す。
@@ -246,5 +314,49 @@ mod tests {
     let raw = r#"{"result": "{\"actionable\": true}", "cost_usd": 0.01}"#;
     let parsed: TestOutput = parse_claude_json_output(raw).unwrap();
     assert!(parsed.actionable);
+  }
+
+  #[test]
+  fn ラッパーからメタデータを抽出する() {
+    let raw = r#"{
+      "type": "result",
+      "result": "hello",
+      "session_id": "abc-123",
+      "total_cost_usd": 0.044,
+      "duration_ms": 2514,
+      "duration_api_ms": 2482,
+      "num_turns": 3,
+      "usage": {
+        "input_tokens": 100,
+        "output_tokens": 50,
+        "cache_read_input_tokens": 200,
+        "cache_creation_input_tokens": 300
+      }
+    }"#;
+    let meta = parse_metadata(raw);
+    assert_eq!(meta.session_id.as_deref(), Some("abc-123"));
+    assert_eq!(meta.cost_usd, Some(0.044));
+    assert_eq!(meta.duration_ms, Some(2514));
+    assert_eq!(meta.duration_api_ms, Some(2482));
+    assert_eq!(meta.num_turns, Some(3));
+    assert_eq!(meta.input_tokens, Some(100));
+    assert_eq!(meta.output_tokens, Some(50));
+    assert_eq!(meta.cache_read_input_tokens, Some(200));
+    assert_eq!(meta.cache_creation_input_tokens, Some(300));
+  }
+
+  #[test]
+  fn メタデータ欠損時はデフォルト値を返す() {
+    let raw = r#"{"result": "hello"}"#;
+    let meta = parse_metadata(raw);
+    assert!(meta.session_id.is_none());
+    assert!(meta.cost_usd.is_none());
+    assert!(meta.input_tokens.is_none());
+  }
+
+  #[test]
+  fn 不正なjsonではデフォルトメタデータを返す() {
+    let meta = parse_metadata("not json");
+    assert!(meta.session_id.is_none());
   }
 }

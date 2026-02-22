@@ -2,6 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::claude::runner::ClaudeMetadata;
 use crate::error::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -16,6 +17,8 @@ pub enum Outcome {
 pub struct StepResult {
   pub step: String,
   pub duration_secs: u64,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub metadata: Option<ClaudeMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

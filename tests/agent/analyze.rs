@@ -32,7 +32,8 @@ fn 成功した分析からタスクスペックを返す() {
   let config = default_config();
   let intent = sample_intent();
 
-  let outcome = analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+  let (outcome, _meta) =
+    analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
 
   let specs = match outcome {
     AnalysisOutcome::Tasks(s) => s,
@@ -53,7 +54,8 @@ fn 複数タスクとdepends_onを返す() {
   let config = default_config();
   let intent = sample_intent();
 
-  let outcome = analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+  let (outcome, _meta) =
+    analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
 
   let specs = match outcome {
     AnalysisOutcome::Tasks(s) => s,
@@ -72,7 +74,8 @@ fn 問題が大きい場合は子intentを返す() {
   let config = default_config();
   let intent = sample_intent();
 
-  let outcome = analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+  let (outcome, _meta) =
+    analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
 
   match outcome {
     AnalysisOutcome::ChildIntents(children) => {
@@ -92,7 +95,8 @@ fn 情報不足の場合はclarificationを返す() {
   let config = default_config();
   let intent = sample_intent();
 
-  let outcome = analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+  let (outcome, _meta) =
+    analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
 
   match outcome {
     AnalysisOutcome::NeedsClarification { clarifications } => {

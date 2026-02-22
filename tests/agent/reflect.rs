@@ -50,7 +50,7 @@ fn observationからintentを生成する() {
   let mock = MockClaude::with_json(reflect_json());
   let config = default_config();
 
-  let result = reflect::reflect(&intent, &config, &mock, dir.path()).unwrap();
+  let (result, _meta) = reflect::reflect(&intent, &config, &mock, dir.path()).unwrap();
 
   assert_eq!(result.intents.len(), 1);
   assert_eq!(result.intents[0].title, "Extract shared validation");

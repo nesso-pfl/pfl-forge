@@ -80,8 +80,8 @@ pub fn process_intent(
   });
 
   // Handle non-task outcomes
-  let analysis = match analysis_outcome {
-    AnalysisOutcome::Tasks(result) => result,
+  let task_specs = match analysis_outcome {
+    AnalysisOutcome::Tasks(specs) => specs,
     AnalysisOutcome::NeedsClarification { clarifications } => {
       intent.status = IntentStatus::Blocked;
       for q in &clarifications {
@@ -123,10 +123,13 @@ pub fn process_intent(
     }
   };
 
-  // Create task from analysis
-  let mut task = Task::from_analysis(intent, &analysis);
+  // Convert specs to tasks
+  let mut tasks: Vec<Task> = task_specs
+    .iter()
+    .map(|spec| Task::from_spec(intent, spec))
+    .collect();
 
-  // Worktree setup
+  // Worktree setup (shared by all tasks)
   let worktree_path = git::worktree::create(
     repo_path,
     &config.worktree_dir,
@@ -134,45 +137,29 @@ pub fn process_intent(
     &config.base_branch,
   )?;
   git::worktree::ensure_gitignore_forge(&worktree_path)?;
-  task::write_task_yaml(&worktree_path, &task)?;
+  // Write first task yaml for backward compat
+  if let Some(first) = tasks.first() {
+    task::write_task_yaml(&worktree_path, first)?;
+  }
   run_worktree_setup(&worktree_path, &config.worktree_setup)?;
 
-  // Implement + Review cycle
-  let selected_model = task.complexity().select_model(&config.models);
+  // Run tasks in dependency order
   let timeout = std::time::Duration::from_secs(config.worker_timeout_secs);
-
-  let task_outcome = run_implement_review_cycle(
+  let task_outcomes = run_tasks_in_order(
     intent,
-    &mut task,
+    &mut tasks,
     config,
     claude,
     repo_path,
     &worktree_path,
-    selected_model,
     timeout,
     &mut step_results,
   );
 
-  // Determine intent status from task outcome
-  let (outcome, failure_reason) = match task_outcome {
-    TaskOutcome::Done => {
-      intent.status = IntentStatus::Done;
-      (Outcome::Success, None)
-    }
-    TaskOutcome::Failed(reason) => {
-      intent.status = IntentStatus::Error;
-      (Outcome::Failed, Some(reason))
-    }
-    TaskOutcome::Blocked(reason) => {
-      intent.status = IntentStatus::Blocked;
-      (Outcome::Failed, Some(reason))
-    }
-    TaskOutcome::Escalated(reason) => {
-      intent.status = IntentStatus::Error;
-      (Outcome::Escalated, Some(reason))
-    }
-  };
+  // Aggregate task outcomes
+  let (intent_status, outcome, failure_reason) = aggregate_task_outcomes(&tasks, &task_outcomes);
 
+  intent.status = intent_status;
   update_intent_file(repo_path, intent)?;
 
   // Record history
@@ -213,12 +200,131 @@ pub fn process_intent(
   })
 }
 
-#[allow(dead_code)] // Blocked used when multi-task support is added
+#[derive(Clone)]
 enum TaskOutcome {
   Done,
   Failed(String),
+  #[allow(dead_code)]
   Blocked(String),
   Escalated(String),
+}
+
+fn run_tasks_in_order(
+  intent: &Intent,
+  tasks: &mut [Task],
+  config: &Config,
+  claude: &impl Claude,
+  repo_path: &Path,
+  worktree_path: &Path,
+  timeout: std::time::Duration,
+  step_results: &mut Vec<StepResult>,
+) -> Vec<TaskOutcome> {
+  let task_ids: Vec<String> = tasks.iter().map(|t| t.id.clone()).collect();
+  let mut outcomes: Vec<Option<TaskOutcome>> = vec![None; tasks.len()];
+  let mut done_ids: Vec<String> = Vec::new();
+  let mut failed_ids: Vec<String> = Vec::new();
+
+  loop {
+    // Find next runnable task: pending, all depends_on satisfied
+    let next = tasks.iter().position(|t| {
+      t.status == WorkStatus::Pending
+        && t
+          .depends_on
+          .iter()
+          .all(|dep| done_ids.contains(dep) || !task_ids.contains(dep))
+    });
+
+    let Some(idx) = next else {
+      // Check for tasks still pending but blocked by failed dependencies
+      for (i, t) in tasks.iter_mut().enumerate() {
+        if t.status == WorkStatus::Pending {
+          let blocked_by_failure = t.depends_on.iter().any(|dep| failed_ids.contains(dep));
+          if blocked_by_failure {
+            t.status = WorkStatus::Failed;
+            failed_ids.push(t.id.clone());
+            outcomes[i] = Some(TaskOutcome::Failed("dependency failed".into()));
+            info!("task {} skipped: dependency failed", t.id);
+          }
+        }
+      }
+      break;
+    };
+
+    let task = &mut tasks[idx];
+    let selected_model = task.complexity().select_model(&config.models);
+
+    // Write current task yaml for implement agent
+    let _ = task::write_task_yaml(worktree_path, task);
+
+    let outcome = run_implement_review_cycle(
+      intent,
+      task,
+      config,
+      claude,
+      repo_path,
+      worktree_path,
+      selected_model,
+      timeout,
+      step_results,
+    );
+
+    match &outcome {
+      TaskOutcome::Done => {
+        done_ids.push(task.id.clone());
+      }
+      TaskOutcome::Failed(_) | TaskOutcome::Blocked(_) | TaskOutcome::Escalated(_) => {
+        failed_ids.push(task.id.clone());
+      }
+    }
+    outcomes[idx] = Some(outcome);
+  }
+
+  outcomes.into_iter().flatten().collect()
+}
+
+fn aggregate_task_outcomes(
+  tasks: &[Task],
+  outcomes: &[TaskOutcome],
+) -> (IntentStatus, Outcome, Option<String>) {
+  let total = tasks.len();
+  let done_count = tasks
+    .iter()
+    .filter(|t| t.status == WorkStatus::Completed)
+    .count();
+  let failed_count = tasks
+    .iter()
+    .filter(|t| t.status == WorkStatus::Failed)
+    .count();
+
+  if done_count == total {
+    (IntentStatus::Done, Outcome::Success, None)
+  } else if failed_count == total {
+    // Preserve specific outcome from the first non-Done outcome
+    let first_failure = outcomes.iter().find(|o| !matches!(o, TaskOutcome::Done));
+    match first_failure {
+      Some(TaskOutcome::Escalated(reason)) => (
+        IntentStatus::Error,
+        Outcome::Escalated,
+        Some(reason.clone()),
+      ),
+      Some(TaskOutcome::Failed(reason)) => {
+        (IntentStatus::Error, Outcome::Failed, Some(reason.clone()))
+      }
+      _ => (
+        IntentStatus::Error,
+        Outcome::Failed,
+        Some("all tasks failed".into()),
+      ),
+    }
+  } else {
+    (
+      IntentStatus::Blocked,
+      Outcome::Failed,
+      Some(format!(
+        "{done_count}/{total} tasks done, {failed_count} failed"
+      )),
+    )
+  }
 }
 
 fn run_implement_review_cycle(

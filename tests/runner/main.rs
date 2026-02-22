@@ -67,8 +67,33 @@ fn needs_clarification_pauses_intent() {
 }
 
 #[test]
-#[ignore]
-fn depends_on_delays_implement_until_dependency_done() {}
+fn depends_on_delays_implement_until_dependency_done() {
+  use helpers::*;
+  use pfl_forge::intent::registry::IntentStatus;
+  use pfl_forge::knowledge::history::Outcome;
+  use pfl_forge::runner;
+
+  let (_dir, repo) = setup_repo_with_intent("dep-test");
+  let mut intent = load_intent(&repo, "dep-test");
+  let config = default_config();
+
+  // analyze returns 2 tasks: task-b depends_on task-a
+  // For each task: implement + rebase + review
+  let mock = MockClaude::with_sequence(vec![
+    json_response(multi_task_analysis_json()), // analyze
+    raw_response("Impl A done"),               // implement task-a
+    json_response(approved_review_json()),     // review task-a
+    raw_response("Impl B done"),               // implement task-b
+    json_response(approved_review_json()),     // review task-b
+  ]);
+
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  assert_eq!(intent.status, IntentStatus::Done);
+  assert_eq!(result.outcome, Outcome::Success);
+  // 5 calls: analyze + (impl+review)*2
+  assert_eq!(mock.call_count(), 5);
+}
 
 // --- 基本実行フロー + 自動挿入ステップ ---
 

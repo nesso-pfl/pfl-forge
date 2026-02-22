@@ -71,6 +71,49 @@ fn partial_task_failure_marks_intent_blocked() {
   assert_eq!(result.outcome, Outcome::Failed);
 }
 
+// --- 複数タスク ---
+
+#[test]
+fn multi_task_partial_failure_marks_intent_blocked() {
+  // 2 independent tasks: task-a succeeds, task-b fails → intent Blocked
+  let (_dir, repo) = setup_repo_with_intent("partial-multi");
+  let mut intent = load_intent(&repo, "partial-multi");
+  let config = default_config();
+
+  let mock = MockClaude::with_sequence(vec![
+    json_response(two_independent_tasks_json()), // analyze
+    raw_response("Impl A done"),                 // implement task-a
+    json_response(approved_review_json()),       // review task-a (approved)
+    error_response("implement crashed"),         // implement task-b (fails)
+  ]);
+
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  assert_eq!(intent.status, IntentStatus::Blocked);
+  assert_eq!(result.outcome, Outcome::Failed);
+}
+
+#[test]
+fn dependency_failure_skips_dependent_tasks() {
+  // task-b depends_on task-a; task-a fails → task-b skipped
+  let (_dir, repo) = setup_repo_with_intent("dep-skip");
+  let mut intent = load_intent(&repo, "dep-skip");
+  let config = default_config();
+
+  let mock = MockClaude::with_sequence(vec![
+    json_response(multi_task_analysis_json()), // analyze
+    error_response("implement crashed"),       // implement task-a (fails)
+  ]);
+
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  // Both tasks failed (task-a directly, task-b skipped) → all failed → Error
+  assert_eq!(intent.status, IntentStatus::Error);
+  assert_eq!(result.outcome, Outcome::Failed);
+  // Only 2 calls: analyze + implement (task-b never attempted)
+  assert_eq!(mock.call_count(), 2);
+}
+
 // --- Review リトライ ---
 
 #[test]

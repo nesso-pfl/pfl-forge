@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use crate::agent::analyze::AnalysisResult;
+use crate::agent::analyze::{AnalysisResult, TaskSpec};
 use crate::claude::model;
 use crate::error::Result;
 use crate::intent::registry::Intent;
@@ -47,6 +47,31 @@ impl Task {
       implementation_steps: deep.implementation_steps.clone(),
       context: deep.context.clone(),
       depends_on: vec![],
+    }
+  }
+
+  pub fn from_spec(intent: &Intent, spec: &TaskSpec) -> Self {
+    let id = if spec.id.is_empty() {
+      intent.id().to_string()
+    } else {
+      spec.id.clone()
+    };
+    let title = if spec.title.is_empty() {
+      intent.title.clone()
+    } else {
+      spec.title.clone()
+    };
+    Self {
+      id,
+      title,
+      intent_id: intent.id().to_string(),
+      status: WorkStatus::Pending,
+      complexity: spec.complexity.clone(),
+      plan: spec.plan.clone(),
+      relevant_files: spec.relevant_files.clone(),
+      implementation_steps: spec.implementation_steps.clone(),
+      context: spec.context.clone(),
+      depends_on: spec.depends_on.clone(),
     }
   }
 

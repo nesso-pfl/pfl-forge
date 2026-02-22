@@ -28,6 +28,22 @@ impl AnalysisResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskSpec {
+  #[serde(default)]
+  pub id: String,
+  #[serde(default)]
+  pub title: String,
+  pub complexity: String,
+  pub plan: String,
+  pub relevant_files: Vec<String>,
+  pub implementation_steps: Vec<String>,
+  #[serde(default)]
+  pub context: String,
+  #[serde(default)]
+  pub depends_on: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChildIntentProposal {
   pub title: String,
   pub body: String,
@@ -35,7 +51,7 @@ pub struct ChildIntentProposal {
 
 #[derive(Debug, Clone)]
 pub enum AnalysisOutcome {
-  Tasks(AnalysisResult),
+  Tasks(Vec<TaskSpec>),
   ChildIntents(Vec<ChildIntentProposal>),
   NeedsClarification { clarifications: Vec<String> },
 }
@@ -58,6 +74,8 @@ struct RawAnalysis {
   child_intents: Vec<ChildIntentProposal>,
   #[serde(default)]
   clarifications: Vec<String>,
+  #[serde(default)]
+  tasks: Vec<TaskSpec>,
 }
 
 fn default_outcome() -> String {
@@ -71,13 +89,23 @@ impl From<RawAnalysis> for AnalysisOutcome {
       "needs_clarification" => AnalysisOutcome::NeedsClarification {
         clarifications: raw.clarifications,
       },
-      _ => AnalysisOutcome::Tasks(AnalysisResult {
-        complexity: raw.complexity,
-        plan: raw.plan,
-        relevant_files: raw.relevant_files,
-        implementation_steps: raw.implementation_steps,
-        context: raw.context,
-      }),
+      _ => {
+        if raw.tasks.is_empty() {
+          // Backward compat: single task from top-level fields
+          AnalysisOutcome::Tasks(vec![TaskSpec {
+            id: String::new(),
+            title: String::new(),
+            complexity: raw.complexity,
+            plan: raw.plan,
+            relevant_files: raw.relevant_files,
+            implementation_steps: raw.implementation_steps,
+            context: raw.context,
+            depends_on: vec![],
+          }])
+        } else {
+          AnalysisOutcome::Tasks(raw.tasks)
+        }
+      }
     }
   }
 }
@@ -107,14 +135,16 @@ pub fn analyze(
   let outcome = AnalysisOutcome::from(raw);
 
   match &outcome {
-    AnalysisOutcome::Tasks(result) => {
-      info!(
-        "analysis: complexity={}, {} relevant files, {} steps, sufficient={}",
-        result.complexity,
-        result.relevant_files.len(),
-        result.implementation_steps.len(),
-        result.is_sufficient(),
-      );
+    AnalysisOutcome::Tasks(specs) => {
+      info!("analysis: {} task(s)", specs.len());
+      for spec in specs {
+        info!(
+          "  task: complexity={}, {} relevant files, {} steps",
+          spec.complexity,
+          spec.relevant_files.len(),
+          spec.implementation_steps.len(),
+        );
+      }
     }
     AnalysisOutcome::ChildIntents(intents) => {
       info!("analysis: decomposed into {} child intents", intents.len());

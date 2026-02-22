@@ -34,15 +34,35 @@ fn returns_tasks_from_successful_analysis() {
 
   let outcome = analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
 
-  let result = match outcome {
-    AnalysisOutcome::Tasks(r) => r,
+  let specs = match outcome {
+    AnalysisOutcome::Tasks(s) => s,
     other => panic!("expected Tasks, got {:?}", other),
   };
-  assert_eq!(result.complexity, "low");
-  assert_eq!(result.plan, "Write tests");
-  assert_eq!(result.relevant_files, vec!["src/lib.rs"]);
-  assert_eq!(result.implementation_steps, vec!["Add test module"]);
-  assert!(result.is_sufficient());
+  assert_eq!(specs.len(), 1);
+  let spec = &specs[0];
+  assert_eq!(spec.complexity, "low");
+  assert_eq!(spec.plan, "Write tests");
+  assert_eq!(spec.relevant_files, vec!["src/lib.rs"]);
+  assert_eq!(spec.implementation_steps, vec!["Add test module"]);
+}
+
+#[test]
+fn returns_multiple_tasks_with_depends_on() {
+  let json = r#"{"tasks":[{"id":"task-a","title":"Setup DB","complexity":"low","plan":"Create schema","relevant_files":["db.rs"],"implementation_steps":["Add migration"],"context":"","depends_on":[]},{"id":"task-b","title":"Add API","complexity":"medium","plan":"Build endpoint","relevant_files":["api.rs"],"implementation_steps":["Add route"],"context":"","depends_on":["task-a"]}]}"#;
+  let mock = MockClaude::with_json(json);
+  let config = default_config();
+  let intent = sample_intent();
+
+  let outcome = analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+
+  let specs = match outcome {
+    AnalysisOutcome::Tasks(s) => s,
+    other => panic!("expected Tasks, got {:?}", other),
+  };
+  assert_eq!(specs.len(), 2);
+  assert_eq!(specs[0].id, "task-a");
+  assert_eq!(specs[1].id, "task-b");
+  assert_eq!(specs[1].depends_on, vec!["task-a"]);
 }
 
 #[test]

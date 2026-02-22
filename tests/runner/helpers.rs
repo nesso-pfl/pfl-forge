@@ -76,6 +76,14 @@ pub fn analysis_json() -> &'static str {
   r#"{"complexity":"low","plan":"Write tests","relevant_files":["src/lib.rs"],"implementation_steps":["Add test module"],"context":"Testing context"}"#
 }
 
+pub fn multi_task_analysis_json() -> &'static str {
+  r#"{"tasks":[{"id":"task-a","title":"First task","complexity":"low","plan":"Do A","relevant_files":["a.rs"],"implementation_steps":["Step A"],"context":"","depends_on":[]},{"id":"task-b","title":"Second task","complexity":"low","plan":"Do B","relevant_files":["b.rs"],"implementation_steps":["Step B"],"context":"","depends_on":["task-a"]}]}"#
+}
+
+pub fn two_independent_tasks_json() -> &'static str {
+  r#"{"tasks":[{"id":"task-a","title":"First task","complexity":"low","plan":"Do A","relevant_files":["a.rs"],"implementation_steps":["Step A"],"context":"","depends_on":[]},{"id":"task-b","title":"Second task","complexity":"low","plan":"Do B","relevant_files":["b.rs"],"implementation_steps":["Step B"],"context":"","depends_on":[]}]}"#
+}
+
 pub fn approved_review_json() -> &'static str {
   r#"{"approved":true,"issues":[],"suggestions":[]}"#
 }

@@ -27,12 +27,67 @@ impl AnalysisResult {
   }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChildIntentProposal {
+  pub title: String,
+  pub body: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum AnalysisOutcome {
+  Tasks(AnalysisResult),
+  ChildIntents(Vec<ChildIntentProposal>),
+  NeedsClarification { clarifications: Vec<String> },
+}
+
+#[derive(Deserialize)]
+struct RawAnalysis {
+  #[serde(default = "default_outcome")]
+  outcome: String,
+  #[serde(default)]
+  complexity: String,
+  #[serde(default)]
+  plan: String,
+  #[serde(default)]
+  relevant_files: Vec<String>,
+  #[serde(default)]
+  implementation_steps: Vec<String>,
+  #[serde(default)]
+  context: String,
+  #[serde(default)]
+  child_intents: Vec<ChildIntentProposal>,
+  #[serde(default)]
+  clarifications: Vec<String>,
+}
+
+fn default_outcome() -> String {
+  "task".into()
+}
+
+impl From<RawAnalysis> for AnalysisOutcome {
+  fn from(raw: RawAnalysis) -> Self {
+    match raw.outcome.as_str() {
+      "child_intents" => AnalysisOutcome::ChildIntents(raw.child_intents),
+      "needs_clarification" => AnalysisOutcome::NeedsClarification {
+        clarifications: raw.clarifications,
+      },
+      _ => AnalysisOutcome::Tasks(AnalysisResult {
+        complexity: raw.complexity,
+        plan: raw.plan,
+        relevant_files: raw.relevant_files,
+        implementation_steps: raw.implementation_steps,
+        context: raw.context,
+      }),
+    }
+  }
+}
+
 pub fn analyze(
   intent: &Intent,
   config: &Config,
   runner: &impl Claude,
   repo_path: &std::path::Path,
-) -> Result<AnalysisResult> {
+) -> Result<AnalysisOutcome> {
   let deep_model = model::resolve(&config.models.analyze);
 
   let prompt = format!(
@@ -47,16 +102,30 @@ pub fn analyze(
   let timeout = Some(Duration::from_secs(config.analyze_timeout_secs));
 
   info!("analyzing: {intent}");
-  let result: AnalysisResult =
+  let raw: RawAnalysis =
     runner.run_json(&prompt, prompt::ANALYZE, deep_model, repo_path, timeout)?;
+  let outcome = AnalysisOutcome::from(raw);
 
-  info!(
-    "analysis: complexity={}, {} relevant files, {} steps, sufficient={}",
-    result.complexity,
-    result.relevant_files.len(),
-    result.implementation_steps.len(),
-    result.is_sufficient(),
-  );
+  match &outcome {
+    AnalysisOutcome::Tasks(result) => {
+      info!(
+        "analysis: complexity={}, {} relevant files, {} steps, sufficient={}",
+        result.complexity,
+        result.relevant_files.len(),
+        result.implementation_steps.len(),
+        result.is_sufficient(),
+      );
+    }
+    AnalysisOutcome::ChildIntents(intents) => {
+      info!("analysis: decomposed into {} child intents", intents.len());
+    }
+    AnalysisOutcome::NeedsClarification { clarifications } => {
+      info!(
+        "analysis: needs clarification ({} questions)",
+        clarifications.len()
+      );
+    }
+  }
 
-  Ok(result)
+  Ok(outcome)
 }

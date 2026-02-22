@@ -41,8 +41,30 @@ fn audit_type_uses_audit_report_flow() {
 // --- Flow 調整ルール ---
 
 #[test]
-#[ignore]
-fn needs_clarification_pauses_intent() {}
+fn needs_clarification_pauses_intent() {
+  use helpers::*;
+  use pfl_forge::intent::registry::IntentStatus;
+  use pfl_forge::knowledge::history::Outcome;
+  use pfl_forge::runner;
+
+  let (_dir, repo) = setup_repo_with_intent("clarify-test");
+  let mut intent = load_intent(&repo, "clarify-test");
+  let config = default_config();
+
+  let clarification_json =
+    r#"{"outcome":"needs_clarification","clarifications":["What API version?"]}"#;
+  let mock = MockClaude::with_sequence(vec![json_response(clarification_json)]);
+
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  assert_eq!(intent.status, IntentStatus::Blocked);
+  assert_eq!(result.outcome, Outcome::Failed);
+  assert!(result.failure_reason.unwrap().contains("clarification"));
+  assert!(intent.needs_clarification());
+  assert_eq!(intent.clarifications.len(), 1);
+  assert_eq!(intent.clarifications[0].question, "What API version?");
+  assert!(intent.clarifications[0].answer.is_none());
+}
 
 #[test]
 #[ignore]

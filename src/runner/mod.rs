@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use tracing::{info, warn};
 
+use crate::agent::analyze::AnalysisOutcome;
 use crate::agent::review::ReviewResult;
 use crate::agent::{analyze, audit, implement, reflect, review};
 use crate::claude::runner::Claude;
@@ -72,11 +73,55 @@ pub fn process_intent(
 
   // Analyze
   let start = Instant::now();
-  let analysis = analyze::analyze(intent, config, claude, repo_path)?;
+  let analysis_outcome = analyze::analyze(intent, config, claude, repo_path)?;
   step_results.push(StepResult {
     step: "analyze".into(),
     duration_secs: start.elapsed().as_secs(),
   });
+
+  // Handle non-task outcomes
+  let analysis = match analysis_outcome {
+    AnalysisOutcome::Tasks(result) => result,
+    AnalysisOutcome::NeedsClarification { clarifications } => {
+      intent.status = IntentStatus::Blocked;
+      for q in &clarifications {
+        intent
+          .clarifications
+          .push(crate::intent::registry::Clarification {
+            question: q.clone(),
+            answer: None,
+          });
+      }
+      update_intent_file(repo_path, intent)?;
+      return Ok(IntentResult {
+        flow: flow_names,
+        step_results,
+        outcome: Outcome::Failed,
+        failure_reason: Some("needs clarification".into()),
+      });
+    }
+    AnalysisOutcome::ChildIntents(children) => {
+      let intents_dir = repo_path.join(".forge").join("intents");
+      for child in &children {
+        let child_id = slugify(&child.title);
+        let yaml = format!(
+          "title: {title}\nbody: {body}\nsource: analyze\nparent: {parent}\n",
+          title = child.title,
+          body = child.body,
+          parent = intent.id(),
+        );
+        std::fs::write(intents_dir.join(format!("{child_id}.yaml")), &yaml)?;
+      }
+      intent.status = IntentStatus::Done;
+      update_intent_file(repo_path, intent)?;
+      return Ok(IntentResult {
+        flow: flow_names,
+        step_results,
+        outcome: Outcome::Success,
+        failure_reason: None,
+      });
+    }
+  };
 
   // Create task from analysis
   let mut task = Task::from_analysis(intent, &analysis);
@@ -408,6 +453,17 @@ fn has_children(repo_path: &Path, intent_id: &str) -> bool {
     .unwrap_or_default()
     .iter()
     .any(|i| i.parent.as_deref() == Some(intent_id))
+}
+
+fn slugify(s: &str) -> String {
+  s.to_lowercase()
+    .chars()
+    .map(|c| if c.is_alphanumeric() { c } else { '-' })
+    .collect::<String>()
+    .split('-')
+    .filter(|s| !s.is_empty())
+    .collect::<Vec<_>>()
+    .join("-")
 }
 
 pub fn update_intent_file(repo_path: &Path, intent: &Intent) -> Result<()> {

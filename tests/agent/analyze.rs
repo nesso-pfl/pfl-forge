@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use pfl_forge::agent::analyze;
+use pfl_forge::agent::analyze::{self, AnalysisOutcome};
 use pfl_forge::claude::model::SONNET;
 use pfl_forge::config::Config;
 use pfl_forge::intent::registry::Intent;
@@ -32,8 +32,12 @@ fn returns_tasks_from_successful_analysis() {
   let config = default_config();
   let intent = sample_intent();
 
-  let result = analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+  let outcome = analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
 
+  let result = match outcome {
+    AnalysisOutcome::Tasks(r) => r,
+    other => panic!("expected Tasks, got {:?}", other),
+  };
   assert_eq!(result.complexity, "low");
   assert_eq!(result.plan, "Write tests");
   assert_eq!(result.relevant_files, vec!["src/lib.rs"]);
@@ -42,12 +46,42 @@ fn returns_tasks_from_successful_analysis() {
 }
 
 #[test]
-#[ignore]
-fn returns_child_intents_when_problem_too_large() {}
+fn returns_child_intents_when_problem_too_large() {
+  let json = r#"{"outcome":"child_intents","child_intents":[{"title":"Sub task A","body":"Do A"},{"title":"Sub task B","body":"Do B"}]}"#;
+  let mock = MockClaude::with_json(json);
+  let config = default_config();
+  let intent = sample_intent();
+
+  let outcome = analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+
+  match outcome {
+    AnalysisOutcome::ChildIntents(children) => {
+      assert_eq!(children.len(), 2);
+      assert_eq!(children[0].title, "Sub task A");
+      assert_eq!(children[1].title, "Sub task B");
+    }
+    other => panic!("expected ChildIntents, got {:?}", other),
+  }
+}
 
 #[test]
-#[ignore]
-fn returns_needs_clarification_when_info_insufficient() {}
+fn returns_needs_clarification_when_info_insufficient() {
+  let json =
+    r#"{"outcome":"needs_clarification","clarifications":["What is the target API version?"]}"#;
+  let mock = MockClaude::with_json(json);
+  let config = default_config();
+  let intent = sample_intent();
+
+  let outcome = analyze::analyze(&intent, &config, &mock, std::path::Path::new(".")).unwrap();
+
+  match outcome {
+    AnalysisOutcome::NeedsClarification { clarifications } => {
+      assert_eq!(clarifications.len(), 1);
+      assert_eq!(clarifications[0], "What is the target API version?");
+    }
+    other => panic!("expected NeedsClarification, got {:?}", other),
+  }
+}
 
 #[test]
 fn uses_analyze_model_from_config() {

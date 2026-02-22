@@ -11,6 +11,9 @@ pub enum ForgeError {
   #[error("claude execution error: {0}")]
   Claude(String),
 
+  #[error("parse error: {0}")]
+  Parse(String),
+
   #[error("timeout: {0}")]
   Timeout(String),
 

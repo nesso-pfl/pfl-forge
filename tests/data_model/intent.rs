@@ -127,9 +127,37 @@ fn fetch_all_returns_empty_for_missing_directory() {
 // --- intent-drafts ---
 
 #[test]
-#[ignore]
-fn parses_intent_draft_markdown_with_frontmatter() {}
+fn parses_intent_draft_markdown_with_frontmatter() {
+  let md = "\
+---
+type: feature
+risk: low
+---
+
+Add password reset link to login page.
+
+Users currently have no way to reset their password.
+";
+  let draft = pfl_forge::intent::draft::parse(md).unwrap();
+  assert_eq!(draft.title, "Add password reset link to login page.");
+  assert_eq!(
+    draft.body,
+    "Users currently have no way to reset their password."
+  );
+  assert_eq!(draft.intent_type.as_deref(), Some("feature"));
+  assert_eq!(draft.risk.as_deref(), Some("low"));
+}
 
 #[test]
-#[ignore]
-fn intent_draft_allows_omitting_type_and_risk() {}
+fn intent_draft_allows_omitting_type_and_risk() {
+  let md = "\
+---
+---
+
+Fix the broken test suite.
+";
+  let draft = pfl_forge::intent::draft::parse(md).unwrap();
+  assert_eq!(draft.title, "Fix the broken test suite.");
+  assert!(draft.intent_type.is_none());
+  assert!(draft.risk.is_none());
+}

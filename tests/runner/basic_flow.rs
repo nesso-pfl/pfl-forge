@@ -227,12 +227,49 @@ fn reflect_skipped_for_parent_intent_with_children() {
 // --- コンフリクト解決 ---
 
 #[test]
-#[ignore] // Requires actual rebase conflict, hard to simulate with mock
-fn rebase_failure_triggers_reimplementation() {}
+fn rebase_failure_triggers_reimplementation() {
+  let (_dir, repo) = setup_repo_with_conflict("conflict-rebase");
+  let mut intent = load_intent(&repo, "conflict-rebase");
+  let config = default_config();
+
+  // analyze → implement → (rebase fails, reimpl) → implement → review(approved)
+  let mock = MockClaude::with_sequence(vec![
+    json_response(analysis_json()),        // analyze
+    raw_response("First attempt"),         // implement (on conflicting branch)
+    raw_response("Reimplementation"),      // implement (fresh from updated main)
+    json_response(approved_review_json()), // review
+  ]);
+
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  assert_eq!(result.outcome, Outcome::Success);
+  assert_eq!(intent.status, IntentStatus::Done);
+  // 4 Claude calls: analyze + implement + reimpl + review
+  assert_eq!(mock.call_count(), 4);
+}
 
 #[test]
-#[ignore] // Requires actual rebase conflict, hard to simulate with mock
-fn reimplementation_failure_escalates_to_human() {}
+fn reimplementation_failure_escalates_to_human() {
+  let (_dir, repo) = setup_repo_with_conflict("conflict-escalate");
+  let mut intent = load_intent(&repo, "conflict-escalate");
+  let config = default_config();
+
+  // analyze → implement → (rebase fails) → reimpl fails → escalated
+  let mock = MockClaude::with_sequence(vec![
+    json_response(analysis_json()),            // analyze
+    raw_response("First attempt"),             // implement (on conflicting branch)
+    error_response("reimplementation failed"), // reimpl fails
+  ]);
+
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  assert_eq!(result.outcome, Outcome::Escalated);
+  assert_eq!(intent.status, IntentStatus::Error);
+  assert!(result
+    .failure_reason
+    .unwrap()
+    .contains("reimplementation failed"));
+}
 
 // --- History 記録 ---
 

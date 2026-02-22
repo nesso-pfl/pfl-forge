@@ -221,10 +221,11 @@ fn run_implement_review_cycle(
         "rebase conflict for {}, attempting reimplementation",
         intent.id()
       );
-      // Remove worktree and recreate
+      // Remove worktree, delete old branch, and recreate from updated main
       if let Err(e) = git::worktree::remove(repo_path, worktree_path) {
         warn!("failed to remove worktree: {e}");
       }
+      let _ = git::branch::delete(repo_path, &intent.branch_name());
       let new_wt = match git::worktree::create(
         repo_path,
         &config.worktree_dir,

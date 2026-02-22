@@ -57,6 +57,21 @@ pub fn rebase(worktree_path: &Path, base_branch: &str) -> Result<()> {
   Ok(())
 }
 
+pub fn delete(repo_path: &Path, branch: &str) -> Result<()> {
+  info!("deleting branch {branch}");
+  let output = Command::new("git")
+    .args(["branch", "-D", branch])
+    .current_dir(repo_path)
+    .output()?;
+
+  if !output.status.success() {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    warn!("branch delete failed (non-fatal): {stderr}");
+  }
+
+  Ok(())
+}
+
 /// Rebase onto base branch. Returns Ok(true) on success, Ok(false) on conflict.
 pub fn try_rebase(worktree_path: &Path, base_branch: &str, label: &str) -> Result<bool> {
   info!("rebasing {label} onto {base_branch}");

@@ -134,6 +134,30 @@ pub fn setup_repo_with_intent(intent_id: &str) -> (tempfile::TempDir, PathBuf) {
   (dir, repo_path)
 }
 
+/// Set up a repo where a pre-existing branch conflicts with origin/main.
+/// Creates branch `forge/{intent_id}` with a conflicting commit on file.txt,
+/// then pushes a different change to file.txt on origin/main.
+pub fn setup_repo_with_conflict(intent_id: &str) -> (tempfile::TempDir, PathBuf) {
+  let (dir, repo_path) = setup_repo_with_intent(intent_id);
+
+  let branch = format!("forge/{intent_id}");
+
+  // Create the branch with a conflicting commit
+  git(&repo_path, &["checkout", "-b", &branch]);
+  std::fs::write(repo_path.join("file.txt"), "branch change\n").unwrap();
+  git(&repo_path, &["add", "file.txt"]);
+  git(&repo_path, &["commit", "-m", "branch commit"]);
+  git(&repo_path, &["checkout", "main"]);
+
+  // Push a conflicting change to origin/main
+  std::fs::write(repo_path.join("file.txt"), "main change\n").unwrap();
+  git(&repo_path, &["add", "file.txt"]);
+  git(&repo_path, &["commit", "-m", "conflicting main commit"]);
+  git(&repo_path, &["push", "origin", "main"]);
+
+  (dir, repo_path)
+}
+
 pub fn load_intent(repo_path: &Path, intent_id: &str) -> Intent {
   let intents_dir = repo_path.join(".forge").join("intents");
   Intent::fetch_all(&intents_dir)

@@ -108,13 +108,51 @@ async fn run(cli: Cli) -> Result<()> {
       Ok(())
     }
     Commands::Status => {
-      info!("status: not yet implemented in new architecture");
+      let repo_path = Config::repo_path();
+      let intents_dir = repo_path.join(".forge").join("intents");
+      let intents = pfl_forge::intent::registry::Intent::fetch_all(&intents_dir)?;
+
+      if intents.is_empty() {
+        println!("no intents");
+        return Ok(());
+      }
+
+      for i in &intents {
+        let status = format!("{:?}", i.status).to_lowercase();
+        println!("{id}  {status}  {title}", id = i.id(), title = i.title);
+      }
+      println!("\n{} intent(s)", intents.len());
       Ok(())
     }
     Commands::Clean => {
       let repo_path = Config::repo_path();
-      let worktrees = git::worktree::list(&repo_path)?;
-      info!("{} worktree(s) found", worktrees.len());
+      let intents_dir = repo_path.join(".forge").join("intents");
+      let intents = pfl_forge::intent::registry::Intent::fetch_all(&intents_dir)?;
+      let done_branches: Vec<String> = intents
+        .iter()
+        .filter(|i| matches!(i.status, pfl_forge::intent::registry::IntentStatus::Done))
+        .map(|i| i.branch_name())
+        .collect();
+
+      if done_branches.is_empty() {
+        println!("no completed worktrees to clean");
+        return Ok(());
+      }
+
+      let mut cleaned = 0;
+      for branch in &done_branches {
+        let wt_path = git::worktree::path_for(&repo_path, &config.worktree_dir, branch);
+        if wt_path.exists() {
+          match git::worktree::remove(&repo_path, &wt_path) {
+            Ok(()) => {
+              println!("removed: {}", wt_path.display());
+              cleaned += 1;
+            }
+            Err(e) => eprintln!("failed to remove {}: {e}", wt_path.display()),
+          }
+        }
+      }
+      println!("{cleaned} worktree(s) cleaned");
       Ok(())
     }
     Commands::Parent { model } => agent::operator::launch(&config, model.as_deref()),

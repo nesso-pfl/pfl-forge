@@ -71,11 +71,15 @@ pub trait Claude {
 #[derive(Clone)]
 pub struct ClaudeRunner {
   allowed_tools: Vec<String>,
+  mcp_config: Option<String>,
 }
 
 impl ClaudeRunner {
-  pub fn new(allowed_tools: Vec<String>) -> Self {
-    Self { allowed_tools }
+  pub fn new(allowed_tools: Vec<String>, mcp_config: Option<String>) -> Self {
+    Self {
+      allowed_tools,
+      mcp_config,
+    }
   }
 }
 
@@ -103,6 +107,10 @@ impl Claude for ClaudeRunner {
 
     if let Some(sid) = session_id {
       cmd.args(["--resume", sid]);
+    }
+
+    if let Some(ref mcp_path) = self.mcp_config {
+      cmd.args(["--mcp-config", mcp_path]);
     }
 
     if !system_prompt.is_empty() {

@@ -88,7 +88,7 @@ async fn run(cli: Cli) -> Result<()> {
   match cli.command {
     Commands::Run { dry_run } => {
       let repo_path = Config::repo_path();
-      let claude = ClaudeRunner::new(config.worker_tools.clone());
+      let claude = ClaudeRunner::new(config.worker_tools.clone(), config.mcp_config.clone());
       let results = runner::run_intents(&config, &claude, &repo_path, dry_run)?;
       for (id, result) in &results {
         let status = match &result.outcome {
@@ -105,7 +105,7 @@ async fn run(cli: Cli) -> Result<()> {
     }
     Commands::Watch => {
       let repo_path = Config::repo_path();
-      let claude = ClaudeRunner::new(config.worker_tools.clone());
+      let claude = ClaudeRunner::new(config.worker_tools.clone(), config.mcp_config.clone());
       let interval = std::time::Duration::from_secs(config.poll_interval_secs);
 
       info!("watch: polling every {}s", config.poll_interval_secs);
@@ -200,7 +200,7 @@ async fn run(cli: Cli) -> Result<()> {
     }
     Commands::Audit { path } => {
       let repo_path = Config::repo_path();
-      let claude = ClaudeRunner::new(config.analyze_tools.clone());
+      let claude = ClaudeRunner::new(config.analyze_tools.clone(), config.mcp_config.clone());
 
       // Create internal audit intent
       let target = path.as_deref().unwrap_or(".");

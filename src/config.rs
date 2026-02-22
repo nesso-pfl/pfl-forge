@@ -28,6 +28,8 @@ pub struct Config {
   pub max_review_retries: u32,
   #[serde(default)]
   pub worktree_setup: Vec<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub mcp_config: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

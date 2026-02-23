@@ -139,8 +139,8 @@ Review Agent が返す構造化 JSON 出力。Runner がファイルに永続化
 
 ### フィールド
 
-- **task_id**: 対象 Task の ID
-- **verdict**: `approved` / `rejected`
+- **task_id**: 対象 Task の ID（Review 関数が Task から設定）
+- **approved**: `true` / `false`
 - **issues**: 問題点（rejected の根拠）
 - **suggestions**: 改善提案（approved でも出せる）
 
@@ -155,7 +155,10 @@ Review Agent が返す構造化 JSON 出力。Runner がファイルに永続化
 - **intent_risk**: Intent の risk
 - **title**: Intent の title
 - **flow**: 実行された Flow ステップ一覧 + 調整内容
-- **step_results**: 各ステップの結果と所要時間、Claude メタデータ（session_id, cost, tokens 等）
+- **step_results**: 各ステップの結果
+  - **step**: ステップ名
+  - **duration_secs**: 所要時間（秒）
+  - **metadata**: Claude CLI メタデータ（省略可。session_id, cost, tokens 等を含む）
 - **outcome**: `success` / `failed` / `escalated`
 - **failure_reason**: 失敗理由（outcome が failed の場合）
 - **observations**: 生成された Observation の参照

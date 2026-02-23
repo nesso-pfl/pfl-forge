@@ -2,7 +2,7 @@
 base_branch: main
 parallel_workers: 4
 models:
-  analyze: sonnet
+  analyze: opus
   default: sonnet
   complex: opus
 worker_tools:
@@ -16,6 +16,9 @@ analyze_tools:
   - Read
   - Glob
   - Grep
+  - Bash
+  - WebSearch
+  - WebFetch
 poll_interval_secs: 300
 worktree_dir: .pfl-worktrees
 worker_timeout_secs: 1200

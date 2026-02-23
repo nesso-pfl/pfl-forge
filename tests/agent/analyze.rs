@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use pfl_forge::agent::analyze::{self, ActiveIntentContext, AnalysisOutcome};
-use pfl_forge::claude::model::SONNET;
+use pfl_forge::claude::model::OPUS;
 use pfl_forge::config::Config;
 use pfl_forge::intent::registry::Intent;
 
@@ -116,7 +116,7 @@ fn configのanalyzeモデルを使用する() {
   analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
 
   let call = mock.last_call();
-  assert_eq!(call.model, SONNET);
+  assert_eq!(call.model, OPUS);
 }
 
 #[test]

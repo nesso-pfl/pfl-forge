@@ -76,6 +76,7 @@ fn 承認されたレビュー結果を返す() {
     review::review(&intent, &task, &config, &mock, repo.path(), "main").unwrap();
   assert!(result.approved);
   assert!(result.issues.is_empty());
+  assert_eq!(result.task_id, task.id);
 }
 
 #[test]

@@ -87,10 +87,17 @@ fn default_max_review_retries() -> u32 {
   2
 }
 fn default_analyze_tools() -> Vec<String> {
-  vec!["Read".into(), "Glob".into(), "Grep".into()]
+  vec![
+    "Read".into(),
+    "Glob".into(),
+    "Grep".into(),
+    "Bash".into(),
+    "WebSearch".into(),
+    "WebFetch".into(),
+  ]
 }
 fn default_analyze_model() -> String {
-  "sonnet".to_string()
+  "opus".to_string()
 }
 fn default_model() -> String {
   "sonnet".to_string()

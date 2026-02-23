@@ -15,6 +15,8 @@ use crate::task::Task;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewResult {
+  #[serde(default)]
+  pub task_id: String,
   pub approved: bool,
   pub issues: Vec<String>,
   pub suggestions: Vec<String>,
@@ -56,13 +58,14 @@ pub fn review(
   let timeout = Some(Duration::from_secs(config.analyze_timeout_secs));
 
   info!("reviewing: {intent}");
-  let (result, metadata): (ReviewResult, _) = runner.run_json_with_meta(
+  let (mut result, metadata): (ReviewResult, _) = runner.run_json_with_meta(
     &prompt,
     prompt::REVIEW,
     review_model,
     worktree_path,
     timeout,
   )?;
+  result.task_id = task.id.clone();
 
   info!(
     "review: approved={}, {} issues, {} suggestions",

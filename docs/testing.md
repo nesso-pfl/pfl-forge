@@ -33,6 +33,12 @@ test_default_config
 
 エージェントテストは `Claude` trait のモック実装を使い、`claude` プロセスを起動せずに検証する。
 
+#### 並列実行のテスト方針
+
+Runner の `run_intents` は `parallel_workers` で複数 Intent を並列処理する。並列の安全性は設計レベルで担保している（Intent ごとに独立した worktree、Intent ファイルは ID 別で競合しない）。
+
+Spec test では `parallel_workers = 1` の順次実行でロジックを検証する。並列固有の問題（race condition 等）はテストでの再現が困難で flaky になりやすいため、実運用で検出・対処する方針とする。
+
 ### Prompt Eval（`evals/`）
 
 プロンプト変更の品質評価。実際に `claude -p` を呼ぶため CI では skip し、プロンプト改善時に手動で実行する。

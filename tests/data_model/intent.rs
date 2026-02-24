@@ -161,3 +161,88 @@ Fix the broken test suite.
   assert!(draft.intent_type.is_none());
   assert!(draft.risk.is_none());
 }
+
+// --- convert_drafts ---
+
+#[test]
+fn draftをintent_yamlに変換して元ファイルを削除する() {
+  use pfl_forge::intent::registry::Intent;
+
+  let dir = tempfile::tempdir().unwrap();
+  let drafts_dir = dir.path().join(".forge").join("intent-drafts");
+  let intents_dir = dir.path().join(".forge").join("intents");
+  std::fs::create_dir_all(&drafts_dir).unwrap();
+
+  std::fs::write(
+    drafts_dir.join("add-auth.md"),
+    "---\ntype: feature\nrisk: low\n---\n\nAdd authentication\n\nImplement OAuth2 login.\n",
+  )
+  .unwrap();
+
+  let converted = pfl_forge::intent::draft::convert_drafts(dir.path()).unwrap();
+  assert_eq!(converted, vec!["add-auth"]);
+
+  // Draft file should be deleted
+  assert!(!drafts_dir.join("add-auth.md").exists());
+
+  // Intent YAML should exist and be parseable
+  let intents = Intent::fetch_all(&intents_dir).unwrap();
+  assert_eq!(intents.len(), 1);
+  assert_eq!(intents[0].id(), "add-auth");
+  assert_eq!(intents[0].title, "Add authentication");
+  assert_eq!(intents[0].body.trim(), "Implement OAuth2 login.");
+  assert_eq!(intents[0].source, "draft");
+  assert_eq!(intents[0].intent_type.as_deref(), Some("feature"));
+  assert_eq!(intents[0].risk.as_deref(), Some("low"));
+}
+
+#[test]
+fn 既存intentがある場合はdraftをスキップする() {
+  let dir = tempfile::tempdir().unwrap();
+  let drafts_dir = dir.path().join(".forge").join("intent-drafts");
+  let intents_dir = dir.path().join(".forge").join("intents");
+  std::fs::create_dir_all(&drafts_dir).unwrap();
+  std::fs::create_dir_all(&intents_dir).unwrap();
+
+  // Pre-existing intent
+  std::fs::write(
+    intents_dir.join("existing.yaml"),
+    "title: Existing\nbody: already here\nsource: human\n",
+  )
+  .unwrap();
+
+  // Draft with same stem
+  std::fs::write(
+    drafts_dir.join("existing.md"),
+    "---\n---\n\nConflicting draft\n",
+  )
+  .unwrap();
+
+  let converted = pfl_forge::intent::draft::convert_drafts(dir.path()).unwrap();
+  assert!(converted.is_empty());
+
+  // Draft should NOT be deleted (skipped, not converted)
+  assert!(drafts_dir.join("existing.md").exists());
+}
+
+#[test]
+fn intent_draftsディレクトリが存在しなければ空を返す() {
+  let dir = tempfile::tempdir().unwrap();
+  let converted = pfl_forge::intent::draft::convert_drafts(dir.path()).unwrap();
+  assert!(converted.is_empty());
+}
+
+#[test]
+fn md以外のファイルをスキップする_drafts() {
+  let dir = tempfile::tempdir().unwrap();
+  let drafts_dir = dir.path().join(".forge").join("intent-drafts");
+  std::fs::create_dir_all(&drafts_dir).unwrap();
+
+  std::fs::write(drafts_dir.join("notes.txt"), "not a draft").unwrap();
+  std::fs::write(drafts_dir.join("valid.md"), "---\n---\n\nA valid draft\n").unwrap();
+
+  let converted = pfl_forge::intent::draft::convert_drafts(dir.path()).unwrap();
+  assert_eq!(converted, vec!["valid"]);
+  // txt file should still be there
+  assert!(drafts_dir.join("notes.txt").exists());
+}

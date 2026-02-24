@@ -65,6 +65,12 @@ pub fn run_intents(
   repo_path: &Path,
   dry_run: bool,
 ) -> Result<Vec<(String, IntentResult)>> {
+  // Convert any pending drafts before loading intents
+  let converted = crate::intent::draft::convert_drafts(repo_path)?;
+  if !converted.is_empty() {
+    info!("converted {} draft(s): {:?}", converted.len(), converted);
+  }
+
   let intents_dir = repo_path.join(".forge").join("intents");
   let all_intents = Intent::fetch_all(&intents_dir)?;
   let mut targets: Vec<Intent> = all_intents

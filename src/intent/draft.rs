@@ -1,4 +1,7 @@
+use std::path::Path;
+
 use serde::Deserialize;
+use tracing::info;
 
 use crate::error::{ForgeError, Result};
 
@@ -47,6 +50,82 @@ pub fn parse(content: &str) -> Result<IntentDraft> {
     intent_type: fm.intent_type,
     risk: fm.risk,
   })
+}
+
+/// Scan `.forge/intent-drafts/*.md`, convert each to `.forge/intents/*.yaml`, and delete the draft.
+/// Returns the list of converted intent IDs (file stems).
+pub fn convert_drafts(repo_path: &Path) -> Result<Vec<String>> {
+  let drafts_dir = repo_path.join(".forge").join("intent-drafts");
+  if !drafts_dir.exists() {
+    return Ok(Vec::new());
+  }
+
+  let intents_dir = repo_path.join(".forge").join("intents");
+  std::fs::create_dir_all(&intents_dir)?;
+
+  let mut entries: Vec<_> = std::fs::read_dir(&drafts_dir)?
+    .filter_map(|e| e.ok())
+    .collect();
+  entries.sort_by_key(|e| e.file_name());
+
+  let mut converted = Vec::new();
+
+  for entry in entries {
+    let path = entry.path();
+    if path.extension().and_then(|e| e.to_str()) != Some("md") {
+      continue;
+    }
+
+    let stem = path
+      .file_stem()
+      .and_then(|s| s.to_str())
+      .unwrap_or_default()
+      .to_string();
+    if stem.is_empty() {
+      continue;
+    }
+
+    let intent_path = intents_dir.join(format!("{stem}.yaml"));
+    if intent_path.exists() {
+      info!("draft '{stem}': intent already exists, skipping");
+      continue;
+    }
+
+    let content = std::fs::read_to_string(&path)?;
+    let draft = parse(&content)?;
+    let yaml = draft_to_yaml(&draft);
+
+    std::fs::write(&intent_path, &yaml)?;
+    std::fs::remove_file(&path)?;
+    info!("draft '{stem}': converted to intent");
+    converted.push(stem);
+  }
+
+  Ok(converted)
+}
+
+fn draft_to_yaml(draft: &IntentDraft) -> String {
+  let mut yaml = String::new();
+  yaml.push_str(&format!(
+    "title: \"{}\"\n",
+    draft.title.replace('"', "\\\"")
+  ));
+  yaml.push_str("body: |\n");
+  if draft.body.is_empty() {
+    yaml.push_str("  \n");
+  } else {
+    for line in draft.body.lines() {
+      yaml.push_str(&format!("  {line}\n"));
+    }
+  }
+  yaml.push_str("source: draft\nstatus: proposed\n");
+  if let Some(t) = &draft.intent_type {
+    yaml.push_str(&format!("type: {t}\n"));
+  }
+  if let Some(r) = &draft.risk {
+    yaml.push_str(&format!("risk: {r}\n"));
+  }
+  yaml
 }
 
 fn split_frontmatter(content: &str) -> Result<(String, String)> {

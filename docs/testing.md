@@ -69,16 +69,35 @@ evals/
 フィクスチャ例:
 
 ```yaml
-# evals/analyze/fixtures/trait-extraction.yaml
+# evals/analyze/fixtures/simple-feature.yaml
 intent:
-  title: "tests/ に仕様ベーステストを書く"
-  body: "CLAUDE.md の Testing セクションに従い、spec test を tests/ に追加する"
+  title: "Add a health check endpoint"
+  body: "Add a GET /health endpoint that returns 200 OK"
 repo_ref: abc1234  # 省略可。指定時はそのコミットの worktree で実行
 expectations:
-  relevant_files_contain:
-    - src/claude/runner.rs
-  steps_mention: "trait"
-  step_ordering: "trait 化がテスト記述より前"
+  relevant_files_contain:    # relevant_files に含まれるべきパターン
+    - "src/"
+  plan_mentions:             # plan に含まれるべきキーワード
+    - "health"
+    - "endpoint"
+  steps_mention:             # implementation_steps に含まれるべきキーワード
+    - "handler"
+  has_implementation_steps: true  # implementation_steps が1つ以上
+  complexity_is_one_of:      # complexity の許容値
+    - low
+    - medium
+  min_relevant_files: 1      # relevant_files の最小数
+```
+
+Review eval 用:
+
+```yaml
+# evals/review/fixtures/correct-impl.yaml
+intent:
+  title: "Add unit tests for config parsing"
+  body: "Add tests for edge cases in config parsing"
+expectations:
+  should_approve: true       # approved であること（false positive 検出）
 ```
 
 #### 評価軸

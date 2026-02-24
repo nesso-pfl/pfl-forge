@@ -43,6 +43,7 @@ expectations:
     fixtures[0].1.expectations.complexity_is_one_of,
     vec!["low", "medium"]
   );
+  assert!(fixtures[0].1.expectations.steps_mention.is_empty());
 }
 
 #[test]
@@ -113,7 +114,7 @@ fn eval_analyzeでチェックが実行される() {
       _timeout: Option<Duration>,
       _session_id: Option<&str>,
     ) -> Result<String> {
-      let inner = r#"{"complexity":"low","plan":"Add health endpoint","relevant_files":["src/handler.rs"],"implementation_steps":["Create handler","Add route"],"context":""}"#;
+      let inner = r#"{"complexity":"low","plan":"Add health endpoint","relevant_files":["src/handler.rs"],"implementation_steps":["Create handler","Add route to router"],"context":""}"#;
       let escaped = inner.replace('\\', "\\\\").replace('"', "\\\"");
       Ok(format!(r#"{{"result": "{escaped}"}}"#))
     }
@@ -128,6 +129,7 @@ fn eval_analyzeでチェックが実行される() {
     expectations: eval::Expectations {
       relevant_files_contain: vec!["src/".into()],
       plan_mentions: vec!["health".into()],
+      steps_mention: vec!["route".into()],
       has_implementation_steps: Some(true),
       complexity_is_one_of: vec!["low".into(), "medium".into()],
       min_relevant_files: None,

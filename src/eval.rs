@@ -30,6 +30,8 @@ pub struct Expectations {
   #[serde(default)]
   pub plan_mentions: Vec<String>,
   #[serde(default)]
+  pub steps_mention: Vec<String>,
+  #[serde(default)]
   pub has_implementation_steps: Option<bool>,
   #[serde(default)]
   pub complexity_is_one_of: Vec<String>,
@@ -104,6 +106,11 @@ pub fn eval_analyze(
         let task = &tasks[0];
         check_relevant_files(&fixture.expectations, &task.relevant_files, &mut checks);
         check_plan_mentions(&fixture.expectations, &task.plan, &mut checks);
+        check_steps_mention(
+          &fixture.expectations,
+          &task.implementation_steps,
+          &mut checks,
+        );
         check_implementation_steps(
           &fixture.expectations,
           &task.implementation_steps,
@@ -127,6 +134,7 @@ pub fn eval_analyze(
           .collect();
         check_relevant_files(&fixture.expectations, &all_files, &mut checks);
         check_plan_mentions(&fixture.expectations, &all_plans, &mut checks);
+        check_steps_mention(&fixture.expectations, &all_steps, &mut checks);
         check_implementation_steps(&fixture.expectations, &all_steps, &mut checks);
       }
     }
@@ -186,6 +194,22 @@ fn check_plan_mentions(exp: &Expectations, plan: &str, checks: &mut Vec<Check>) 
         "found".into()
       } else {
         "not found in plan".into()
+      },
+    });
+  }
+}
+
+fn check_steps_mention(exp: &Expectations, steps: &[String], checks: &mut Vec<Check>) {
+  let joined = steps.join(" ").to_lowercase();
+  for keyword in &exp.steps_mention {
+    let found = joined.contains(&keyword.to_lowercase());
+    checks.push(Check {
+      name: format!("steps_mention '{keyword}'"),
+      passed: found,
+      detail: if found {
+        "found".into()
+      } else {
+        "not found in implementation_steps".into()
       },
     });
   }

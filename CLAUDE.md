@@ -41,6 +41,7 @@ Runner が全エージェント呼び出しを管理する。Intent は `.forge/
 - `audit [path]` — コードベース監査 → Observation 記録
 - `inbox` — 承認待ち Intent の一覧
 - `approve <ids>` — Intent の承認
+- `answer <id> "<answer>"` — Clarification への回答（全回答で自動 approve）
 - `eval <agent>` — プロンプト評価（evals/ フィクスチャを実行）
 
 ## Testing

@@ -74,3 +74,22 @@ fn clarification待ちintentにラベルがつく() {
   let msg = operator::build_initial_message(dir.path());
   assert!(msg.contains("[needs clarification]"));
 }
+
+#[test]
+fn clarificationの質問内容がinboxに表示される() {
+  let dir = tempfile::tempdir().unwrap();
+  let intents_dir = dir.path().join(".forge").join("intents");
+  std::fs::create_dir_all(&intents_dir).unwrap();
+
+  std::fs::write(
+    intents_dir.join("clarify.yaml"),
+    "title: Needs info\nbody: body\nsource: human\nstatus: blocked\nclarifications:\n  - question: Which API version?\n  - question: Use REST or gRPC?\n    answer: REST\n",
+  )
+  .unwrap();
+
+  let msg = operator::build_initial_message(dir.path());
+  // Unanswered question is shown
+  assert!(msg.contains("Q: Which API version?"));
+  // Answered question is not shown
+  assert!(!msg.contains("Q: Use REST or gRPC?"));
+}

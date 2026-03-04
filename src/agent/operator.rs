@@ -88,6 +88,11 @@ pub fn build_initial_message(repo_path: &Path) -> String {
         clarification,
         i.title
       ));
+      for c in &i.clarifications {
+        if c.answer.is_none() {
+          msg.push_str(&format!("  - Q: {}\n", c.question));
+        }
+      }
     }
   }
 

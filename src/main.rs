@@ -63,6 +63,13 @@ enum Commands {
     /// Comma-separated intent IDs
     ids: String,
   },
+  /// Answer a clarification question on a blocked intent
+  Answer {
+    /// Intent ID
+    id: String,
+    /// Answer text
+    answer: String,
+  },
   /// Run prompt evaluation fixtures
   Eval {
     /// Agent to evaluate (analyze, review)
@@ -281,6 +288,12 @@ async fn run(cli: Cli) -> Result<()> {
             id = i.id(),
           );
           println!("  {}", i.title);
+          // Show unanswered clarification questions
+          for c in &i.clarifications {
+            if c.answer.is_none() {
+              println!("  Q: {}", c.question);
+            }
+          }
         }
         println!("\n{} item(s)", inbox.len());
       }
@@ -331,6 +344,50 @@ async fn run(cli: Cli) -> Result<()> {
       println!("\n{passed}/{total} fixtures passed");
       if passed < total {
         std::process::exit(1);
+      }
+      Ok(())
+    }
+    Commands::Answer { id, answer } => {
+      let repo_path = Config::repo_path();
+      let intents_dir = repo_path.join(".forge").join("intents");
+      let intents = pfl_forge::intent::registry::Intent::fetch_all(&intents_dir)?;
+
+      match intents.iter().find(|i| i.id() == id) {
+        Some(intent) => {
+          let mut updated = intent.clone();
+          // Find the first unanswered clarification and fill it
+          let unanswered = updated
+            .clarifications
+            .iter_mut()
+            .find(|c| c.answer.is_none());
+          match unanswered {
+            Some(c) => {
+              println!("Q: {}", c.question);
+              println!("A: {answer}");
+              c.answer = Some(answer);
+
+              // If all clarifications are now answered, auto-approve
+              if !updated.needs_clarification() {
+                updated.status = pfl_forge::intent::registry::IntentStatus::Approved;
+                println!("{id}: all clarifications answered, approved");
+              } else {
+                let remaining = updated
+                  .clarifications
+                  .iter()
+                  .filter(|c| c.answer.is_none())
+                  .count();
+                println!("{id}: answered ({remaining} question(s) remaining)");
+              }
+              runner::update_intent_file(&repo_path, &updated)?;
+            }
+            None => {
+              println!("{id}: no unanswered clarifications");
+            }
+          }
+        }
+        None => {
+          eprintln!("{id}: not found");
+        }
       }
       Ok(())
     }

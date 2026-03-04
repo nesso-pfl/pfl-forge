@@ -65,9 +65,9 @@ Runner が Flow の `analyze` ステップを実行するとき。
 ### 入力コンテキスト
 
 - Intent（[data-model.md](data-model.md) 参照）
+- 回答済み Clarification（Human Decisions としてプロンプトに含まれる）
 - CLAUDE.md / Skills（`claude -p` が自動読み込み）
-- Decision Storage（MCP ツール経由で実行中に取得）
-- 関連する History
+- Decision Storage（MCP ツール経由で実行中に取得。過去の human decisions を検索）
 - 他の active な intent の情報（タイトル、ステータス、relevant_files、プラン概要）
 
 ### 処理内容
@@ -76,7 +76,7 @@ Runner が Flow の `analyze` ステップを実行するとき。
 - 実装計画を立てられる → Task[] に分解（各 Task が implement へ）
 - 問題が大きすぎる → 子 Intent[] に分解（各子が再び analyze から開始）
 - 情報不足 → `needs_clarification` を返す
-- Clarification 回答後は `--resume` でセッションを継続し、前回の探索コンテキストを活用する
+- Clarification 回答後は Analyze を再実行する。回答済みの質問は「Human Decisions」セクションとしてプロンプトに含まれ、外部メモリにも保存される
 - モデル: `models.analyze`（default: opus）
 - ツール: `analyze_tools`（default: Read, Glob, Grep, Bash, WebSearch, WebFetch）
 

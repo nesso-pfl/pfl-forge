@@ -57,9 +57,9 @@ proposed → approved → implementing → done      (全 Task 成功)
 
 ### リスクベースの自律実行
 
-リスクレベルはエージェント自身が判定する（ハードコードされた閾値ではない）。
+リスクレベルはエージェント自身が判定する（ハードコードされた閾値ではない）。現時点では全ての `proposed` Intent が inbox に入り、人間の承認を待つ。将来的にはリスクレベルに応じた自動承認を導入予定。
 
-| リスク | 動作 |
+| リスク | 動作（予定） |
 |--------|------|
 | `low` | 自動実行（人間の承認不要） |
 | `med` / `high` | inbox に配置、人間の承認を待つ |
@@ -73,7 +73,7 @@ proposed → approved → implementing → done      (全 Task 成功)
 人間のアクションを待っている Intent のフィルタビュー。物理的な場所ではなく、`.forge/intents/` 内の Intent を条件で抽出する。
 
 inbox に入る条件:
-- **承認待ち** — リスク `med` / `high` で人間の承認が必要（status: `proposed`）
+- **承認待ち** — `proposed` の Intent
 - **clarification 待ち** — `clarifications` に `answer: null` のエントリがある
 - **review 失敗** — 全リトライ後も Task が失敗（status: `blocked` / `error`）
 

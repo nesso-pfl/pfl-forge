@@ -174,7 +174,7 @@ resume 時に保存済みの `session_id` を `claude -p --resume <session_id>` 
 
 | 条件 | 調整 |
 |------|------|
-| `needs_clarification` | Intent を一時停止し inbox へ |
+| `needs_clarification` | Intent を `blocked` にし inbox へ。`pfl-forge answer` で全回答後に `approved` に自動遷移し、次回 `run` で analyze を再実行する |
 | `depends_on: [intent-id]` | 依存 Intent の完了まで implement を遅延 |
 
 ### review の結果による調整

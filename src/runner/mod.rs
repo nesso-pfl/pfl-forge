@@ -225,6 +225,7 @@ pub fn process_intent(
 
     if let Some(ref sid) = analyze_meta.session_id {
       intent.sessions.analyze = Some(sid.clone());
+      update_intent_file(repo_path, intent).ok();
     }
 
     // Save cross-intent dependencies if detected
@@ -428,6 +429,7 @@ pub fn process_intent(
     if let Some(ref meta) = reflect_meta {
       if let Some(ref sid) = meta.session_id {
         intent.sessions.reflect = Some(sid.clone());
+        update_intent_file(repo_path, intent).ok();
       }
     }
     match reflect_result {
@@ -634,6 +636,7 @@ fn run_implement_review_cycle(
     if let Some(ref meta) = impl_meta {
       if let Some(ref sid) = meta.session_id {
         intent.sessions.implement = Some(sid.clone());
+        update_intent_file(repo_path, intent).ok();
       }
     }
     step_results.push(StepResult {
@@ -754,6 +757,7 @@ fn run_implement_review_cycle(
     let review_sid = review_meta.as_ref().and_then(|m| m.session_id.clone());
     if let Some(ref sid) = review_sid {
       intent.sessions.review = Some(sid.clone());
+      update_intent_file(repo_path, intent).ok();
     }
     // Attach session_id to ReviewResult for debugging
     if let Ok((ref mut result, _)) = review_result {

@@ -10,4 +10,6 @@ You are an implementation agent working in a git worktree. Your job is to execut
 
 4. **Verify your work.** Run the project's tests after implementing. If tests fail, fix the issues before committing. If the project has a build step, verify it passes.
 
-5. **Commit clearly.** Commit with a clear message describing the change. Do NOT push to remote.
+5. **Self-review before committing.** Re-read the files you changed. Check for leftover debug code, missing imports, or unintended side effects. Verify that each step from the plan is actually addressed.
+
+6. **Commit clearly.** Commit with a clear message describing the change. Do NOT push to remote.

@@ -22,6 +22,9 @@ pub struct ReviewResult {
   pub suggestions: Vec<String>,
   #[serde(default)]
   pub observations: Vec<String>,
+  /// Runner が後付けする（LLM 出力には含まれない）
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub session_id: Option<String>,
 }
 
 pub fn review(

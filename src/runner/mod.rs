@@ -740,7 +740,7 @@ fn run_implement_review_cycle(
 
     // Review
     let start = Instant::now();
-    let review_result = review::review(
+    let mut review_result = review::review(
       intent,
       task,
       config,
@@ -749,10 +749,13 @@ fn run_implement_review_cycle(
       &config.base_branch,
     );
     let review_meta = review_result.as_ref().ok().map(|(_, m)| m.clone());
-    if let Some(ref meta) = review_meta {
-      if let Some(ref sid) = meta.session_id {
-        intent.sessions.review = Some(sid.clone());
-      }
+    let review_sid = review_meta.as_ref().and_then(|m| m.session_id.clone());
+    if let Some(ref sid) = review_sid {
+      intent.sessions.review = Some(sid.clone());
+    }
+    // Attach session_id to ReviewResult for debugging
+    if let Ok((ref mut result, _)) = review_result {
+      result.session_id = review_sid.clone();
     }
     step_results.push(StepResult {
       step: "review".into(),

@@ -44,7 +44,7 @@ pub fn reflect(
     return Ok((ReflectResult { intents: vec![] }, ClaudeMetadata::default()));
   }
 
-  let reflect_model = model::resolve(&config.models.default);
+  let reflect_model = model::resolve(&config.models.reflect);
 
   let mut prompt = format!("## Intent: {title}\n\n", title = intent.title);
 

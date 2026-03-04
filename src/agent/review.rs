@@ -71,7 +71,7 @@ fn review_inner(
   base_branch: &str,
   diff_override: Option<&str>,
 ) -> Result<(ReviewResult, ClaudeMetadata)> {
-  let review_model = model::resolve(&config.models.default);
+  let review_model = model::resolve(&config.models.review);
 
   let diff = match diff_override {
     Some(d) => d.to_string(),

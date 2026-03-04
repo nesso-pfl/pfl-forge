@@ -36,10 +36,16 @@ pub struct Config {
 pub struct ModelSettings {
   #[serde(default = "default_analyze_model")]
   pub analyze: String,
-  #[serde(default = "default_model")]
-  pub default: String,
-  #[serde(default = "default_complex_model")]
-  pub complex: String,
+  #[serde(default = "default_implement_model")]
+  pub implement: String,
+  #[serde(default = "default_implement_complex_model")]
+  pub implement_complex: String,
+  #[serde(default = "default_review_model")]
+  pub review: String,
+  #[serde(default = "default_reflect_model")]
+  pub reflect: String,
+  #[serde(default = "default_skill_model")]
+  pub skill: String,
   #[serde(default = "default_audit_model")]
   pub audit: String,
 }
@@ -48,8 +54,11 @@ impl Default for ModelSettings {
   fn default() -> Self {
     Self {
       analyze: default_analyze_model(),
-      default: default_model(),
-      complex: default_complex_model(),
+      implement: default_implement_model(),
+      implement_complex: default_implement_complex_model(),
+      review: default_review_model(),
+      reflect: default_reflect_model(),
+      skill: default_skill_model(),
       audit: default_audit_model(),
     }
   }
@@ -99,11 +108,20 @@ fn default_analyze_tools() -> Vec<String> {
 fn default_analyze_model() -> String {
   "opus".to_string()
 }
-fn default_model() -> String {
+fn default_implement_model() -> String {
   "sonnet".to_string()
 }
-fn default_complex_model() -> String {
+fn default_implement_complex_model() -> String {
   "opus".to_string()
+}
+fn default_review_model() -> String {
+  "sonnet".to_string()
+}
+fn default_reflect_model() -> String {
+  "sonnet".to_string()
+}
+fn default_skill_model() -> String {
+  "sonnet".to_string()
 }
 fn default_audit_model() -> String {
   "opus".to_string()

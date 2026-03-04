@@ -23,9 +23,9 @@ pub enum Complexity {
 impl Complexity {
   pub fn select_model(self, settings: &ModelSettings) -> &'static str {
     match self {
-      Complexity::Low => resolve(&settings.default),
-      Complexity::Medium => resolve(&settings.default),
-      Complexity::High => resolve(&settings.complex),
+      Complexity::Low => resolve(&settings.implement),
+      Complexity::Medium => resolve(&settings.implement),
+      Complexity::High => resolve(&settings.implement_complex),
     }
   }
 }

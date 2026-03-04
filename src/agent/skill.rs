@@ -55,7 +55,7 @@ pub fn observe(
     ));
   }
 
-  let observe_model = model::resolve(&config.models.default);
+  let observe_model = model::resolve(&config.models.skill);
   let mut prompt = String::from("## Execution History\n\n");
   for entry in &entries {
     prompt.push_str(&format!(
@@ -93,7 +93,7 @@ pub fn abstract_patterns(
     return Ok((AbstractResult { skills: vec![] }, ClaudeMetadata::default()));
   }
 
-  let abstract_model = model::resolve(&config.models.default);
+  let abstract_model = model::resolve(&config.models.skill);
   let mut prompt = String::from("## Observed Patterns\n\n");
   for p in patterns {
     prompt.push_str(&format!(

@@ -138,6 +138,23 @@ pub fn analyze(
     body = intent.body,
   );
 
+  // Include answered clarifications from previous runs
+  let answered_clarifications: Vec<_> = intent
+    .clarifications
+    .iter()
+    .filter(|c| c.answer.is_some())
+    .collect();
+  if !answered_clarifications.is_empty() {
+    prompt.push_str("\n\n## Human Decisions\n\n");
+    for c in &answered_clarifications {
+      prompt.push_str(&format!(
+        "Q: {}\nA: {}\n\n",
+        c.question,
+        c.answer.as_ref().unwrap()
+      ));
+    }
+  }
+
   if !active_intents.is_empty() {
     prompt.push_str("\n\n## Active Intents\n\n");
     for ai in active_intents {

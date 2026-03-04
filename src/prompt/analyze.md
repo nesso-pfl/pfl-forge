@@ -18,6 +18,12 @@ You may receive information about other intents being worked on in parallel. Use
 - Avoid planning changes to files another intent is actively modifying
 - Note dependencies with `depends_on` if your work requires another intent to complete first
 
+## Human decisions
+
+When you start analyzing, search external memory for past human decisions relevant to this intent. They record choices humans made in response to clarification questions — use them to inform your plan without re-asking.
+
+If the intent includes answered clarifications (in the "Human Decisions" section), save each one to external memory after completing your analysis. Use the tag `decision` and include enough context (the question, the answer, and what intent it was for) so that future analyses can benefit.
+
 ## Outcomes
 
 Choose one based on your analysis:

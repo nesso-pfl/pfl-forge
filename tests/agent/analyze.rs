@@ -3,6 +3,7 @@ use std::time::Duration;
 use pfl_forge::agent::analyze::{self, ActiveIntentContext, AnalysisOutcome};
 use pfl_forge::claude::model::OPUS;
 use pfl_forge::config::Config;
+use pfl_forge::intent::registry::Clarification;
 use pfl_forge::intent::registry::Intent;
 
 use crate::mock_claude::MockClaude;
@@ -191,4 +192,41 @@ fn claudeエラーを伝播する() {
   assert!(result.is_err());
   let err = result.unwrap_err().to_string();
   assert!(err.contains("rate limit"), "error was: {err}");
+}
+
+#[test]
+fn 回答済みclarificationをプロンプトに含める() {
+  let mock = MockClaude::with_json(&analysis_json());
+  let config = default_config();
+  let mut intent = sample_intent();
+  intent.clarifications = vec![
+    Clarification {
+      question: "Which API version?".into(),
+      answer: Some("v2".into()),
+    },
+    Clarification {
+      question: "Unanswered question".into(),
+      answer: None,
+    },
+  ];
+
+  analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
+
+  let call = mock.last_call();
+  assert!(call.prompt.contains("Human Decisions"));
+  assert!(call.prompt.contains("Which API version?"));
+  assert!(call.prompt.contains("v2"));
+  assert!(!call.prompt.contains("Unanswered question"));
+}
+
+#[test]
+fn clarificationが空ならセクションを省略する() {
+  let mock = MockClaude::with_json(&analysis_json());
+  let config = default_config();
+  let intent = sample_intent();
+
+  analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
+
+  let call = mock.last_call();
+  assert!(!call.prompt.contains("Human Decisions"));
 }

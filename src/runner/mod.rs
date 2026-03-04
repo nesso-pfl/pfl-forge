@@ -77,8 +77,17 @@ pub fn run_intents(
   let intents_dir = repo_path.join(".forge").join("intents");
   let all_intents = Intent::fetch_all(&intents_dir)?;
   let mut targets: Vec<Intent> = all_intents
-    .into_iter()
+    .iter()
     .filter(|i| i.status == IntentStatus::Approved || i.status == IntentStatus::Implementing)
+    .filter(|i| {
+      i.depends_on.is_empty()
+        || i.depends_on.iter().all(|dep| {
+          all_intents
+            .iter()
+            .any(|other| other.id() == dep && other.status == IntentStatus::Done)
+        })
+    })
+    .cloned()
     .collect();
 
   if targets.is_empty() {
@@ -199,7 +208,7 @@ pub fn process_intent(
       None
     };
     let start = Instant::now();
-    let (analysis_outcome, analyze_meta) = analyze::analyze(
+    let (analysis_outcome, analyze_meta, depends_on_intents) = analyze::analyze(
       intent,
       config,
       claude,
@@ -212,6 +221,38 @@ pub fn process_intent(
       duration_secs: start.elapsed().as_secs(),
       metadata: Some(analyze_meta.clone()),
     });
+
+    // Save cross-intent dependencies if detected
+    if !depends_on_intents.is_empty() {
+      intent.depends_on = depends_on_intents;
+      intent.last_step = Some("analyze".into());
+      update_intent_file(repo_path, intent)?;
+
+      // Check if all dependencies are done
+      let all_intents = Intent::fetch_all(&repo_path.join(".forge").join("intents"))?;
+      let deps_satisfied = intent.depends_on.iter().all(|dep| {
+        all_intents
+          .iter()
+          .any(|other| other.id() == dep && other.status == IntentStatus::Done)
+      });
+
+      if !deps_satisfied {
+        info!(
+          "intent {} waiting on depends_on: {:?}",
+          intent.id(),
+          intent.depends_on
+        );
+        // Revert to approved so it's picked up next run
+        intent.status = IntentStatus::Approved;
+        update_intent_file(repo_path, intent)?;
+        return Ok(IntentResult {
+          flow: flow_names,
+          step_results,
+          outcome: Outcome::Failed,
+          failure_reason: Some("waiting on cross-intent dependencies".into()),
+        });
+      }
+    }
 
     // Handle non-task outcomes
     let task_specs = match analysis_outcome {

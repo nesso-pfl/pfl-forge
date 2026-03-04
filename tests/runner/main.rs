@@ -169,6 +169,64 @@ fn skill_extractionでパターンなしなら早期終了する() {
   assert_eq!(steps, vec!["observe"]);
 }
 
+// --- Cross-intent depends_on ---
+
+#[test]
+fn cross_intent依存が未完了ならintentをスキップする() {
+  use helpers::*;
+  use pfl_forge::runner;
+
+  let (_dir, repo) = setup_repo_with_intent("base-intent");
+  // Add a second intent that depends on a non-done intent
+  add_intent_with_depends_on(&repo, "dependent", "approved", &["base-intent"]);
+  let config = default_config();
+
+  // Mock: only base-intent should be processed (analyze + implement + review)
+  let mock = MockClaude::with_sequence(vec![
+    json_response(analysis_json()),
+    raw_response("Done"),
+    json_response(approved_review_json()),
+  ]);
+
+  let results = runner::run_intents(&config, &mock, &repo, false).unwrap();
+
+  // Only base-intent was processed; dependent was skipped because base-intent wasn't done yet
+  // at the time of filtering
+  let processed_ids: Vec<&str> = results.iter().map(|(id, _)| id.as_str()).collect();
+  assert!(
+    !processed_ids.contains(&"dependent"),
+    "dependent intent should be skipped when dependency is not done"
+  );
+}
+
+#[test]
+fn cross_intent依存が完了済みならintentを処理する() {
+  use helpers::*;
+  use pfl_forge::runner;
+
+  let (_dir, repo) = setup_repo_with_intent("dep-done");
+  // Mark the dependency as done
+  add_intent(&repo, "prereq", "done");
+  // Add intent that depends on the done prereq
+  add_intent_with_depends_on(&repo, "dep-done", "approved", &["prereq"]);
+
+  let config = default_config();
+
+  let mock = MockClaude::with_sequence(vec![
+    json_response(analysis_json()),
+    raw_response("Done"),
+    json_response(approved_review_json()),
+  ]);
+
+  let results = runner::run_intents(&config, &mock, &repo, false).unwrap();
+
+  let processed_ids: Vec<&str> = results.iter().map(|(id, _)| id.as_str()).collect();
+  assert!(
+    processed_ids.contains(&"dep-done"),
+    "intent with satisfied dependencies should be processed"
+  );
+}
+
 // --- 基本実行フロー + 自動挿入ステップ ---
 
 mod basic_flow;

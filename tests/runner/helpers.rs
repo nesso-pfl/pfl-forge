@@ -242,6 +242,25 @@ pub fn load_intent(repo_path: &Path, intent_id: &str) -> Intent {
     .unwrap()
 }
 
+pub fn add_intent_with_depends_on(
+  repo_path: &Path,
+  intent_id: &str,
+  status: &str,
+  depends_on: &[&str],
+) {
+  let intents_dir = repo_path.join(".forge").join("intents");
+  let deps_yaml: Vec<String> = depends_on.iter().map(|d| format!("  - {d}")).collect();
+  let deps_str = if deps_yaml.is_empty() {
+    "depends_on: []\n".to_string()
+  } else {
+    format!("depends_on:\n{}\n", deps_yaml.join("\n"))
+  };
+  let yaml = format!(
+    "title: {intent_id}\nbody: Body of {intent_id}\nsource: human\nstatus: {status}\n{deps_str}"
+  );
+  std::fs::write(intents_dir.join(format!("{intent_id}.yaml")), yaml).unwrap();
+}
+
 pub fn add_implementing_intent(
   repo_path: &Path,
   intent_id: &str,

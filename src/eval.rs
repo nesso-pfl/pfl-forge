@@ -95,7 +95,7 @@ pub fn eval_analyze(
   let intent = Intent::synthetic(&fixture.intent.title, &fixture.intent.body);
 
   info!("eval analyze: running fixture '{fixture_name}'");
-  let (outcome, _meta) = analyze::analyze(&intent, config, claude, repo_path, &[], None)?;
+  let (outcome, _meta, _depends) = analyze::analyze(&intent, config, claude, repo_path, &[], None)?;
 
   let mut checks = Vec::new();
 

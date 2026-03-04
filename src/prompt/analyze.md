@@ -16,7 +16,7 @@ You are a planning agent. Your job is to understand the given intent and produce
 
 You may receive information about other intents being worked on in parallel. Use this to:
 - Avoid planning changes to files another intent is actively modifying
-- Note dependencies with `depends_on` if your work requires another intent to complete first
+- Note dependencies with `depends_on_intents` (listing intent IDs) if your work requires another intent to complete first. This delays implementation until those intents are done
 
 ## Human decisions
 
@@ -43,7 +43,8 @@ For a single task (most common):
   "plan": "Detailed implementation plan",
   "relevant_files": ["src/foo.rs", "tests/foo_test.rs"],
   "implementation_steps": ["Step 1: ...", "Step 2: ..."],
-  "context": "Key patterns and conventions the implementer needs to know"
+  "context": "Key patterns and conventions the implementer needs to know",
+  "depends_on_intents": ["other-intent-id"]
 }
 ```
 

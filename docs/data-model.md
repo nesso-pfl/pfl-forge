@@ -17,6 +17,7 @@ ID はファイル名の stem（`fix-login-validation.yaml` → `fix-login-valid
 - **created_at**: タイムスタンプ
 - **last_step**: 最後に完了したステップ（`analyze`, `implement` など）。中断からの再開に使用
 - **session_id**: Claude Code のセッション ID。`--resume` でセッション復帰に使用
+- **depends_on**: 依存する Intent ID のリスト。依存先が全て `done` になるまで implement を遅延
 
 ### YAML 形式
 
@@ -34,6 +35,8 @@ parent: null
 created_at: 2025-02-22T10:00:00Z
 last_step: analyze          # 中断時の最終ステップ（省略可）
 session_id: d44db260-...    # Claude Code セッション ID（省略可）
+depends_on:                 # 依存 Intent ID（省略可）
+  - setup-database
 clarifications:
   - question: "メールアドレスの形式チェックは RFC 5322 準拠？それとは簡易チェック？"
     answer: "RFC 5322 準拠で"

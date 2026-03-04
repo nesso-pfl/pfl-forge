@@ -5,6 +5,7 @@ models:
   analyze: opus
   default: sonnet
   complex: opus
+  audit: opus
 implement_tools:
   - Bash
   - Read
@@ -23,3 +24,7 @@ poll_interval_secs: 300
 worktree_dir: .pfl-worktrees
 worker_timeout_secs: 1200
 analyze_timeout_secs: 600
+max_review_retries: 2
+# worktree_setup:
+#   - npm install
+mcp_config: .claude/mcp.json

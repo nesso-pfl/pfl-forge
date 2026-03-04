@@ -47,6 +47,10 @@ pub struct Observation {
   #[serde(default)]
   pub processed: bool,
   pub created_at: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub source_session_id: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub processed_session_id: Option<String>,
 }
 
 pub fn load(path: &Path) -> Result<Vec<Observation>> {
@@ -82,12 +86,13 @@ pub fn unprocessed(observations: &[Observation]) -> Vec<&Observation> {
   observations.iter().filter(|o| !o.processed).collect()
 }
 
-pub fn mark_processed(path: &Path, intent_id: &str) -> Result<()> {
+pub fn mark_processed(path: &Path, intent_id: &str, session_id: Option<&str>) -> Result<()> {
   let _lock = lock_file(path)?;
   let mut observations = load(path)?;
   for obs in &mut observations {
     if obs.intent_id == intent_id {
       obs.processed = true;
+      obs.processed_session_id = session_id.map(String::from);
     }
   }
   let content = serde_yaml::to_string(&observations)?;

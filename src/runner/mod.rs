@@ -270,6 +270,8 @@ pub fn process_intent(
           intent_id: intent.id().to_string(),
           processed: false,
           created_at: Some(chrono::Utc::now().to_rfc3339()),
+          source_session_id: analyze_meta.session_id.clone(),
+          processed_session_id: None,
         };
         if let Err(e) = crate::knowledge::observation::append(&obs_path, &obs) {
           warn!("failed to write analyze observation: {e}");
@@ -775,6 +777,8 @@ fn run_implement_review_cycle(
             intent_id: intent.id().to_string(),
             processed: false,
             created_at: Some(chrono::Utc::now().to_rfc3339()),
+            source_session_id: review_sid.clone(),
+            processed_session_id: None,
           };
           if let Err(e) = crate::knowledge::observation::append(&obs_path, &obs) {
             warn!("failed to write review observation: {e}");

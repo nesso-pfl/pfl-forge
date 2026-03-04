@@ -210,6 +210,8 @@ Intent フロー全体の構造化サマリ。`.forge/knowledge/logs/{intent_id}
 - **intent_id**: 処理中の Intent の ID
 - **processed**: Reflect が処理済みかどうか（default: `false`）
 - **created_at**: タイムスタンプ
+- **source_session_id**: 作成元エージェントの Claude Code セッション ID（デバッグ用、省略可）
+- **processed_session_id**: 処理したエージェント（Reflect）の Claude Code セッション ID（デバッグ用、省略可）
 
 ### 例
 

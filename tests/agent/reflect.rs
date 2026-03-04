@@ -31,6 +31,8 @@ fn write_observations(dir: &std::path::Path, intent_id: &str, count: usize) {
       intent_id: intent_id.to_string(),
       processed: false,
       created_at: None,
+      source_session_id: None,
+      processed_session_id: None,
     };
     observation::append(&obs_path, &obs).unwrap();
   }
@@ -100,6 +102,8 @@ fn 未処理のobservationのみを処理する() {
     intent_id: "fix-bug".into(),
     processed: true,
     created_at: None,
+    source_session_id: None,
+    processed_session_id: None,
   };
   let unprocessed_obs = Observation {
     content: "new observation".into(),
@@ -108,6 +112,8 @@ fn 未処理のobservationのみを処理する() {
     intent_id: "fix-bug".into(),
     processed: false,
     created_at: None,
+    source_session_id: None,
+    processed_session_id: None,
   };
   observation::append(&obs_path, &processed_obs).unwrap();
   observation::append(&obs_path, &unprocessed_obs).unwrap();

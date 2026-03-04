@@ -109,7 +109,7 @@ pub fn reflect(
   }
 
   // Mark observations as processed
-  observation::mark_processed(&obs_path, &intent.id())?;
+  observation::mark_processed(&obs_path, &intent.id(), metadata.session_id.as_deref())?;
 
   info!("reflect: generated {} intents", result.intents.len());
   Ok((result, metadata))

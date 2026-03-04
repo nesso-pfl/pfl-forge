@@ -77,6 +77,8 @@ fn observationをyamlファイルに追記する() {
     intent_id: "intent-1".into(),
     processed: false,
     created_at: None,
+    source_session_id: None,
+    processed_session_id: None,
   };
   let obs2 = Observation {
     content: "Second observation".into(),
@@ -88,6 +90,8 @@ fn observationをyamlファイルに追記する() {
     intent_id: "intent-2".into(),
     processed: false,
     created_at: None,
+    source_session_id: None,
+    processed_session_id: None,
   };
 
   observation::append(&path, &obs1).unwrap();
@@ -110,6 +114,8 @@ fn 未処理のobservationを収集する() {
       intent_id: "a".into(),
       processed: true,
       created_at: None,
+      source_session_id: None,
+      processed_session_id: None,
     },
     Observation {
       content: "unprocessed".into(),
@@ -118,6 +124,8 @@ fn 未処理のobservationを収集する() {
       intent_id: "b".into(),
       processed: false,
       created_at: None,
+      source_session_id: None,
+      processed_session_id: None,
     },
   ];
 
@@ -138,10 +146,12 @@ fn observationを処理済みにマークする() {
     intent_id: "target-intent".into(),
     processed: false,
     created_at: None,
+    source_session_id: None,
+    processed_session_id: None,
   };
   observation::append(&path, &obs).unwrap();
 
-  observation::mark_processed(&path, "target-intent").unwrap();
+  observation::mark_processed(&path, "target-intent", None).unwrap();
 
   let loaded = observation::load(&path).unwrap();
   assert!(loaded[0].processed);
@@ -166,6 +176,8 @@ fn 複数スレッドからの並行appendでデータが欠落しない() {
           intent_id: format!("intent-{i}"),
           processed: false,
           created_at: None,
+          source_session_id: None,
+          processed_session_id: None,
         };
         observation::append(&path, &obs).unwrap();
       })

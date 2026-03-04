@@ -71,6 +71,8 @@ pub fn audit(
       intent_id: intent_id.to_string(),
       processed: false,
       created_at: Some(chrono::Utc::now().to_rfc3339()),
+      source_session_id: metadata.session_id.clone(),
+      processed_session_id: None,
     };
     observation::append(&obs_path, &observation)?;
   }

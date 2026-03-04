@@ -288,6 +288,8 @@ fn リーフintent完了後にreflectが実行される() {
     intent_id: "leaf-intent".into(),
     processed: false,
     created_at: None,
+    source_session_id: None,
+    processed_session_id: None,
   };
   pfl_forge::knowledge::observation::append(&obs_path, &obs).unwrap();
 

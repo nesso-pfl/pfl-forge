@@ -1,5 +1,7 @@
+use std::fs::{File, OpenOptions};
 use std::path::Path;
 
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
@@ -56,7 +58,19 @@ pub fn load(path: &Path) -> Result<Vec<Observation>> {
   Ok(observations)
 }
 
+fn lock_file(path: &Path) -> Result<File> {
+  let lock_path = path.with_extension("yaml.lock");
+  let file = OpenOptions::new()
+    .create(true)
+    .write(true)
+    .truncate(false)
+    .open(lock_path)?;
+  file.lock_exclusive()?;
+  Ok(file)
+}
+
 pub fn append(path: &Path, observation: &Observation) -> Result<()> {
+  let _lock = lock_file(path)?;
   let mut observations = load(path)?;
   observations.push(observation.clone());
   let content = serde_yaml::to_string(&observations)?;
@@ -69,6 +83,7 @@ pub fn unprocessed(observations: &[Observation]) -> Vec<&Observation> {
 }
 
 pub fn mark_processed(path: &Path, intent_id: &str) -> Result<()> {
+  let _lock = lock_file(path)?;
   let mut observations = load(path)?;
   for obs in &mut observations {
     if obs.intent_id == intent_id {

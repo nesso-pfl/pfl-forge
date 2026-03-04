@@ -5,7 +5,7 @@ models:
   analyze: opus
   default: sonnet
   complex: opus
-worker_tools:
+implement_tools:
   - Bash
   - Read
   - Write

@@ -12,8 +12,8 @@ pub struct Config {
   pub parallel_workers: usize,
   #[serde(default)]
   pub models: ModelSettings,
-  #[serde(default = "default_worker_tools")]
-  pub worker_tools: Vec<String>,
+  #[serde(default = "default_implement_tools")]
+  pub implement_tools: Vec<String>,
   #[serde(default = "default_poll_interval")]
   pub poll_interval_secs: u64,
   #[serde(default = "default_analyze_tools")]
@@ -61,7 +61,7 @@ fn default_base_branch() -> String {
 fn default_parallel_workers() -> usize {
   4
 }
-fn default_worker_tools() -> Vec<String> {
+fn default_implement_tools() -> Vec<String> {
   vec![
     "Bash".into(),
     "Read".into(),
@@ -133,7 +133,7 @@ mod tests {
     let yaml = "{}";
     let config: Config = serde_yaml::from_str(yaml).unwrap();
     assert_eq!(config.parallel_workers, 4);
-    assert_eq!(config.worker_tools.len(), 6);
+    assert_eq!(config.implement_tools.len(), 6);
     assert_eq!(config.base_branch, "main");
     assert_eq!(config.max_review_retries, 2);
   }

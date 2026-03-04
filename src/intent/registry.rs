@@ -19,11 +19,16 @@ pub struct SessionIds {
   pub implement: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub review: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub reflect: Option<String>,
 }
 
 impl SessionIds {
   pub fn is_empty(&self) -> bool {
-    self.analyze.is_none() && self.implement.is_none() && self.review.is_none()
+    self.analyze.is_none()
+      && self.implement.is_none()
+      && self.review.is_none()
+      && self.reflect.is_none()
   }
 }
 

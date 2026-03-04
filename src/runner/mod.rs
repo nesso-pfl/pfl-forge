@@ -423,6 +423,11 @@ pub fn process_intent(
     let start = Instant::now();
     let reflect_result = reflect::reflect(intent, config, claude, repo_path);
     let reflect_meta = reflect_result.as_ref().ok().map(|(_, m)| m.clone());
+    if let Some(ref meta) = reflect_meta {
+      if let Some(ref sid) = meta.session_id {
+        intent.sessions.reflect = Some(sid.clone());
+      }
+    }
     match reflect_result {
       Ok((r, _)) => info!("reflect: generated {} intents", r.intents.len()),
       Err(e) => warn!("reflect failed: {e}"),

@@ -126,54 +126,28 @@ pub fn analyze(
   runner: &impl Claude,
   repo_path: &std::path::Path,
   active_intents: &[ActiveIntentContext],
+  session_id: Option<&str>,
 ) -> Result<(AnalysisOutcome, ClaudeMetadata)> {
   let deep_model = model::resolve(&config.models.analyze);
 
-  let mut prompt = format!(
-    r#"Intent {id}: {title}
-
-{body}"#,
-    id = intent.id(),
-    title = intent.title,
-    body = intent.body,
-  );
-
-  // Include answered clarifications from previous runs
-  let answered_clarifications: Vec<_> = intent
-    .clarifications
-    .iter()
-    .filter(|c| c.answer.is_some())
-    .collect();
-  if !answered_clarifications.is_empty() {
-    prompt.push_str("\n\n## Human Decisions\n\n");
-    for c in &answered_clarifications {
-      prompt.push_str(&format!(
-        "Q: {}\nA: {}\n\n",
-        c.question,
-        c.answer.as_ref().unwrap()
-      ));
-    }
-  }
-
-  if !active_intents.is_empty() {
-    prompt.push_str("\n\n## Active Intents\n\n");
-    for ai in active_intents {
-      prompt.push_str(&format!("- **{}** ({}): {}\n", ai.id, ai.status, ai.title));
-      if !ai.relevant_files.is_empty() {
-        prompt.push_str(&format!("  files: {}\n", ai.relevant_files.join(", ")));
-      }
-      if let Some(plan) = &ai.plan {
-        let summary: String = plan.chars().take(200).collect();
-        prompt.push_str(&format!("  plan: {summary}\n"));
-      }
-    }
-  }
+  // When resuming from clarification, send only the answers
+  let prompt = if session_id.is_some() {
+    build_clarification_resume_prompt(intent)
+  } else {
+    build_full_prompt(intent, active_intents)
+  };
 
   let timeout = Some(Duration::from_secs(config.analyze_timeout_secs));
 
   info!("analyzing: {intent}");
-  let (raw, metadata): (RawAnalysis, _) =
-    runner.run_json_with_meta(&prompt, prompt::ANALYZE, deep_model, repo_path, timeout)?;
+  let (raw, metadata): (RawAnalysis, _) = runner.run_json_with_meta_resume(
+    &prompt,
+    prompt::ANALYZE,
+    deep_model,
+    repo_path,
+    timeout,
+    session_id,
+  )?;
   let outcome = AnalysisOutcome::from(raw);
 
   match &outcome {
@@ -200,4 +174,57 @@ pub fn analyze(
   }
 
   Ok((outcome, metadata))
+}
+
+fn build_full_prompt(intent: &Intent, active_intents: &[ActiveIntentContext]) -> String {
+  let mut prompt = format!(
+    "Intent {id}: {title}\n\n{body}",
+    id = intent.id(),
+    title = intent.title,
+    body = intent.body,
+  );
+
+  // Include answered clarifications from previous runs
+  let answered: Vec<_> = intent
+    .clarifications
+    .iter()
+    .filter(|c| c.answer.is_some())
+    .collect();
+  if !answered.is_empty() {
+    prompt.push_str("\n\n## Human Decisions\n\n");
+    for c in &answered {
+      prompt.push_str(&format!(
+        "Q: {}\nA: {}\n\n",
+        c.question,
+        c.answer.as_ref().unwrap()
+      ));
+    }
+  }
+
+  if !active_intents.is_empty() {
+    prompt.push_str("\n\n## Active Intents\n\n");
+    for ai in active_intents {
+      prompt.push_str(&format!("- **{}** ({}): {}\n", ai.id, ai.status, ai.title));
+      if !ai.relevant_files.is_empty() {
+        prompt.push_str(&format!("  files: {}\n", ai.relevant_files.join(", ")));
+      }
+      if let Some(plan) = &ai.plan {
+        let summary: String = plan.chars().take(200).collect();
+        prompt.push_str(&format!("  plan: {summary}\n"));
+      }
+    }
+  }
+
+  prompt
+}
+
+fn build_clarification_resume_prompt(intent: &Intent) -> String {
+  let mut prompt = String::from("Clarification answers:\n\n");
+  for c in &intent.clarifications {
+    if let Some(ref answer) = c.answer {
+      prompt.push_str(&format!("Q: {}\nA: {}\n\n", c.question, answer));
+    }
+  }
+  prompt.push_str("Please continue with the analysis using these answers.");
+  prompt
 }

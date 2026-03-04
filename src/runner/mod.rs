@@ -135,7 +135,8 @@ pub fn process_intent(
 ) -> Result<IntentResult> {
   let flow = default_flow(intent.intent_type.as_deref());
   let flow_names: Vec<String> = flow.iter().map(|s| s.name().to_string()).collect();
-  let resuming = intent.status == IntentStatus::Implementing;
+  let resuming = intent.status == IntentStatus::Implementing
+    || (intent.status == IntentStatus::Approved && intent.last_step.is_some());
 
   info!(
     "processing intent {}: flow={:?} resuming={resuming}",
@@ -161,35 +162,55 @@ pub fn process_intent(
   // Check if we can resume from a previous run
   let worktree_path_for_resume =
     git::worktree::path_for(repo_path, &config.worktree_dir, &intent.branch_name());
-  let can_resume_from_analyze = resuming
+  let has_tasks_yaml = worktree_path_for_resume
+    .join(".forge")
+    .join("tasks.yaml")
+    .exists();
+  let can_resume_tasks =
+    resuming && intent.last_step.as_deref() == Some("analyze") && has_tasks_yaml;
+  // Resume analyze with clarification answers (session_id present, no tasks yet)
+  let resume_clarification = resuming
     && intent.last_step.as_deref() == Some("analyze")
-    && worktree_path_for_resume
-      .join(".forge")
-      .join("tasks.yaml")
-      .exists();
+    && !has_tasks_yaml
+    && intent.session_id.is_some()
+    && !intent.needs_clarification();
 
-  let (mut tasks, worktree_path) = if can_resume_from_analyze {
+  let (mut tasks, worktree_path) = if can_resume_tasks {
     // Resume: read tasks from worktree, skip analyze
     info!("resuming from analyze: reading tasks from worktree");
     let tasks = task::read_all_tasks(&worktree_path_for_resume)?;
     (tasks, worktree_path_for_resume)
   } else {
-    // Normal: run analyze
-    if resuming {
+    // Normal or clarification resume: run analyze
+    if resuming && !resume_clarification {
       info!("resume data not found, running from start");
+    }
+    if resume_clarification {
+      info!("resuming analyze with clarification answers");
     }
 
     // Gather active intent contexts for dependency detection
     let active_intents = gather_active_intents(repo_path, config, intent.id());
 
-    // Analyze
+    // Analyze (with optional resume from clarification)
+    let analyze_session_id = if resuming {
+      intent.session_id.as_deref()
+    } else {
+      None
+    };
     let start = Instant::now();
-    let (analysis_outcome, analyze_meta) =
-      analyze::analyze(intent, config, claude, repo_path, &active_intents)?;
+    let (analysis_outcome, analyze_meta) = analyze::analyze(
+      intent,
+      config,
+      claude,
+      repo_path,
+      &active_intents,
+      analyze_session_id,
+    )?;
     step_results.push(StepResult {
       step: "analyze".into(),
       duration_secs: start.elapsed().as_secs(),
-      metadata: Some(analyze_meta),
+      metadata: Some(analyze_meta.clone()),
     });
 
     // Handle non-task outcomes
@@ -197,6 +218,11 @@ pub fn process_intent(
       AnalysisOutcome::Tasks(specs) => specs,
       AnalysisOutcome::NeedsClarification { clarifications } => {
         intent.status = IntentStatus::Blocked;
+        // Save session_id for resume after clarification
+        if let Some(ref sid) = analyze_meta.session_id {
+          intent.session_id = Some(sid.clone());
+        }
+        intent.last_step = Some("analyze".into());
         for q in &clarifications {
           intent
             .clarifications

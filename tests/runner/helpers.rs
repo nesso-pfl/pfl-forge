@@ -58,7 +58,9 @@ impl Claude for MockClaude {
 /// Wrap inner_json in Claude's `{"result": "..."}` envelope
 pub fn json_response(inner_json: &str) -> Result<String> {
   let escaped = inner_json.replace('\\', "\\\\").replace('"', "\\\"");
-  Ok(format!(r#"{{"result": "{escaped}"}}"#))
+  Ok(format!(
+    r#"{{"result": "{escaped}", "session_id": "mock-session-id"}}"#
+  ))
 }
 
 pub fn raw_response(text: &str) -> Result<String> {

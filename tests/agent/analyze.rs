@@ -33,8 +33,15 @@ fn 成功した分析からタスクスペックを返す() {
   let config = default_config();
   let intent = sample_intent();
 
-  let (outcome, _meta) =
-    analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
+  let (outcome, _meta) = analyze::analyze(
+    &intent,
+    &config,
+    &mock,
+    std::path::Path::new("."),
+    &[],
+    None,
+  )
+  .unwrap();
 
   let specs = match outcome {
     AnalysisOutcome::Tasks(s) => s,
@@ -55,8 +62,15 @@ fn 複数タスクとdepends_onを返す() {
   let config = default_config();
   let intent = sample_intent();
 
-  let (outcome, _meta) =
-    analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
+  let (outcome, _meta) = analyze::analyze(
+    &intent,
+    &config,
+    &mock,
+    std::path::Path::new("."),
+    &[],
+    None,
+  )
+  .unwrap();
 
   let specs = match outcome {
     AnalysisOutcome::Tasks(s) => s,
@@ -75,8 +89,15 @@ fn 問題が大きい場合は子intentを返す() {
   let config = default_config();
   let intent = sample_intent();
 
-  let (outcome, _meta) =
-    analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
+  let (outcome, _meta) = analyze::analyze(
+    &intent,
+    &config,
+    &mock,
+    std::path::Path::new("."),
+    &[],
+    None,
+  )
+  .unwrap();
 
   match outcome {
     AnalysisOutcome::ChildIntents(children) => {
@@ -96,8 +117,15 @@ fn 情報不足の場合はclarificationを返す() {
   let config = default_config();
   let intent = sample_intent();
 
-  let (outcome, _meta) =
-    analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
+  let (outcome, _meta) = analyze::analyze(
+    &intent,
+    &config,
+    &mock,
+    std::path::Path::new("."),
+    &[],
+    None,
+  )
+  .unwrap();
 
   match outcome {
     AnalysisOutcome::NeedsClarification { clarifications } => {
@@ -114,7 +142,15 @@ fn configのanalyzeモデルを使用する() {
   let config = default_config();
   let intent = sample_intent();
 
-  analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
+  analyze::analyze(
+    &intent,
+    &config,
+    &mock,
+    std::path::Path::new("."),
+    &[],
+    None,
+  )
+  .unwrap();
 
   let call = mock.last_call();
   assert_eq!(call.model, OPUS);
@@ -126,7 +162,15 @@ fn configのanalyzeタイムアウトを使用する() {
   let config = default_config();
   let intent = sample_intent();
 
-  analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
+  analyze::analyze(
+    &intent,
+    &config,
+    &mock,
+    std::path::Path::new("."),
+    &[],
+    None,
+  )
+  .unwrap();
 
   let call = mock.last_call();
   assert_eq!(call.timeout, Some(Duration::from_secs(600)));
@@ -138,7 +182,15 @@ fn プロンプトにintentのid_title_bodyが含まれる() {
   let config = default_config();
   let intent = sample_intent();
 
-  analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
+  analyze::analyze(
+    &intent,
+    &config,
+    &mock,
+    std::path::Path::new("."),
+    &[],
+    None,
+  )
+  .unwrap();
 
   let call = mock.last_call();
   assert!(call.prompt.contains("add-tests"));
@@ -160,7 +212,15 @@ fn active_intentのコンテキストをプロンプトに含める() {
     plan: Some("Extract auth logic into separate module".into()),
   }];
 
-  analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &active).unwrap();
+  analyze::analyze(
+    &intent,
+    &config,
+    &mock,
+    std::path::Path::new("."),
+    &active,
+    None,
+  )
+  .unwrap();
 
   let call = mock.last_call();
   assert!(call.prompt.contains("Active Intents"));
@@ -176,7 +236,15 @@ fn active_intentが空ならセクションを省略する() {
   let config = default_config();
   let intent = sample_intent();
 
-  analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
+  analyze::analyze(
+    &intent,
+    &config,
+    &mock,
+    std::path::Path::new("."),
+    &[],
+    None,
+  )
+  .unwrap();
 
   let call = mock.last_call();
   assert!(!call.prompt.contains("Active Intents"));
@@ -188,7 +256,14 @@ fn claudeエラーを伝播する() {
   let config = default_config();
   let intent = sample_intent();
 
-  let result = analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]);
+  let result = analyze::analyze(
+    &intent,
+    &config,
+    &mock,
+    std::path::Path::new("."),
+    &[],
+    None,
+  );
   assert!(result.is_err());
   let err = result.unwrap_err().to_string();
   assert!(err.contains("rate limit"), "error was: {err}");
@@ -210,7 +285,15 @@ fn 回答済みclarificationをプロンプトに含める() {
     },
   ];
 
-  analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
+  analyze::analyze(
+    &intent,
+    &config,
+    &mock,
+    std::path::Path::new("."),
+    &[],
+    None,
+  )
+  .unwrap();
 
   let call = mock.last_call();
   assert!(call.prompt.contains("Human Decisions"));
@@ -225,7 +308,15 @@ fn clarificationが空ならセクションを省略する() {
   let config = default_config();
   let intent = sample_intent();
 
-  analyze::analyze(&intent, &config, &mock, std::path::Path::new("."), &[]).unwrap();
+  analyze::analyze(
+    &intent,
+    &config,
+    &mock,
+    std::path::Path::new("."),
+    &[],
+    None,
+  )
+  .unwrap();
 
   let call = mock.last_call();
   assert!(!call.prompt.contains("Human Decisions"));

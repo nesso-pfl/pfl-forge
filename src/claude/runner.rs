@@ -61,7 +61,19 @@ pub trait Claude {
     cwd: &Path,
     timeout: Option<Duration>,
   ) -> Result<(T, ClaudeMetadata)> {
-    let raw = self.run_prompt(prompt, system_prompt, model, cwd, timeout, None)?;
+    self.run_json_with_meta_resume(prompt, system_prompt, model, cwd, timeout, None)
+  }
+
+  fn run_json_with_meta_resume<T: DeserializeOwned>(
+    &self,
+    prompt: &str,
+    system_prompt: &str,
+    model: &str,
+    cwd: &Path,
+    timeout: Option<Duration>,
+    session_id: Option<&str>,
+  ) -> Result<(T, ClaudeMetadata)> {
+    let raw = self.run_prompt(prompt, system_prompt, model, cwd, timeout, session_id)?;
     let metadata = parse_metadata(&raw);
     let result = parse_claude_json_output(&raw)?;
     Ok((result, metadata))

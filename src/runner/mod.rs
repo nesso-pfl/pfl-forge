@@ -600,6 +600,30 @@ fn run_implement_review_cycle(
       metadata: review_meta,
     });
 
+    // Record review observations
+    if let Ok((ref result, _)) = review_result {
+      if !result.observations.is_empty() {
+        let obs_path = repo_path.join(".forge").join("observations.yaml");
+        for content in &result.observations {
+          let obs = crate::knowledge::observation::Observation {
+            content: content.clone(),
+            evidence: vec![],
+            source: "review".to_string(),
+            intent_id: intent.id().to_string(),
+            processed: false,
+            created_at: Some(chrono::Utc::now().to_rfc3339()),
+          };
+          if let Err(e) = crate::knowledge::observation::append(&obs_path, &obs) {
+            warn!("failed to write review observation: {e}");
+          }
+        }
+        info!(
+          "review: {} observations recorded",
+          result.observations.len()
+        );
+      }
+    }
+
     match review_result {
       Ok((result, _meta)) if result.approved => {
         task.status = WorkStatus::Completed;

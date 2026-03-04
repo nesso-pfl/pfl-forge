@@ -20,6 +20,8 @@ pub struct ReviewResult {
   pub approved: bool,
   pub issues: Vec<String>,
   pub suggestions: Vec<String>,
+  #[serde(default)]
+  pub observations: Vec<String>,
 }
 
 pub fn review(

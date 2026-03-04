@@ -72,7 +72,7 @@ fn clarificationが必要な場合はintentを一時停止する() {
   assert!(intent.clarifications[0].answer.is_none());
   // session_id and last_step saved for resume
   assert_eq!(intent.last_step.as_deref(), Some("analyze"));
-  assert!(intent.session_id.is_some());
+  assert!(intent.sessions.analyze.is_some());
 }
 
 #[test]

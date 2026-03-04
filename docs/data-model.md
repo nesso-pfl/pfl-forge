@@ -16,7 +16,10 @@ ID はファイル名の stem（`fix-login-validation.yaml` → `fix-login-valid
 - **clarifications**: 質問と回答のリスト（`answer: null` が未回答）
 - **created_at**: タイムスタンプ
 - **last_step**: 最後に完了したステップ（`analyze`, `implement` など）。中断からの再開に使用
-- **session_id**: Claude Code のセッション ID。`--resume` でセッション復帰に使用
+- **sessions**: 各エージェントの Claude Code セッション ID（デバッグ・resume 用）
+  - **analyze**: Analyze Agent のセッション ID
+  - **implement**: Implement Agent のセッション ID
+  - **review**: Review Agent のセッション ID
 - **depends_on**: 依存する Intent ID のリスト。依存先が全て `done` になるまで implement を遅延
 
 ### YAML 形式
@@ -34,7 +37,10 @@ status: approved
 parent: null
 created_at: 2025-02-22T10:00:00Z
 last_step: analyze          # 中断時の最終ステップ（省略可）
-session_id: d44db260-...    # Claude Code セッション ID（省略可）
+sessions:                   # 各エージェントの Claude Code セッション ID（省略可）
+  analyze: d44db260-...
+  implement: e55ec371-...
+  review: f66fd482-...
 depends_on:                 # 依存 Intent ID（省略可）
   - setup-database
 clarifications:
@@ -54,7 +60,7 @@ proposed → approved → implementing → done      (全 Task 成功)
                                    → error     (全 Task が failed)
 ```
 
-`implementing` で中断した場合、`last_step` と `session_id` を使って中断箇所から再開できる。`run` コマンドは `approved` と `implementing` の両方を処理する。
+`implementing` で中断した場合、`last_step` と `sessions` を使って中断箇所から再開できる。`run` コマンドは `approved` と `implementing` の両方を処理する。
 
 `blocked` / `error` の Intent は inbox に入り、人間が失敗した Task の review feedback を確認して対応を決める（再実行・追加指示・却下）。成功した Task のコミットはそのまま保持される。
 

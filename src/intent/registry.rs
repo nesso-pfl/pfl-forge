@@ -11,6 +11,22 @@ pub struct Clarification {
   pub answer: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SessionIds {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub analyze: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub implement: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub review: Option<String>,
+}
+
+impl SessionIds {
+  pub fn is_empty(&self) -> bool {
+    self.analyze.is_none() && self.implement.is_none() && self.review.is_none()
+  }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum IntentStatus {
@@ -41,8 +57,8 @@ pub struct Intent {
   pub created_at: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub last_step: Option<String>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub session_id: Option<String>,
+  #[serde(default, skip_serializing_if = "SessionIds::is_empty")]
+  pub sessions: SessionIds,
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub depends_on: Vec<String>,
 }
@@ -73,7 +89,7 @@ impl Intent {
       clarifications: vec![],
       created_at: None,
       last_step: None,
-      session_id: None,
+      sessions: SessionIds::default(),
       depends_on: vec![],
     }
   }

@@ -181,7 +181,7 @@ pub fn process_intent(
   let resume_clarification = resuming
     && intent.last_step.as_deref() == Some("analyze")
     && !has_tasks_yaml
-    && intent.session_id.is_some()
+    && intent.sessions.analyze.is_some()
     && !intent.needs_clarification();
 
   let (mut tasks, worktree_path) = if can_resume_tasks {
@@ -203,7 +203,7 @@ pub fn process_intent(
 
     // Analyze (with optional resume from clarification)
     let analyze_session_id = if resuming {
-      intent.session_id.as_deref()
+      intent.sessions.analyze.as_deref()
     } else {
       None
     };
@@ -222,6 +222,10 @@ pub fn process_intent(
       duration_secs: start.elapsed().as_secs(),
       metadata: Some(analyze_meta.clone()),
     });
+
+    if let Some(ref sid) = analyze_meta.session_id {
+      intent.sessions.analyze = Some(sid.clone());
+    }
 
     // Save cross-intent dependencies if detected
     if !depends_on_intents.is_empty() {
@@ -282,9 +286,8 @@ pub fn process_intent(
       AnalysisOutcome::Tasks(specs) => specs,
       AnalysisOutcome::NeedsClarification { clarifications } => {
         intent.status = IntentStatus::Blocked;
-        // Save session_id for resume after clarification
         if let Some(ref sid) = analyze_meta.session_id {
-          intent.session_id = Some(sid.clone());
+          intent.sessions.analyze = Some(sid.clone());
         }
         intent.last_step = Some("analyze".into());
         for q in &clarifications {
@@ -369,7 +372,7 @@ pub fn process_intent(
 
   // Run tasks in dependency order
   let resume_session_id = if resuming {
-    intent.session_id.clone()
+    intent.sessions.implement.clone()
   } else {
     None
   };
@@ -621,6 +624,11 @@ fn run_implement_review_cycle(
       sid,
     );
     let impl_meta = impl_result.as_ref().ok().map(|raw| parse_metadata(raw));
+    if let Some(ref meta) = impl_meta {
+      if let Some(ref sid) = meta.session_id {
+        intent.sessions.implement = Some(sid.clone());
+      }
+    }
     step_results.push(StepResult {
       step: "implement".into(),
       duration_secs: start.elapsed().as_secs(),
@@ -637,7 +645,7 @@ fn run_implement_review_cycle(
     if let Ok(sid) = std::fs::read_to_string(&session_id_path) {
       let sid = sid.trim().to_string();
       if !sid.is_empty() {
-        intent.session_id = Some(sid);
+        intent.sessions.implement = Some(sid);
       }
     }
     intent.last_step = Some("implement".into());
@@ -736,6 +744,11 @@ fn run_implement_review_cycle(
       &config.base_branch,
     );
     let review_meta = review_result.as_ref().ok().map(|(_, m)| m.clone());
+    if let Some(ref meta) = review_meta {
+      if let Some(ref sid) = meta.session_id {
+        intent.sessions.review = Some(sid.clone());
+      }
+    }
     step_results.push(StepResult {
       step: "review".into(),
       duration_secs: start.elapsed().as_secs(),

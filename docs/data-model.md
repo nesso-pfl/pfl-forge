@@ -143,6 +143,27 @@ Review Agent が返す構造化 JSON 出力。Runner がファイルに永続化
 - **approved**: `true` / `false`
 - **issues**: 問題点（rejected の根拠）
 - **suggestions**: 改善提案（approved でも出せる）
+- **observations**: コードベース全体に関する気づき（弱い型定義、テストカバレッジの薄さなど、当該 diff のスコープを超えた指摘）。approve/reject の判断には影響しない。Runner が `.forge/observations.yaml` に書き出す
+
+## Execution Summary
+
+Intent フロー全体の構造化サマリ。`.forge/knowledge/logs/{intent_id}.yaml` に保存される。Reflect Agent が Intent 完了後の振り返りに使用する。
+
+### フィールド
+
+- **intent_id**: 対象 Intent の ID
+- **analyze**: Analyze ステップのサマリ（省略可）
+  - **complexity**: 判定された複雑度
+  - **plan**: 実装計画
+  - **relevant_files**: 関連ファイル一覧
+  - **task_count**: Task 数
+- **tasks**: 各 Task のサマリ
+  - **task_id**: Task ID
+  - **commits**: コミットメッセージ一覧（base branch からの差分）
+  - **review**: Review 結果（省略可）
+    - **approved**: `true` / `false`
+    - **issues**: 問題点
+    - **suggestions**: 改善提案
 
 ## History
 

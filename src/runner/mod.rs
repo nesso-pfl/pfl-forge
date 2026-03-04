@@ -12,6 +12,9 @@ use crate::error::Result;
 use crate::git;
 use crate::intent::registry::{Intent, IntentStatus};
 use crate::knowledge::history::{self, HistoryEntry, Outcome, StepResult};
+use crate::knowledge::summary::{
+  self, AnalyzeSummary, ExecutionSummary, ReviewSummary, TaskSummary,
+};
 use crate::task::{self, Task, WorkStatus};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -150,6 +153,10 @@ pub fn process_intent(
   }
 
   let mut step_results = Vec::new();
+  let mut exec_summary = ExecutionSummary {
+    intent_id: intent.id().to_string(),
+    ..Default::default()
+  };
 
   // Check if we can resume from a previous run
   let worktree_path_for_resume =
@@ -229,6 +236,19 @@ pub fn process_intent(
       }
     };
 
+    // Record analyze summary
+    if let Some(first) = task_specs.first() {
+      exec_summary.analyze = Some(AnalyzeSummary {
+        complexity: first.complexity.clone(),
+        plan: first.plan.clone(),
+        relevant_files: task_specs
+          .iter()
+          .flat_map(|s| s.relevant_files.iter().cloned())
+          .collect(),
+        task_count: task_specs.len(),
+      });
+    }
+
     // Convert specs to tasks
     let tasks: Vec<Task> = task_specs
       .iter()
@@ -274,6 +294,7 @@ pub fn process_intent(
     timeout,
     &mut step_results,
     resume_session_id.as_deref(),
+    &mut exec_summary,
   );
 
   // Aggregate task outcomes
@@ -297,6 +318,11 @@ pub fn process_intent(
   };
   if let Err(e) = history::write(repo_path, &entry) {
     warn!("failed to write history: {e}");
+  }
+
+  // Write execution summary for Reflect
+  if let Err(e) = summary::write(repo_path, &exec_summary) {
+    warn!("failed to write execution summary: {e}");
   }
 
   // Reflect: run after successful leaf intent completion
@@ -342,6 +368,7 @@ fn run_tasks_in_order(
   timeout: std::time::Duration,
   step_results: &mut Vec<StepResult>,
   resume_session_id: Option<&str>,
+  exec_summary: &mut ExecutionSummary,
 ) -> Vec<TaskOutcome> {
   let task_ids: Vec<String> = tasks.iter().map(|t| t.id.clone()).collect();
   let mut outcomes: Vec<Option<TaskOutcome>> = vec![None; tasks.len()];
@@ -382,7 +409,7 @@ fn run_tasks_in_order(
 
     // Use resume session_id only for the first task
     let sid = if idx == 0 { resume_session_id } else { None };
-    let outcome = run_implement_review_cycle(
+    let (outcome, last_review) = run_implement_review_cycle(
       intent,
       task,
       config,
@@ -394,6 +421,20 @@ fn run_tasks_in_order(
       step_results,
       sid,
     );
+
+    // Record task summary
+    let commits =
+      git::branch::commit_messages(worktree_path, &config.base_branch).unwrap_or_default();
+    let review_summary = last_review.map(|r| ReviewSummary {
+      approved: r.approved,
+      issues: r.issues,
+      suggestions: r.suggestions,
+    });
+    exec_summary.tasks.push(TaskSummary {
+      task_id: task.id.clone(),
+      commits,
+      review: review_summary,
+    });
 
     match &outcome {
       TaskOutcome::Done => {
@@ -465,7 +506,7 @@ fn run_implement_review_cycle(
   timeout: std::time::Duration,
   step_results: &mut Vec<StepResult>,
   resume_session_id: Option<&str>,
-) -> TaskOutcome {
+) -> (TaskOutcome, Option<ReviewResult>) {
   let mut review_feedback: Option<ReviewResult> = None;
   let max_retries = config.max_review_retries;
 
@@ -498,7 +539,7 @@ fn run_implement_review_cycle(
 
     if let Err(e) = impl_result {
       task.status = WorkStatus::Failed;
-      return TaskOutcome::Failed(format!("implement failed: {e}"));
+      return (TaskOutcome::Failed(format!("implement failed: {e}")), None);
     }
 
     // Read session_id from worktree if written by implement agent
@@ -539,7 +580,12 @@ fn run_implement_review_cycle(
         &config.base_branch,
       ) {
         Ok(p) => p,
-        Err(e) => return TaskOutcome::Escalated(format!("worktree recreation failed: {e}")),
+        Err(e) => {
+          return (
+            TaskOutcome::Escalated(format!("worktree recreation failed: {e}")),
+            None,
+          )
+        }
       };
       let _ = git::worktree::ensure_gitignore_forge(&new_wt);
       let _ = task::write_task_yaml(&new_wt, task);
@@ -564,7 +610,10 @@ fn run_implement_review_cycle(
 
       if reimpl.is_err() {
         task.status = WorkStatus::Failed;
-        return TaskOutcome::Escalated("reimplementation failed after rebase conflict".into());
+        return (
+          TaskOutcome::Escalated("reimplementation failed after rebase conflict".into()),
+          None,
+        );
       }
 
       // Rebase again after reimplementation
@@ -579,7 +628,10 @@ fn run_implement_review_cycle(
 
       if !rebase_ok2 {
         task.status = WorkStatus::Failed;
-        return TaskOutcome::Escalated("rebase conflict persists after reimplementation".into());
+        return (
+          TaskOutcome::Escalated("rebase conflict persists after reimplementation".into()),
+          None,
+        );
       }
     }
 
@@ -627,7 +679,7 @@ fn run_implement_review_cycle(
     match review_result {
       Ok((result, _meta)) if result.approved => {
         task.status = WorkStatus::Completed;
-        return TaskOutcome::Done;
+        return (TaskOutcome::Done, Some(result));
       }
       Ok((result, _meta)) => {
         info!(
@@ -639,12 +691,16 @@ fn run_implement_review_cycle(
           review_feedback = Some(result);
           continue;
         }
+        let last = Some(result);
         task.status = WorkStatus::Failed;
-        return TaskOutcome::Failed("review rejected after max retries".into());
+        return (
+          TaskOutcome::Failed("review rejected after max retries".into()),
+          last,
+        );
       }
       Err(e) => {
         task.status = WorkStatus::Failed;
-        return TaskOutcome::Failed(format!("review failed: {e}"));
+        return (TaskOutcome::Failed(format!("review failed: {e}")), None);
       }
     }
   }

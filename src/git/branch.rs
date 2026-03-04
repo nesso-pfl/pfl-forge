@@ -72,6 +72,24 @@ pub fn delete(repo_path: &Path, branch: &str) -> Result<()> {
   Ok(())
 }
 
+/// Get commit messages on the feature branch (relative to base branch).
+pub fn commit_messages(worktree_path: &Path, base_branch: &str) -> Result<Vec<String>> {
+  let output = Command::new("git")
+    .args(["log", "--format=%s", &format!("origin/{base_branch}..HEAD")])
+    .current_dir(worktree_path)
+    .output()?;
+
+  if !output.status.success() {
+    return Ok(Vec::new());
+  }
+
+  let messages = String::from_utf8_lossy(&output.stdout)
+    .lines()
+    .map(|l| l.to_string())
+    .collect();
+  Ok(messages)
+}
+
 /// Rebase onto base branch. Returns Ok(true) on success, Ok(false) on conflict.
 pub fn try_rebase(worktree_path: &Path, base_branch: &str, label: &str) -> Result<bool> {
   info!("rebasing {label} onto {base_branch}");

@@ -10,6 +10,7 @@ use crate::config::Config;
 use crate::error::Result;
 use crate::intent::registry::Intent;
 use crate::knowledge::observation::{self, Observation};
+use crate::knowledge::summary;
 use crate::prompt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,10 +46,41 @@ pub fn reflect(
 
   let reflect_model = model::resolve(&config.models.default);
 
-  let mut prompt = format!(
-    "## Intent: {title}\n\n## Unprocessed Observations\n\n",
-    title = intent.title,
-  );
+  let mut prompt = format!("## Intent: {title}\n\n", title = intent.title);
+
+  // Include execution summary if available
+  if let Ok(exec_summary) = summary::load(repo_path, &intent.id()) {
+    prompt.push_str("## Execution Summary\n\n");
+    if let Some(ref analyze) = exec_summary.analyze {
+      prompt.push_str(&format!(
+        "**Analysis**: complexity={}, {} task(s)\n",
+        analyze.complexity, analyze.task_count
+      ));
+      prompt.push_str(&format!("**Plan**: {}\n\n", analyze.plan));
+    }
+    for ts in &exec_summary.tasks {
+      prompt.push_str(&format!("### Task: {}\n", ts.task_id));
+      if !ts.commits.is_empty() {
+        prompt.push_str("Commits:\n");
+        for c in &ts.commits {
+          prompt.push_str(&format!("- {c}\n"));
+        }
+      }
+      if let Some(ref rev) = ts.review {
+        let verdict = if rev.approved { "approved" } else { "rejected" };
+        prompt.push_str(&format!("Review: {verdict}\n"));
+        for issue in &rev.issues {
+          prompt.push_str(&format!("  issue: {issue}\n"));
+        }
+        for sug in &rev.suggestions {
+          prompt.push_str(&format!("  suggestion: {sug}\n"));
+        }
+      }
+      prompt.push('\n');
+    }
+  }
+
+  prompt.push_str("## Unprocessed Observations\n\n");
   for obs in &unprocessed {
     prompt.push_str(&format!("- {}\n", obs.content));
   }

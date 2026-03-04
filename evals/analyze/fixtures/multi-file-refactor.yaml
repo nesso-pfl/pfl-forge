@@ -1,10 +1,15 @@
 intent:
-  title: "Extract error handling into a shared module"
-  body: "Multiple files have duplicated error handling logic. Extract common error types and handling into a shared module."
+  title: "Extract timeout logic into a shared helper"
+  body: "The runner has duplicated timeout handling in run_implement_review_cycle and run_audit_report_flow. Extract the common pattern into a reusable helper."
 expectations:
   relevant_files_contain:
-    - "src/"
+    - "src/runner"
   plan_mentions:
-    - "error"
+    - "timeout"
+  steps_mention:
+    - "runner"
   has_implementation_steps: true
-  min_relevant_files: 2
+  min_relevant_files: 1
+  complexity_is_one_of:
+    - low
+    - medium

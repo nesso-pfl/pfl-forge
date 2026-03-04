@@ -1,13 +1,14 @@
 intent:
-  title: "Add a health check endpoint"
-  body: "Add a GET /health endpoint that returns 200 OK with {\"status\": \"ok\"}"
+  title: "Add --json flag to status subcommand"
+  body: "Add a --json flag to the status subcommand that outputs the current state as JSON instead of human-readable text."
 expectations:
   relevant_files_contain:
-    - "src/"
+    - "src/main.rs"
   plan_mentions:
-    - "health"
-    - "endpoint"
+    - "json"
+    - "status"
+  steps_mention:
+    - "clap"
   has_implementation_steps: true
   complexity_is_one_of:
     - low
-    - medium

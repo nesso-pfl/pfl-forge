@@ -24,6 +24,10 @@ When you start analyzing, search external memory for past human decisions releva
 
 If the intent includes answered clarifications (in the "Human Decisions" section), save each one to external memory after completing your analysis. Use the tag `decision` and include enough context (the question, the answer, and what intent it was for) so that future analyses can benefit.
 
+## Observations
+
+While exploring the codebase, you may notice issues outside this intent's scope — technical debt, missing tests in unrelated modules, inconsistent patterns, potential bugs elsewhere. Record these in the `observations` field of your response. They don't affect your analysis outcome; they feed into the system's learning pipeline.
+
 ## Outcomes
 
 Choose one based on your analysis:
@@ -44,7 +48,8 @@ For a single task (most common):
   "relevant_files": ["src/foo.rs", "tests/foo_test.rs"],
   "implementation_steps": ["Step 1: ...", "Step 2: ..."],
   "context": "Key patterns and conventions the implementer needs to know",
-  "depends_on_intents": ["other-intent-id"]
+  "depends_on_intents": ["other-intent-id"],
+  "observations": ["Noticed X pattern is inconsistent across modules"]
 }
 ```
 

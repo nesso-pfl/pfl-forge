@@ -1,5 +1,35 @@
 intent:
   title: "Add unit tests for config parsing"
   body: "Add tests for edge cases in config parsing"
+plan: |
+  Add unit tests for Config::load() covering:
+  1. Missing fields use defaults
+  2. Invalid YAML returns error
+  3. Empty file uses all defaults
+diff: |
+  diff --git a/tests/config_test.rs b/tests/config_test.rs
+  new file mode 100644
+  --- /dev/null
+  +++ b/tests/config_test.rs
+  @@ -0,0 +1,20 @@
+  +use pfl_forge::config::Config;
+  +
+  +#[test]
+  +fn missing_fields_use_defaults() {
+  +    let config: Config = serde_yaml::from_str("{}").unwrap();
+  +    assert_eq!(config.parallel_workers, 2);
+  +}
+  +
+  +#[test]
+  +fn invalid_yaml_returns_error() {
+  +    let result: Result<Config, _> = serde_yaml::from_str("{{invalid");
+  +    assert!(result.is_err());
+  +}
+  +
+  +#[test]
+  +fn empty_file_uses_defaults() {
+  +    let config: Config = serde_yaml::from_str("").unwrap();
+  +    assert_eq!(config.base_branch, "main");
+  +}
 expectations:
   should_approve: true

@@ -88,6 +88,8 @@ struct RawAnalysis {
   tasks: Vec<TaskSpec>,
   #[serde(default)]
   depends_on_intents: Vec<String>,
+  #[serde(default)]
+  observations: Vec<String>,
 }
 
 fn default_outcome() -> String {
@@ -129,7 +131,7 @@ pub fn analyze(
   repo_path: &std::path::Path,
   active_intents: &[ActiveIntentContext],
   session_id: Option<&str>,
-) -> Result<(AnalysisOutcome, ClaudeMetadata, Vec<String>)> {
+) -> Result<(AnalysisOutcome, ClaudeMetadata, Vec<String>, Vec<String>)> {
   let deep_model = model::resolve(&config.models.analyze);
 
   // When resuming from clarification, send only the answers
@@ -151,6 +153,7 @@ pub fn analyze(
     session_id,
   )?;
   let depends_on_intents = raw.depends_on_intents.clone();
+  let observations = raw.observations.clone();
   let outcome = AnalysisOutcome::from(raw);
 
   match &outcome {
@@ -176,7 +179,7 @@ pub fn analyze(
     }
   }
 
-  Ok((outcome, metadata, depends_on_intents))
+  Ok((outcome, metadata, depends_on_intents, observations))
 }
 
 fn build_full_prompt(intent: &Intent, active_intents: &[ActiveIntentContext]) -> String {

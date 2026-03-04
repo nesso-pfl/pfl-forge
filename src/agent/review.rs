@@ -32,9 +32,51 @@ pub fn review(
   worktree_path: &Path,
   base_branch: &str,
 ) -> Result<(ReviewResult, ClaudeMetadata)> {
+  review_inner(
+    intent,
+    task,
+    config,
+    runner,
+    worktree_path,
+    base_branch,
+    None,
+  )
+}
+
+pub fn review_with_diff(
+  intent: &Intent,
+  task: &Task,
+  config: &Config,
+  runner: &impl Claude,
+  worktree_path: &Path,
+  diff_override: &str,
+) -> Result<(ReviewResult, ClaudeMetadata)> {
+  review_inner(
+    intent,
+    task,
+    config,
+    runner,
+    worktree_path,
+    "",
+    Some(diff_override),
+  )
+}
+
+fn review_inner(
+  intent: &Intent,
+  task: &Task,
+  config: &Config,
+  runner: &impl Claude,
+  worktree_path: &Path,
+  base_branch: &str,
+  diff_override: Option<&str>,
+) -> Result<(ReviewResult, ClaudeMetadata)> {
   let review_model = model::resolve(&config.models.default);
 
-  let diff = get_diff(worktree_path, base_branch)?;
+  let diff = match diff_override {
+    Some(d) => d.to_string(),
+    None => get_diff(worktree_path, base_branch)?,
+  };
 
   let prompt = format!(
     r#"## Task {id}: {title}

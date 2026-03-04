@@ -208,14 +208,15 @@ pub fn process_intent(
       None
     };
     let start = Instant::now();
-    let (analysis_outcome, analyze_meta, depends_on_intents) = analyze::analyze(
-      intent,
-      config,
-      claude,
-      repo_path,
-      &active_intents,
-      analyze_session_id,
-    )?;
+    let (analysis_outcome, analyze_meta, depends_on_intents, analyze_observations) =
+      analyze::analyze(
+        intent,
+        config,
+        claude,
+        repo_path,
+        &active_intents,
+        analyze_session_id,
+      )?;
     step_results.push(StepResult {
       step: "analyze".into(),
       duration_secs: start.elapsed().as_secs(),
@@ -252,6 +253,28 @@ pub fn process_intent(
           failure_reason: Some("waiting on cross-intent dependencies".into()),
         });
       }
+    }
+
+    // Record analyze observations
+    if !analyze_observations.is_empty() {
+      let obs_path = repo_path.join(".forge").join("observations.yaml");
+      for content in &analyze_observations {
+        let obs = crate::knowledge::observation::Observation {
+          content: content.clone(),
+          evidence: vec![],
+          source: "analyze".to_string(),
+          intent_id: intent.id().to_string(),
+          processed: false,
+          created_at: Some(chrono::Utc::now().to_rfc3339()),
+        };
+        if let Err(e) = crate::knowledge::observation::append(&obs_path, &obs) {
+          warn!("failed to write analyze observation: {e}");
+        }
+      }
+      info!(
+        "analyze: {} observations recorded",
+        analyze_observations.len()
+      );
     }
 
     // Handle non-task outcomes

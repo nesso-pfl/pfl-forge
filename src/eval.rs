@@ -4,16 +4,22 @@ use serde::Deserialize;
 use tracing::info;
 
 use crate::agent::analyze::{self, AnalysisOutcome};
+use crate::agent::review;
 use crate::claude::runner::Claude;
 use crate::config::Config;
 use crate::error::Result;
 use crate::intent::registry::Intent;
+use crate::task::Task;
 
 #[derive(Debug, Deserialize)]
 pub struct Fixture {
   pub intent: FixtureIntent,
   #[serde(default)]
   pub repo_ref: Option<String>,
+  #[serde(default)]
+  pub diff: Option<String>,
+  #[serde(default)]
+  pub plan: Option<String>,
   pub expectations: Expectations,
 }
 
@@ -95,7 +101,8 @@ pub fn eval_analyze(
   let intent = Intent::synthetic(&fixture.intent.title, &fixture.intent.body);
 
   info!("eval analyze: running fixture '{fixture_name}'");
-  let (outcome, _meta, _depends) = analyze::analyze(&intent, config, claude, repo_path, &[], None)?;
+  let (outcome, _meta, _depends, _observations) =
+    analyze::analyze(&intent, config, claude, repo_path, &[], None)?;
 
   let mut checks = Vec::new();
 
@@ -223,6 +230,52 @@ fn check_implementation_steps(exp: &Expectations, steps: &[String], checks: &mut
       detail: format!("{} steps", steps.len()),
     });
   }
+}
+
+pub fn eval_review(
+  fixture_name: &str,
+  fixture: &Fixture,
+  config: &Config,
+  claude: &impl Claude,
+  repo_path: &Path,
+) -> Result<EvalResult> {
+  let intent = Intent::synthetic(&fixture.intent.title, &fixture.intent.body);
+  let plan = fixture
+    .plan
+    .as_deref()
+    .unwrap_or("Implementation plan not specified");
+  let diff = fixture.diff.as_deref().unwrap_or("(no diff provided)");
+
+  let task = Task {
+    id: "eval".into(),
+    title: fixture.intent.title.clone(),
+    intent_id: "eval".into(),
+    status: crate::task::WorkStatus::Pending,
+    complexity: "medium".into(),
+    plan: plan.to_string(),
+    relevant_files: vec![],
+    implementation_steps: vec![],
+    context: String::new(),
+    depends_on: vec![],
+  };
+
+  info!("eval review: running fixture '{fixture_name}'");
+  let (result, _meta) = review::review_with_diff(&intent, &task, config, claude, repo_path, diff)?;
+
+  let mut checks = Vec::new();
+
+  if let Some(expected) = fixture.expectations.should_approve {
+    checks.push(Check {
+      name: "should_approve".into(),
+      passed: result.approved == expected,
+      detail: format!("expected {expected}, got {}", result.approved),
+    });
+  }
+
+  Ok(EvalResult {
+    fixture_name: fixture_name.to_string(),
+    checks,
+  })
 }
 
 fn check_complexity(exp: &Expectations, complexity: &str, checks: &mut Vec<Check>) {

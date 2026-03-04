@@ -322,6 +322,7 @@ async fn run(cli: Cli) -> Result<()> {
 
         let result = match agent.as_str() {
           "analyze" => pfl_forge::eval::eval_analyze(name, fix, &config, &claude, &repo_path)?,
+          "review" => pfl_forge::eval::eval_review(name, fix, &config, &claude, &repo_path)?,
           other => {
             eprintln!("eval not implemented for agent: {other}");
             return Ok(());

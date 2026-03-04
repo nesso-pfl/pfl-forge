@@ -33,7 +33,7 @@ fn 成功した分析からタスクスペックを返す() {
   let config = default_config();
   let intent = sample_intent();
 
-  let (outcome, _meta, _depends) = analyze::analyze(
+  let (outcome, _meta, _depends, _obs) = analyze::analyze(
     &intent,
     &config,
     &mock,
@@ -62,7 +62,7 @@ fn 複数タスクとdepends_onを返す() {
   let config = default_config();
   let intent = sample_intent();
 
-  let (outcome, _meta, _depends) = analyze::analyze(
+  let (outcome, _meta, _depends, _obs) = analyze::analyze(
     &intent,
     &config,
     &mock,
@@ -89,7 +89,7 @@ fn 問題が大きい場合は子intentを返す() {
   let config = default_config();
   let intent = sample_intent();
 
-  let (outcome, _meta, _depends) = analyze::analyze(
+  let (outcome, _meta, _depends, _obs) = analyze::analyze(
     &intent,
     &config,
     &mock,
@@ -117,7 +117,7 @@ fn 情報不足の場合はclarificationを返す() {
   let config = default_config();
   let intent = sample_intent();
 
-  let (outcome, _meta, _depends) = analyze::analyze(
+  let (outcome, _meta, _depends, _obs) = analyze::analyze(
     &intent,
     &config,
     &mock,

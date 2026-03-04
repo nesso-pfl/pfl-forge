@@ -126,6 +126,8 @@ fn eval_analyzeでチェックが実行される() {
       body: "Add GET /health".into(),
     },
     repo_ref: None,
+    diff: None,
+    plan: None,
     expectations: eval::Expectations {
       relevant_files_contain: vec!["src/".into()],
       plan_mentions: vec!["health".into()],

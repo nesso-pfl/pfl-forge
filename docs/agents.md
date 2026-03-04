@@ -65,7 +65,7 @@ Runner が Flow の `analyze` ステップを実行するとき。
 ### 入力コンテキスト
 
 - Intent（[data-model.md](data-model.md) 参照）
-- 回答済み Clarification（Human Decisions としてプロンプトに含まれる）
+- 回答済み Clarification（resume 時は継続プロンプトとして、session 消失時は「Human Decisions」セクションとして含まれる）
 - CLAUDE.md / Skills（`claude -p` が自動読み込み）
 - Decision Storage（MCP ツール経由で実行中に取得。過去の human decisions を検索）
 - 他の active な intent の情報（タイトル、ステータス、relevant_files、プラン概要）

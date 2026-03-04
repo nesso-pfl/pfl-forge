@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use pfl_forge::knowledge::observation::{self, Evidence, EvidenceType, Observation};
 
 // --- YAML パース ---
@@ -143,4 +145,37 @@ fn observationを処理済みにマークする() {
 
   let loaded = observation::load(&path).unwrap();
   assert!(loaded[0].processed);
+}
+
+// --- 並行書き込み ---
+
+#[test]
+fn 複数スレッドからの並行appendでデータが欠落しない() {
+  let dir = tempfile::tempdir().unwrap();
+  let path = Arc::new(dir.path().join("observations.yaml"));
+  let count = 20;
+
+  let handles: Vec<_> = (0..count)
+    .map(|i| {
+      let path = Arc::clone(&path);
+      std::thread::spawn(move || {
+        let obs = Observation {
+          content: format!("observation-{i}"),
+          evidence: vec![],
+          source: "implement".into(),
+          intent_id: format!("intent-{i}"),
+          processed: false,
+          created_at: None,
+        };
+        observation::append(&path, &obs).unwrap();
+      })
+    })
+    .collect();
+
+  for h in handles {
+    h.join().unwrap();
+  }
+
+  let loaded = observation::load(&path).unwrap();
+  assert_eq!(loaded.len(), count);
 }

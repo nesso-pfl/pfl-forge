@@ -87,7 +87,12 @@ pub struct ClaudeRunner {
 }
 
 impl ClaudeRunner {
-  pub fn new(allowed_tools: Vec<String>, mcp_config: Option<String>) -> Self {
+  pub fn new(mut allowed_tools: Vec<String>, mcp_config: Option<String>) -> Self {
+    // --allowedTools blocks everything not listed, including MCP tools.
+    // Auto-allow all MCP tools when mcp_config is provided.
+    if mcp_config.is_some() && !allowed_tools.iter().any(|t| t.starts_with("mcp__")) {
+      allowed_tools.push("mcp__*".into());
+    }
     Self {
       allowed_tools,
       mcp_config,

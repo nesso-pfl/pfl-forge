@@ -1,3 +1,4 @@
+use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
@@ -32,6 +33,9 @@ enum Commands {
     /// Only analyze, don't execute
     #[arg(long)]
     dry_run: bool,
+    /// Run in background and return immediately
+    #[arg(long)]
+    background: bool,
   },
   /// Watch for new intents and process them periodically
   Watch,
@@ -187,7 +191,32 @@ async fn run(cli: Cli) -> Result<()> {
   };
 
   match command {
-    Commands::Run { dry_run } => {
+    Commands::Run {
+      dry_run,
+      background,
+    } => {
+      if background {
+        let repo_path = Config::repo_path();
+        let log_path = repo_path.join(".forge").join("run.log");
+        let log_file = std::fs::File::create(&log_path)?;
+        let mut cmd = std::process::Command::new(std::env::current_exe()?);
+        cmd.arg("run");
+        if dry_run {
+          cmd.arg("--dry-run");
+        }
+        cmd.stdout(log_file.try_clone()?).stderr(log_file);
+        unsafe {
+          cmd.pre_exec(|| {
+            libc::setsid();
+            Ok(())
+          });
+        }
+        let child = cmd.spawn()?;
+        println!("started in background (pid: {})", child.id());
+        println!("log: {}", log_path.display());
+        return Ok(());
+      }
+
       let repo_path = Config::repo_path();
       let claude = ClaudeRunner::new(config.implement_tools.clone(), config.mcp_config.clone());
       let results = runner::run_intents(&config, &claude, &repo_path, dry_run)?;

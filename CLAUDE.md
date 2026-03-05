@@ -33,7 +33,7 @@ Runner が全エージェント呼び出しを管理する。Intent は `.forge/
 ## CLI subcommands
 
 - `init` — CWD に `pfl-forge.yaml` と `.forge/` を作成
-- `run` — Intent 処理（柔軟 Flow 対応）
+- `run` — Intent 処理（柔軟 Flow 対応）。`--background` でバックグラウンド実行
 - `watch` — daemon モードでポーリング
 - `status` — 処理状態の表示
 - `clean` — 完了済み worktree の削除

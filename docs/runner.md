@@ -3,8 +3,8 @@
 Flow ステップを逐次実行し、各ステップの結果に応じてルールベースで残りの Flow を調整する。
 
 呼び出し元:
-- `pfl-forge run` — CLI から直接
-- Operator Agent — インタラクティブセッション内で `pfl-forge run` を実行
+- `pfl-forge run` — CLI から直接（`--background` でバックグラウンド実行可。子プロセスとしてデタッチし、ログは `.forge/run.log` に出力）
+- Operator Agent — インタラクティブセッション内で `pfl-forge run --background` を実行し、`pfl-forge status` で進捗をポーリング
 
 Runner 自身は AI エージェントではなく、Rust コードによる決定論的な制御ロジック。
 

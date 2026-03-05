@@ -1,4 +1,5 @@
 use pfl_forge::agent::operator;
+use pfl_forge::prompt;
 
 #[test]
 fn intentがない場合のメッセージ() {
@@ -92,4 +93,17 @@ fn clarificationの質問内容がinboxに表示される() {
   assert!(msg.contains("Q: Which API version?"));
   // Answered question is not shown
   assert!(!msg.contains("Q: Use REST or gRPC?"));
+}
+
+#[test]
+fn プロンプトがbackground実行後のポーリングを禁止する() {
+  let prompt = prompt::OPERATOR;
+  assert!(
+    prompt.contains("do NOT poll"),
+    "operator prompt must instruct not to poll after --background"
+  );
+  assert!(
+    !prompt.contains("monitor progress"),
+    "operator prompt must not encourage monitoring progress"
+  );
 }

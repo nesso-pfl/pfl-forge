@@ -505,6 +505,46 @@ fn worktreeがなければ最初からやり直す() {
 }
 
 #[test]
+fn analyze完了済みでclarificationなしならresumeしない() {
+  // sessions.analyze set, no worktree, no clarifications
+  // → analyze should get a NEW session, not Resume
+  let (_dir, repo) = setup_repo_with_intent("no-resume");
+  add_implementing_intent(
+    &repo,
+    "no-resume",
+    Some(ImplementingIntentOptions {
+      analyze_session: Some("prev-analyze-session".to_string()),
+      implement_session: None,
+    }),
+  );
+  let config = default_config();
+
+  let mock = MockClaude::with_sequence(vec![
+    json_response(analysis_json()),
+    raw_response("Done"),
+    json_response(approved_review_json()),
+  ]);
+
+  let mut intent = load_intent(&repo, "no-resume");
+  runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  let calls = mock.captured_calls();
+  // First call is analyze — must be New, not Resume
+  match &calls[0].session {
+    CapturedSession::New(_) => {} // correct
+    CapturedSession::Resume(sid) => {
+      panic!("analyze should get New session, got Resume({sid})")
+    }
+    CapturedSession::None => panic!("analyze should get New session, got None"),
+  }
+  // Prompt should be full analysis, not "Clarification answers"
+  assert!(
+    !calls[0].prompt.contains("Clarification answers"),
+    "should not send clarification resume to analyze"
+  );
+}
+
+#[test]
 fn approvedとimplementingの両方を処理する() {
   let (_dir, repo) = setup_repo_with_intent("approved-one");
   add_implementing_intent(

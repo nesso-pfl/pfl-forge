@@ -7,7 +7,7 @@ use pfl_forge::config::Config;
 use pfl_forge::intent::registry::Clarification;
 use pfl_forge::intent::registry::Intent;
 
-use crate::mock_claude::MockClaude;
+use crate::mock_claude::{CapturedSession, MockClaude};
 
 fn default_config() -> Config {
   serde_yaml::from_str("{}").unwrap()
@@ -301,6 +301,64 @@ fn 回答済みclarificationをプロンプトに含める() {
   assert!(call.prompt.contains("Which API version?"));
   assert!(call.prompt.contains("v2"));
   assert!(!call.prompt.contains("Unanswered question"));
+}
+
+#[test]
+fn resume時にclarificationが空ならフルプロンプトを使う() {
+  let mock = MockClaude::with_json(&analysis_json());
+  let config = default_config();
+  let intent = sample_intent();
+
+  // Resume with no clarifications — should fall back to full prompt
+  analyze::analyze(
+    &intent,
+    &config,
+    &mock,
+    std::path::Path::new("."),
+    &[],
+    &SessionMode::Resume("prev-session".into()),
+  )
+  .unwrap();
+
+  let call = mock.last_call();
+  // Full prompt contains intent title, not "Clarification answers"
+  assert!(
+    call.prompt.contains("Add tests"),
+    "should use full prompt, got: {}",
+    &call.prompt[..100.min(call.prompt.len())]
+  );
+  assert!(
+    !call.prompt.contains("Clarification answers"),
+    "should not send clarification resume prompt"
+  );
+}
+
+#[test]
+fn resume時にclarification回答済みならresumeプロンプトを使う() {
+  let mock = MockClaude::with_json(&analysis_json());
+  let config = default_config();
+  let mut intent = sample_intent();
+  intent.clarifications = vec![Clarification {
+    question: "Which API version?".into(),
+    answer: Some("v2".into()),
+  }];
+
+  analyze::analyze(
+    &intent,
+    &config,
+    &mock,
+    std::path::Path::new("."),
+    &[],
+    &SessionMode::Resume("prev-session".into()),
+  )
+  .unwrap();
+
+  let call = mock.last_call();
+  assert!(call.prompt.contains("Clarification answers"));
+  assert!(call.prompt.contains("Which API version?"));
+  assert!(call.prompt.contains("v2"));
+  // Session should be Resume
+  assert_eq!(call.session, CapturedSession::Resume("prev-session".into()));
 }
 
 #[test]

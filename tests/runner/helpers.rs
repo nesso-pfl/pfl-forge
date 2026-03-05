@@ -299,15 +299,11 @@ pub struct ImplementingIntentOptions {
 pub fn add_implementing_intent(
   repo_path: &Path,
   intent_id: &str,
-  last_step: Option<&str>,
   sessions: Option<ImplementingIntentOptions>,
 ) {
   let intents_dir = repo_path.join(".forge").join("intents");
   let mut yaml =
     format!("title: {intent_id}\nbody: Body of {intent_id}\nsource: human\nstatus: implementing\n");
-  if let Some(step) = last_step {
-    yaml.push_str(&format!("last_step: {step}\n"));
-  }
   if let Some(ref opts) = sessions {
     yaml.push_str("sessions:\n");
     if let Some(ref sid) = opts.analyze_session {

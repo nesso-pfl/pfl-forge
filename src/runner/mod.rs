@@ -144,15 +144,8 @@ pub fn process_intent(
 ) -> Result<IntentResult> {
   let flow = default_flow(intent.intent_type.as_deref());
   let flow_names: Vec<String> = flow.iter().map(|s| s.name().to_string()).collect();
-  let resuming = intent.status == IntentStatus::Implementing
-    || (intent.status == IntentStatus::Approved && intent.last_step.is_some());
 
-  info!(
-    "processing intent {}: flow={:?} resuming={resuming}",
-    intent, flow_names
-  );
-  intent.status = IntentStatus::Implementing;
-  update_intent_file(repo_path, intent)?;
+  info!("processing intent {}: flow={:?}", intent, flow_names);
 
   if flow.contains(&Step::Audit) {
     return run_audit_report_flow(intent, config, claude, repo_path, flow_names);
@@ -168,21 +161,19 @@ pub fn process_intent(
     ..Default::default()
   };
 
-  // Check if we can resume from a previous run
+  // Derive resume state from sessions + artifacts
   let worktree_path_for_resume =
     git::worktree::path_for(repo_path, &config.worktree_dir, &intent.branch_name());
   let has_tasks_yaml = worktree_path_for_resume
     .join(".forge")
     .join("tasks.yaml")
     .exists();
-  let can_resume_tasks =
-    resuming && intent.last_step.as_deref() == Some("analyze") && has_tasks_yaml;
+  let can_resume_tasks = intent.sessions.analyze.is_some() && has_tasks_yaml;
   // Resume analyze with clarification answers (session_id present, no tasks yet)
-  let resume_clarification = resuming
-    && intent.last_step.as_deref() == Some("analyze")
+  let resume_clarification = intent.sessions.analyze.is_some()
     && !has_tasks_yaml
-    && intent.sessions.analyze.is_some()
-    && !intent.needs_clarification();
+    && !intent.needs_clarification()
+    && !intent.clarifications.is_empty();
 
   let (mut tasks, worktree_path) = if can_resume_tasks {
     // Resume: read tasks from worktree, skip analyze
@@ -191,9 +182,6 @@ pub fn process_intent(
     (tasks, worktree_path_for_resume)
   } else {
     // Normal or clarification resume: run analyze
-    if resuming && !resume_clarification {
-      info!("resume data not found, running from start");
-    }
     if resume_clarification {
       info!("resuming analyze with clarification answers");
     }
@@ -202,7 +190,7 @@ pub fn process_intent(
     let active_intents = gather_active_intents(repo_path, config, intent.id());
 
     // Analyze (with optional resume from clarification)
-    let analyze_session = if resuming {
+    let analyze_session = if resume_clarification {
       intent
         .sessions
         .analyze
@@ -235,7 +223,6 @@ pub fn process_intent(
     // Save cross-intent dependencies if detected
     if !depends_on_intents.is_empty() {
       intent.depends_on = depends_on_intents;
-      intent.last_step = Some("analyze".into());
       update_intent_file(repo_path, intent)?;
 
       // Check if all dependencies are done
@@ -293,7 +280,6 @@ pub fn process_intent(
       AnalysisOutcome::Tasks(specs) => specs,
       AnalysisOutcome::NeedsClarification { clarifications } => {
         intent.status = IntentStatus::Blocked;
-        intent.last_step = Some("analyze".into());
         for q in &clarifications {
           intent
             .clarifications
@@ -368,14 +354,17 @@ pub fn process_intent(
     task::write_all_tasks(&worktree_path, &tasks)?;
     run_worktree_setup(&worktree_path, &config.worktree_setup)?;
 
-    intent.last_step = Some("analyze".into());
     update_intent_file(repo_path, intent)?;
 
     (tasks, worktree_path)
   };
 
+  // Set Implementing status at implement start
+  intent.status = IntentStatus::Implementing;
+  update_intent_file(repo_path, intent)?;
+
   // Run tasks in dependency order
-  let resume_session = if resuming {
+  let resume_session = if can_resume_tasks {
     intent
       .sessions
       .implement
@@ -665,7 +654,6 @@ fn run_implement_review_cycle(
       return (TaskOutcome::Failed(format!("implement failed: {e}")), None);
     }
 
-    intent.last_step = Some("implement".into());
     update_intent_file(repo_path, intent).ok();
 
     // Rebase

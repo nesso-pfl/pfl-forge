@@ -437,12 +437,19 @@ fn historyにstep_resultsが含まれる() {
 
 #[test]
 fn implementing_intentを再開する() {
-  // last_step=analyze + worktree with tasks.yaml → skip analyze
+  // sessions.analyze + worktree with tasks.yaml → skip analyze
   let (_dir, repo) = setup_repo_with_intent("resume-target");
   let config = default_config();
 
-  // Overwrite the intent as implementing with last_step=analyze
-  add_implementing_intent(&repo, "resume-target", Some("analyze"), None);
+  // Overwrite the intent as implementing with sessions.analyze set
+  add_implementing_intent(
+    &repo,
+    "resume-target",
+    Some(ImplementingIntentOptions {
+      analyze_session: Some("prev-analyze-session".to_string()),
+      implement_session: None,
+    }),
+  );
 
   // Create worktree with tasks.yaml
   setup_worktree_with_tasks(&repo, &config, "resume-target");
@@ -470,9 +477,16 @@ fn implementing_intentを再開する() {
 
 #[test]
 fn worktreeがなければ最初からやり直す() {
-  // last_step=analyze but no worktree → run from start
+  // sessions.analyze set but no worktree → run from start
   let (_dir, repo) = setup_repo_with_intent("resume-no-wt");
-  add_implementing_intent(&repo, "resume-no-wt", Some("analyze"), None);
+  add_implementing_intent(
+    &repo,
+    "resume-no-wt",
+    Some(ImplementingIntentOptions {
+      analyze_session: Some("prev-analyze-session".to_string()),
+      implement_session: None,
+    }),
+  );
   let config = default_config();
 
   // analyze + implement + review
@@ -493,7 +507,14 @@ fn worktreeがなければ最初からやり直す() {
 #[test]
 fn approvedとimplementingの両方を処理する() {
   let (_dir, repo) = setup_repo_with_intent("approved-one");
-  add_implementing_intent(&repo, "impl-one", Some("analyze"), None);
+  add_implementing_intent(
+    &repo,
+    "impl-one",
+    Some(ImplementingIntentOptions {
+      analyze_session: Some("prev-analyze-session".to_string()),
+      implement_session: None,
+    }),
+  );
   let mut config = default_config();
   config.parallel_workers = 1; // Sequential: mock responses depend on order
 
@@ -554,9 +575,8 @@ fn resume時にimplementにresumeセッションを渡す() {
   add_implementing_intent(
     &repo,
     "session-resume",
-    Some("analyze"),
     Some(ImplementingIntentOptions {
-      analyze_session: None,
+      analyze_session: Some("prev-analyze-session".to_string()),
       implement_session: Some(prev_session.to_string()),
     }),
   );

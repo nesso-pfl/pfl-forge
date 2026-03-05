@@ -60,8 +60,6 @@ pub struct Intent {
   #[serde(default)]
   pub clarifications: Vec<Clarification>,
   pub created_at: Option<String>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub last_step: Option<String>,
   #[serde(default, skip_serializing_if = "SessionIds::is_empty")]
   pub sessions: SessionIds,
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -93,7 +91,6 @@ impl Intent {
       parent: None,
       clarifications: vec![],
       created_at: None,
-      last_step: None,
       sessions: SessionIds::default(),
       depends_on: vec![],
     }

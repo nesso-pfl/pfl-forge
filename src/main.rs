@@ -148,9 +148,13 @@ fn cmd_init() -> Result<()> {
   std::fs::create_dir_all(forge.join("intents"))?;
   std::fs::create_dir_all(forge.join("intent-drafts"))?;
 
+  let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+  git::worktree::ensure_gitignore_forge(&cwd)?;
+
   println!("created pfl-forge.yaml");
   println!("created .forge/intents/");
   println!("created .forge/intent-drafts/");
+  println!("added .forge/ to .gitignore");
   Ok(())
 }
 

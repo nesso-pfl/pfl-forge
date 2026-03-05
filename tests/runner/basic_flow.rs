@@ -505,6 +505,39 @@ fn worktreeがなければ最初からやり直す() {
 }
 
 #[test]
+fn analyze完了済みでimplement_sessionなしならnewセッションで実行する() {
+  // sessions.analyze set + tasks.yaml exists, but sessions.implement is None
+  // → implement should get a New session
+  let (_dir, repo) = setup_repo_with_intent("impl-new");
+  let config = default_config();
+
+  add_implementing_intent(
+    &repo,
+    "impl-new",
+    Some(ImplementingIntentOptions {
+      analyze_session: Some("prev-analyze-session".to_string()),
+      implement_session: None,
+    }),
+  );
+  setup_worktree_with_tasks(&repo, &config, "impl-new");
+
+  let mock = MockClaude::with_sequence(vec![
+    raw_response("Done"),
+    json_response(approved_review_json()),
+  ]);
+
+  let mut intent = load_intent(&repo, "impl-new");
+  runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  let calls = mock.captured_calls();
+  // First call is implement — should be New, not Resume
+  match &calls[0].session {
+    CapturedSession::New(_) => {}
+    other => panic!("implement should get New session, got {:?}", other),
+  }
+}
+
+#[test]
 fn analyze完了済みでclarificationなしならresumeしない() {
   // sessions.analyze set, no worktree, no clarifications
   // → analyze should get a NEW session, not Resume

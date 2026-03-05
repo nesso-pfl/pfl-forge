@@ -71,6 +71,15 @@ enum Commands {
     /// Answer text
     answer: String,
   },
+  /// Initialize pfl-forge in the current directory
+  Init,
+  /// Create an intent draft in .forge/intent-drafts/
+  Draft {
+    /// Intent title
+    title: String,
+    /// Intent body (description)
+    body: String,
+  },
   /// Run prompt evaluation fixtures
   Eval {
     /// Agent to evaluate (analyze, review)
@@ -120,7 +129,52 @@ async fn main() {
   }
 }
 
+const EXAMPLE_CONFIG: &str = include_str!("../pfl-forge.yaml.example");
+
+fn cmd_init() -> Result<()> {
+  let config_path = std::path::Path::new("pfl-forge.yaml");
+  if config_path.exists() {
+    eprintln!("pfl-forge.yaml already exists");
+    std::process::exit(1);
+  }
+
+  std::fs::write(config_path, EXAMPLE_CONFIG)?;
+
+  let forge = std::path::Path::new(".forge");
+  std::fs::create_dir_all(forge.join("intents"))?;
+  std::fs::create_dir_all(forge.join("intent-drafts"))?;
+
+  println!("created pfl-forge.yaml");
+  println!("created .forge/intents/");
+  println!("created .forge/intent-drafts/");
+  Ok(())
+}
+
+fn cmd_draft(title: &str, body: &str) -> Result<()> {
+  let slug = runner::slugify(title);
+  let drafts_dir = std::path::Path::new(".forge").join("intent-drafts");
+  std::fs::create_dir_all(&drafts_dir)?;
+
+  let path = drafts_dir.join(format!("{slug}.md"));
+  if path.exists() {
+    eprintln!("draft already exists: {slug}");
+    std::process::exit(1);
+  }
+
+  let content = format!("{title}\n\n{body}\n");
+  std::fs::write(&path, content)?;
+  println!("created: {}", path.display());
+  Ok(())
+}
+
 async fn run(cli: Cli) -> Result<()> {
+  // init and draft don't need config
+  match &cli.command {
+    Commands::Init => return cmd_init(),
+    Commands::Draft { title, body } => return cmd_draft(title, body),
+    _ => {}
+  }
+
   let config = Config::load(&cli.config)?;
 
   match cli.command {
@@ -439,5 +493,6 @@ async fn run(cli: Cli) -> Result<()> {
       }
       Ok(())
     }
+    Commands::Init | Commands::Draft { .. } => unreachable!(),
   }
 }

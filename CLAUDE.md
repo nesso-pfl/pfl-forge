@@ -32,11 +32,13 @@ Runner が全エージェント呼び出しを管理する。Intent は `.forge/
 
 ## CLI subcommands
 
+- `init` — CWD に `pfl-forge.yaml` と `.forge/` を作成
 - `run` — Intent 処理（柔軟 Flow 対応）
 - `watch` — daemon モードでポーリング
 - `status` — 処理状態の表示
 - `clean` — 完了済み worktree の削除
-- `create "<title>" "<body>"` — Intent draft 作成
+- `create "<title>" "<body>"` — Intent YAML を `.forge/intents/` に直接作成
+- `draft "<title>" "<body>"` — Intent ドラフト（Markdown）を `.forge/intent-drafts/` に作成
 - `parent` — Operator Agent (interactive Claude Code session) を起動
 - `audit [path]` — コードベース監査 → Observation 記録
 - `inbox` — 承認待ち Intent の一覧

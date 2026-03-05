@@ -78,7 +78,7 @@ pub fn run_intents(
   let all_intents = Intent::fetch_all(&intents_dir)?;
   let mut targets: Vec<Intent> = all_intents
     .iter()
-    .filter(|i| i.status == IntentStatus::Approved || i.status == IntentStatus::Implementing)
+    .filter(|i| i.status == IntentStatus::Approved)
     .filter(|i| {
       i.depends_on.is_empty()
         || i.depends_on.iter().all(|dep| {
@@ -367,10 +367,6 @@ pub fn process_intent(
 
     (tasks, worktree_path)
   };
-
-  // Set Implementing status at implement start
-  intent.status = IntentStatus::Implementing;
-  update_intent_file(repo_path, intent)?;
 
   // Run tasks in dependency order
   let resume_session = if can_resume_tasks || can_resume_from_tasks {
@@ -1072,13 +1068,7 @@ fn gather_active_intents(repo_path: &Path, current_id: &str) -> Vec<ActiveIntent
 
   intents
     .into_iter()
-    .filter(|i| {
-      i.id() != current_id
-        && matches!(
-          i.status,
-          IntentStatus::Approved | IntentStatus::Implementing
-        )
-    })
+    .filter(|i| i.id() != current_id && matches!(i.status, IntentStatus::Approved))
     .map(|i| {
       let status = format!("{:?}", i.status).to_lowercase();
       // Try to read tasks from main repo for relevant_files and plan

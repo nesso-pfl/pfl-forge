@@ -291,19 +291,19 @@ pub fn add_intent_with_depends_on(
   std::fs::write(intents_dir.join(format!("{intent_id}.yaml")), yaml).unwrap();
 }
 
-pub struct ImplementingIntentOptions {
+pub struct ResumeIntentOptions {
   pub analyze_session: Option<String>,
   pub implement_session: Option<String>,
 }
 
-pub fn add_implementing_intent(
+pub fn add_approved_intent_with_sessions(
   repo_path: &Path,
   intent_id: &str,
-  sessions: Option<ImplementingIntentOptions>,
+  sessions: Option<ResumeIntentOptions>,
 ) {
   let intents_dir = repo_path.join(".forge").join("intents");
   let mut yaml =
-    format!("title: {intent_id}\nbody: Body of {intent_id}\nsource: human\nstatus: implementing\n");
+    format!("title: {intent_id}\nbody: Body of {intent_id}\nsource: human\nstatus: approved\n");
   if let Some(ref opts) = sessions {
     yaml.push_str("sessions:\n");
     if let Some(ref sid) = opts.analyze_session {

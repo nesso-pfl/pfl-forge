@@ -208,7 +208,7 @@ fn active_intentのコンテキストをプロンプトに含める() {
   let active = vec![ActiveIntentContext {
     id: "other-intent".into(),
     title: "Refactor auth".into(),
-    status: "implementing".into(),
+    status: "approved".into(),
     relevant_files: vec!["src/auth.rs".into(), "src/session.rs".into()],
     plan: Some("Extract auth logic into separate module".into()),
   }];

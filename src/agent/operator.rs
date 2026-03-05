@@ -40,7 +40,6 @@ pub fn build_initial_message(repo_path: &Path) -> String {
   // Count by status
   let mut proposed = 0usize;
   let mut approved = 0usize;
-  let mut implementing = 0usize;
   let mut done = 0usize;
   let mut blocked = 0usize;
   let mut error = 0usize;
@@ -49,7 +48,6 @@ pub fn build_initial_message(repo_path: &Path) -> String {
     match i.status {
       IntentStatus::Proposed => proposed += 1,
       IntentStatus::Approved => approved += 1,
-      IntentStatus::Implementing => implementing += 1,
       IntentStatus::Done => done += 1,
       IntentStatus::Blocked => blocked += 1,
       IntentStatus::Error => error += 1,
@@ -57,8 +55,13 @@ pub fn build_initial_message(repo_path: &Path) -> String {
   }
 
   msg.push_str(&format!(
-    "Total: {} intents (proposed: {}, approved: {}, implementing: {}, done: {}, blocked: {}, error: {})\n",
-    intents.len(), proposed, approved, implementing, done, blocked, error,
+    "Total: {} intents (proposed: {}, approved: {}, done: {}, blocked: {}, error: {})\n",
+    intents.len(),
+    proposed,
+    approved,
+    done,
+    blocked,
+    error,
   ));
 
   // Inbox: proposed, blocked, error, needs_clarification

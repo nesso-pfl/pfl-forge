@@ -38,7 +38,6 @@ pub enum IntentStatus {
   #[default]
   Proposed,
   Approved,
-  Implementing,
   Done,
   Blocked,
   Error,

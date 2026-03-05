@@ -11,7 +11,7 @@ ID はファイル名の stem（`fix-login-validation.yaml` → `fix-login-valid
 - **type**: `feature`, `refactor`, `fix`, `test`, `audit`, ...
 - **source**: `human`, `reflection`
 - **risk**: `low`, `med`, `high`
-- **status**: `proposed` → `approved` → `implementing` → `done` / `blocked` / `error`
+- **status**: `proposed` → `approved` → `done` / `blocked` / `error`
 - **parent**: 親 Intent の ID（子 Intent の場合）
 - **clarifications**: 質問と回答のリスト（`answer: null` が未回答）
 - **created_at**: タイムスタンプ
@@ -55,12 +55,12 @@ clarifications:
 ステータス遷移:
 
 ```
-proposed → approved → implementing → done      (全 Task 成功)
-                                   → blocked   (一部 Task が failed)
-                                   → error     (全 Task が failed)
+proposed → approved → done      (全 Task 成功)
+                    → blocked   (一部 Task が failed)
+                    → error     (全 Task が failed)
 ```
 
-`implementing` で中断した場合、`.forge/tasks/{intent-id}.yaml` の有無、worktree の存在、`sessions`、`clarifications` から再開箇所を導出する。`run` コマンドは `approved` と `implementing` の両方を処理する。
+中断した場合、`.forge/tasks/{intent-id}.yaml` の有無、worktree の存在、`sessions`、`clarifications` から再開箇所を導出する。`run` コマンドは `approved` の Intent を処理する。
 
 `blocked` / `error` の Intent は inbox に入り、人間が失敗した Task の review feedback を確認して対応を決める（再実行・追加指示・却下）。成功した Task のコミットはそのまま保持される。
 

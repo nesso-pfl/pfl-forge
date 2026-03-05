@@ -222,7 +222,11 @@ async fn run(cli: Cli) -> Result<()> {
       }
 
       let repo_path = Config::repo_path();
-      let claude = ClaudeRunner::new(config.implement_tools.clone(), config.mcp_config.clone());
+      let claude = ClaudeRunner::new(
+        config.implement_tools.clone(),
+        config.mcp_config.clone(),
+        Some(&config.memory_server),
+      );
       let results = runner::run_intents(&config, &claude, &repo_path, dry_run)?;
       for (id, result) in &results {
         let status = match &result.outcome {
@@ -239,7 +243,11 @@ async fn run(cli: Cli) -> Result<()> {
     }
     Commands::Watch => {
       let repo_path = Config::repo_path();
-      let claude = ClaudeRunner::new(config.implement_tools.clone(), config.mcp_config.clone());
+      let claude = ClaudeRunner::new(
+        config.implement_tools.clone(),
+        config.mcp_config.clone(),
+        Some(&config.memory_server),
+      );
       let interval = std::time::Duration::from_secs(config.poll_interval_secs);
 
       info!("watch: polling every {}s", config.poll_interval_secs);
@@ -334,7 +342,11 @@ async fn run(cli: Cli) -> Result<()> {
     }
     Commands::Audit { path } => {
       let repo_path = Config::repo_path();
-      let claude = ClaudeRunner::new(config.analyze_tools.clone(), config.mcp_config.clone());
+      let claude = ClaudeRunner::new(
+        config.analyze_tools.clone(),
+        config.mcp_config.clone(),
+        Some(&config.memory_server),
+      );
 
       // Create internal audit intent
       let target = path.as_deref().unwrap_or(".");
@@ -428,7 +440,11 @@ async fn run(cli: Cli) -> Result<()> {
         return Ok(());
       }
 
-      let claude = ClaudeRunner::new(config.analyze_tools.clone(), config.mcp_config.clone());
+      let claude = ClaudeRunner::new(
+        config.analyze_tools.clone(),
+        config.mcp_config.clone(),
+        Some(&config.memory_server),
+      );
       let mut total = 0;
       let mut passed = 0;
 

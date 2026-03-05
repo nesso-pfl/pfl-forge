@@ -109,11 +109,17 @@ pub struct ClaudeRunner {
 }
 
 impl ClaudeRunner {
-  pub fn new(mut allowed_tools: Vec<String>, mcp_config: Option<String>) -> Self {
+  pub fn new(
+    mut allowed_tools: Vec<String>,
+    mcp_config: Option<String>,
+    memory_server: Option<&str>,
+  ) -> Self {
     // --allowedTools blocks everything not listed, including MCP tools.
-    // Auto-allow all MCP tools when mcp_config is provided.
-    if mcp_config.is_some() && !allowed_tools.iter().any(|t| t.starts_with("mcp__")) {
-      allowed_tools.push("mcp__*".into());
+    // Allow all tools on the specified MCP server by server-name prefix.
+    if let Some(server) = memory_server {
+      if !allowed_tools.iter().any(|t| t.starts_with("mcp__")) {
+        allowed_tools.push(format!("mcp__{server}"));
+      }
     }
     Self {
       allowed_tools,
@@ -443,5 +449,36 @@ mod tests {
     let s1 = SessionMode::new_session();
     let s2 = SessionMode::new_session();
     assert_ne!(s1.session_id(), s2.session_id());
+  }
+
+  #[test]
+  fn memory_serverありならmcpサーバープレフィックスを追加する() {
+    let runner = ClaudeRunner::new(
+      vec!["Read".into(), "Write".into()],
+      None,
+      Some("memory-pfl"),
+    );
+    assert!(runner
+      .allowed_tools
+      .contains(&"mcp__memory-pfl".to_string()));
+  }
+
+  #[test]
+  fn memory_serverなしならmcpツールを追加しない() {
+    let runner = ClaudeRunner::new(vec!["Read".into()], None, None);
+    assert!(!runner.allowed_tools.iter().any(|t| t.starts_with("mcp__")));
+  }
+
+  #[test]
+  fn 既にmcpツールがあれば重複追加しない() {
+    let runner = ClaudeRunner::new(vec!["mcp__custom-server".into()], None, Some("memory-pfl"));
+    assert_eq!(
+      runner
+        .allowed_tools
+        .iter()
+        .filter(|t| t.starts_with("mcp__"))
+        .count(),
+      1
+    );
   }
 }

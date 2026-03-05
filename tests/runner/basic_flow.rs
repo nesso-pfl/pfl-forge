@@ -505,6 +505,76 @@ fn worktreeがなければ最初からやり直す() {
 }
 
 #[test]
+fn tasksファイルあり_worktreeなしならanalyzeスキップしworktree作成から再開() {
+  // Tasks file exists in main repo but worktree is gone → skip analyze, recreate worktree
+  let (_dir, repo) = setup_repo_with_intent("resume-from-tasks");
+  add_implementing_intent(
+    &repo,
+    "resume-from-tasks",
+    Some(ImplementingIntentOptions {
+      analyze_session: Some("prev-analyze-session".to_string()),
+      implement_session: None,
+    }),
+  );
+  let config = default_config();
+
+  // Write tasks file to main repo (no worktree)
+  let tasks = vec![pfl_forge::task::Task {
+    id: "resume-from-tasks".to_string(),
+    title: "resume-from-tasks".to_string(),
+    intent_id: "resume-from-tasks".to_string(),
+    status: pfl_forge::task::WorkStatus::Pending,
+    complexity: "low".to_string(),
+    plan: "Do something".to_string(),
+    relevant_files: vec!["src/lib.rs".to_string()],
+    implementation_steps: vec!["Step 1".to_string()],
+    context: String::new(),
+    depends_on: vec![],
+  }];
+  pfl_forge::task::write_all_tasks(&repo, "resume-from-tasks", &tasks).unwrap();
+
+  // Only implement + review needed (no analyze)
+  let mock = MockClaude::with_sequence(vec![
+    raw_response("Implementation done"),
+    json_response(approved_review_json()),
+  ]);
+
+  let mut intent = load_intent(&repo, "resume-from-tasks");
+  let result = runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  assert_eq!(result.outcome, Outcome::Success);
+  assert_eq!(intent.status, IntentStatus::Done);
+  // Only 2 calls: implement + review (analyze skipped)
+  assert_eq!(mock.call_count(), 2);
+  let steps: Vec<&str> = result
+    .step_results
+    .iter()
+    .map(|s| s.step.as_str())
+    .collect();
+  assert!(!steps.contains(&"analyze"));
+}
+
+#[test]
+fn analyze完了後にtasksファイルがメインリポに作成される() {
+  let (_dir, repo) = setup_repo_with_intent("persist-tasks");
+  let mut intent = load_intent(&repo, "persist-tasks");
+  let config = default_config();
+
+  let mock = MockClaude::with_sequence(vec![
+    json_response(analysis_json()),
+    raw_response("Done"),
+    json_response(approved_review_json()),
+  ]);
+
+  runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  assert!(pfl_forge::task::tasks_exist(&repo, "persist-tasks"));
+  let tasks = pfl_forge::task::read_all_tasks(&repo, "persist-tasks").unwrap();
+  assert!(!tasks.is_empty());
+  assert_eq!(tasks[0].plan, "Write tests");
+}
+
+#[test]
 fn analyze完了済みでimplement_sessionなしならnewセッションで実行する() {
   // sessions.analyze set + tasks.yaml exists, but sessions.implement is None
   // → implement should get a New session

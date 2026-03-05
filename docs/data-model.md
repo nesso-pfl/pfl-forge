@@ -60,7 +60,7 @@ proposed → approved → implementing → done      (全 Task 成功)
                                    → error     (全 Task が failed)
 ```
 
-`implementing` で中断した場合、`sessions` と成果物（`tasks.yaml`、`clarifications`）から再開箇所を導出する。`run` コマンドは `approved` と `implementing` の両方を処理する。
+`implementing` で中断した場合、`.forge/tasks/{intent-id}.yaml` の有無、worktree の存在、`sessions`、`clarifications` から再開箇所を導出する。`run` コマンドは `approved` と `implementing` の両方を処理する。
 
 `blocked` / `error` の Intent は inbox に入り、人間が失敗した Task の review feedback を確認して対応を決める（再実行・追加指示・却下）。成功した Task のコミットはそのまま保持される。
 

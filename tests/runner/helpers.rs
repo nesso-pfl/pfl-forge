@@ -327,25 +327,20 @@ pub fn setup_worktree_with_tasks(repo_path: &Path, config: &Config, intent_id: &
   .unwrap();
   pfl_forge::git::worktree::ensure_gitignore_forge(&worktree_path).unwrap();
 
-  // Write tasks.yaml
-  let tasks_yaml = format!(
-    r#"- id: {intent_id}
-  title: {intent_id}
-  intent_id: {intent_id}
-  status: pending
-  complexity: low
-  plan: Do something
-  relevant_files:
-    - src/lib.rs
-  implementation_steps:
-    - Step 1
-  context: ""
-  depends_on: []
-"#
-  );
-  let forge_dir = worktree_path.join(".forge");
-  std::fs::create_dir_all(&forge_dir).unwrap();
-  std::fs::write(forge_dir.join("tasks.yaml"), tasks_yaml).unwrap();
+  // Write tasks to main repo's .forge/tasks/{intent_id}.yaml
+  let tasks = vec![pfl_forge::task::Task {
+    id: intent_id.to_string(),
+    title: intent_id.to_string(),
+    intent_id: intent_id.to_string(),
+    status: pfl_forge::task::WorkStatus::Pending,
+    complexity: "low".to_string(),
+    plan: "Do something".to_string(),
+    relevant_files: vec!["src/lib.rs".to_string()],
+    implementation_steps: vec!["Step 1".to_string()],
+    context: String::new(),
+    depends_on: vec![],
+  }];
+  pfl_forge::task::write_all_tasks(repo_path, intent_id, &tasks).unwrap();
 
   worktree_path
 }

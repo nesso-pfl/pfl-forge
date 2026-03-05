@@ -86,7 +86,7 @@ Intent 受取
   │    └─ needs_clarification → Intent を一時停止、inbox へ
   │
   ├─ implement ステップ（Task ごと）
-  │    worktree 作成 → setup commands → Task ファイル配置 → Implement Agent 呼び出し
+  │    worktree 作成 → setup commands → Implement Agent 呼び出し（Task 情報はプロンプトに含む）
   │    └─ コミット数 > 0 で成功
   │
   ├─ rebase
@@ -142,17 +142,18 @@ Implement 途中でプロセスがクラッシュすると、Intent は `impleme
 
 #### 再開の判定
 
-Resume 状態は `sessions` と成果物（worktree 内の `tasks.yaml`、`clarifications`）から導出する。
+Resume 状態は `.forge/tasks/{intent-id}.yaml` の有無、worktree の存在、`sessions`、`clarifications` から導出する。
 
 | 条件 | 動作 |
 |------|------|
-| `sessions.analyze` あり + `tasks.yaml` あり | analyze スキップ、worktree から Task を読み戻し、implement から再開 |
-| `sessions.analyze` あり + `tasks.yaml` なし + clarification 全回答済み | analyze セッション resume（clarification 回答後） |
+| tasks ファイルあり + worktree あり | analyze スキップ、メインリポから Task を読み戻し、implement から再開 |
+| tasks ファイルあり + worktree なし | analyze スキップ、worktree を再作成して implement から再開 |
+| `sessions.analyze` あり + tasks ファイルなし + clarification 全回答済み | analyze セッション resume（clarification 回答後） |
 | それ以外 | 最初からやり直し |
 
 #### タスクの永続化
 
-analyze 完了後、Runner は全 Task を worktree の `.forge/tasks.yaml` に書き出す。resume 時はこのファイルから Task を復元する。
+analyze 完了後、Runner は全 Task をメインリポの `.forge/tasks/{intent-id}.yaml` に書き出す（worktree 作成前）。これによりクラッシュしても Task が消失しない。resume 時はこのファイルから Task を復元する。
 
 #### sessions の活用
 

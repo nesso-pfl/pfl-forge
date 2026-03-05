@@ -22,15 +22,18 @@ fn sample_intent() -> Intent {
 }
 
 fn sample_task() -> Task {
-  let intent: Intent = serde_yaml::from_str("title: t\nbody: b\nsource: human\n").unwrap();
-  let analysis = pfl_forge::agent::analyze::AnalysisResult {
+  Task {
+    id: "fix-bug".into(),
+    title: "t".into(),
+    intent_id: "fix-bug".into(),
+    status: pfl_forge::task::WorkStatus::Pending,
     complexity: "low".into(),
     plan: "The implementation plan".into(),
     relevant_files: vec!["src/lib.rs".into()],
     implementation_steps: vec!["step 1".into()],
     context: "context".into(),
-  };
-  Task::from_analysis(&intent, &analysis)
+    depends_on: vec![],
+  }
 }
 
 /// Set up a temp git repo with origin/main ref and a diff

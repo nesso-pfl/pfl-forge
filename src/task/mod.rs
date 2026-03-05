@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use crate::agent::analyze::{AnalysisResult, TaskSpec};
+use crate::agent::analyze::TaskSpec;
 use crate::claude::model;
 use crate::error::Result;
 use crate::intent::registry::Intent;
@@ -35,21 +35,6 @@ pub struct Task {
 }
 
 impl Task {
-  pub fn from_analysis(intent: &Intent, deep: &AnalysisResult) -> Self {
-    Self {
-      id: intent.id().to_string(),
-      title: intent.title.clone(),
-      intent_id: intent.id().to_string(),
-      status: WorkStatus::Pending,
-      complexity: deep.complexity.clone(),
-      plan: deep.plan.clone(),
-      relevant_files: deep.relevant_files.clone(),
-      implementation_steps: deep.implementation_steps.clone(),
-      context: deep.context.clone(),
-      depends_on: vec![],
-    }
-  }
-
   pub fn from_spec(intent: &Intent, spec: &TaskSpec) -> Self {
     let id = if spec.id.is_empty() {
       intent.id().to_string()
@@ -80,59 +65,34 @@ impl Task {
   }
 }
 
-fn work_dir(repo_path: &Path) -> PathBuf {
-  repo_path.join(".forge").join("work")
+fn tasks_dir(repo_path: &Path) -> PathBuf {
+  repo_path.join(".forge").join("tasks")
 }
 
-fn task_filename(task_id: &str, index: u32) -> String {
-  format!("{task_id}-{index:03}.yaml")
+fn tasks_file(repo_path: &Path, intent_id: &str) -> PathBuf {
+  tasks_dir(repo_path).join(format!("{intent_id}.yaml"))
 }
 
-pub fn write_tasks(
-  repo_path: &Path,
-  intent: &Intent,
-  deep: &AnalysisResult,
-) -> Result<Vec<PathBuf>> {
-  let dir = work_dir(repo_path);
+/// Write all tasks to `.forge/tasks/{intent_id}.yaml` in the main repo.
+pub fn write_all_tasks(repo_path: &Path, intent_id: &str, tasks: &[Task]) -> Result<()> {
+  let dir = tasks_dir(repo_path);
   std::fs::create_dir_all(&dir)?;
-
-  let task = Task::from_analysis(intent, deep);
-  let path = dir.join(task_filename(intent.id(), 1));
-  let content = serde_yaml::to_string(&task)?;
-  std::fs::write(&path, content)?;
-
-  info!("wrote task: {}", path.display());
-  Ok(vec![path])
-}
-
-pub fn set_task_status(path: &Path, status: WorkStatus) -> Result<()> {
-  let content = std::fs::read_to_string(path)?;
-  let mut task: Task = serde_yaml::from_str(&content)?;
-  task.status = status;
-  let content = serde_yaml::to_string(&task)?;
-  std::fs::write(path, content)?;
-  Ok(())
-}
-
-pub fn write_task_yaml(worktree_path: &Path, task: &Task) -> Result<()> {
-  let forge_dir = worktree_path.join(".forge");
-  std::fs::create_dir_all(&forge_dir)?;
-  let content = serde_yaml::to_string(task)?;
-  std::fs::write(forge_dir.join("task.yaml"), content)?;
-  Ok(())
-}
-
-pub fn write_all_tasks(worktree_path: &Path, tasks: &[Task]) -> Result<()> {
-  let forge_dir = worktree_path.join(".forge");
-  std::fs::create_dir_all(&forge_dir)?;
+  let path = dir.join(format!("{intent_id}.yaml"));
   let content = serde_yaml::to_string(tasks)?;
-  std::fs::write(forge_dir.join("tasks.yaml"), content)?;
+  std::fs::write(&path, content)?;
+  info!("wrote {} tasks to {}", tasks.len(), path.display());
   Ok(())
 }
 
-pub fn read_all_tasks(worktree_path: &Path) -> Result<Vec<Task>> {
-  let path = worktree_path.join(".forge").join("tasks.yaml");
+/// Read all tasks from `.forge/tasks/{intent_id}.yaml`.
+pub fn read_all_tasks(repo_path: &Path, intent_id: &str) -> Result<Vec<Task>> {
+  let path = tasks_file(repo_path, intent_id);
   let content = std::fs::read_to_string(&path)?;
   let tasks: Vec<Task> = serde_yaml::from_str(&content)?;
   Ok(tasks)
+}
+
+/// Check if tasks file exists for the given intent.
+pub fn tasks_exist(repo_path: &Path, intent_id: &str) -> bool {
+  tasks_file(repo_path, intent_id).exists()
 }

@@ -162,24 +162,36 @@ pub fn process_intent(
   };
 
   // Derive resume state from sessions + artifacts
+  let has_tasks = task::tasks_exist(repo_path, intent.id());
   let worktree_path_for_resume =
     git::worktree::path_for(repo_path, &config.worktree_dir, &intent.branch_name());
-  let has_tasks_yaml = worktree_path_for_resume
-    .join(".forge")
-    .join("tasks.yaml")
-    .exists();
-  let can_resume_tasks = intent.sessions.analyze.is_some() && has_tasks_yaml;
+  let worktree_exists = worktree_path_for_resume.exists();
+  let can_resume_tasks = has_tasks && worktree_exists;
+  let can_resume_from_tasks = has_tasks && !worktree_exists;
   // Resume analyze with clarification answers (session_id present, no tasks yet)
   let resume_clarification = intent.sessions.analyze.is_some()
-    && !has_tasks_yaml
+    && !has_tasks
     && !intent.needs_clarification()
     && !intent.clarifications.is_empty();
 
   let (mut tasks, worktree_path) = if can_resume_tasks {
-    // Resume: read tasks from worktree, skip analyze
-    info!("resuming from analyze: reading tasks from worktree");
-    let tasks = task::read_all_tasks(&worktree_path_for_resume)?;
+    // Resume: read tasks from main repo, skip analyze, reuse existing worktree
+    info!("resuming from analyze: reading tasks from main repo");
+    let tasks = task::read_all_tasks(repo_path, intent.id())?;
     (tasks, worktree_path_for_resume)
+  } else if can_resume_from_tasks {
+    // Tasks exist but worktree is gone: recreate worktree, skip analyze
+    info!("resuming from tasks: recreating worktree");
+    let tasks = task::read_all_tasks(repo_path, intent.id())?;
+    let worktree_path = git::worktree::create(
+      repo_path,
+      &config.worktree_dir,
+      &intent.branch_name(),
+      &config.base_branch,
+    )?;
+    git::worktree::ensure_gitignore_forge(&worktree_path)?;
+    run_worktree_setup(&worktree_path, &config.worktree_setup)?;
+    (tasks, worktree_path)
   } else {
     // Normal or clarification resume: run analyze
     if resume_clarification {
@@ -187,7 +199,7 @@ pub fn process_intent(
     }
 
     // Gather active intent contexts for dependency detection
-    let active_intents = gather_active_intents(repo_path, config, intent.id());
+    let active_intents = gather_active_intents(repo_path, intent.id());
 
     // Analyze (with optional resume from clarification)
     let analyze_session = if resume_clarification {
@@ -338,6 +350,9 @@ pub fn process_intent(
       .map(|spec| Task::from_spec(intent, spec))
       .collect();
 
+    // Persist tasks to main repo (before worktree creation, crash-safe)
+    task::write_all_tasks(repo_path, intent.id(), &tasks)?;
+
     // Worktree setup (shared by all tasks)
     let worktree_path = git::worktree::create(
       repo_path,
@@ -346,12 +361,6 @@ pub fn process_intent(
       &config.base_branch,
     )?;
     git::worktree::ensure_gitignore_forge(&worktree_path)?;
-    // Write first task yaml for backward compat
-    if let Some(first) = tasks.first() {
-      task::write_task_yaml(&worktree_path, first)?;
-    }
-    // Persist all tasks for resume
-    task::write_all_tasks(&worktree_path, &tasks)?;
     run_worktree_setup(&worktree_path, &config.worktree_setup)?;
 
     update_intent_file(repo_path, intent)?;
@@ -364,7 +373,7 @@ pub fn process_intent(
   update_intent_file(repo_path, intent)?;
 
   // Run tasks in dependency order
-  let resume_session = if can_resume_tasks {
+  let resume_session = if can_resume_tasks || can_resume_from_tasks {
     intent
       .sessions
       .implement
@@ -499,9 +508,6 @@ fn run_tasks_in_order(
     let task = &mut tasks[idx];
     let selected_model = task.complexity().select_model(&config.models);
 
-    // Write current task yaml for implement agent
-    let _ = task::write_task_yaml(worktree_path, task);
-
     // Use resume session only for the first task; new session otherwise
     let session = if idx == 0 {
       resume_session
@@ -635,6 +641,7 @@ fn run_implement_review_cycle(
     let start = Instant::now();
     let impl_result = implement::run(
       intent,
+      task,
       claude,
       selected_model,
       worktree_path,
@@ -691,7 +698,6 @@ fn run_implement_review_cycle(
         }
       };
       let _ = git::worktree::ensure_gitignore_forge(&new_wt);
-      let _ = task::write_task_yaml(&new_wt, task);
 
       // Reimplementation attempt
       let reimpl_session = SessionMode::new_session();
@@ -702,6 +708,7 @@ fn run_implement_review_cycle(
       let start = Instant::now();
       let reimpl = implement::run(
         intent,
+        task,
         claude,
         selected_model,
         &new_wt,
@@ -1059,11 +1066,7 @@ pub fn update_intent_file(repo_path: &Path, intent: &Intent) -> Result<()> {
   Ok(())
 }
 
-fn gather_active_intents(
-  repo_path: &Path,
-  config: &Config,
-  current_id: &str,
-) -> Vec<ActiveIntentContext> {
+fn gather_active_intents(repo_path: &Path, current_id: &str) -> Vec<ActiveIntentContext> {
   let intents_dir = repo_path.join(".forge").join("intents");
   let intents = Intent::fetch_all(&intents_dir).unwrap_or_default();
 
@@ -1078,9 +1081,8 @@ fn gather_active_intents(
     })
     .map(|i| {
       let status = format!("{:?}", i.status).to_lowercase();
-      // Try to read tasks from worktree for relevant_files and plan
-      let wt_path = git::worktree::path_for(repo_path, &config.worktree_dir, &i.branch_name());
-      let (relevant_files, plan) = task::read_all_tasks(&wt_path)
+      // Try to read tasks from main repo for relevant_files and plan
+      let (relevant_files, plan) = task::read_all_tasks(repo_path, i.id())
         .ok()
         .map(|tasks| {
           let files: Vec<String> = tasks

@@ -1,35 +1,38 @@
-use pfl_forge::agent::analyze::AnalysisResult;
+use pfl_forge::agent::analyze::TaskSpec;
 use pfl_forge::claude::model::{Complexity, OPUS, SONNET};
 use pfl_forge::config::ModelSettings;
 use pfl_forge::intent::registry::Intent;
-use pfl_forge::task::{set_task_status, Task, WorkStatus};
+use pfl_forge::task::{Task, WorkStatus};
 
 fn sample_intent() -> Intent {
   serde_yaml::from_str("title: Test task\nbody: Implement feature X\nsource: human\n").unwrap()
 }
 
-fn sample_analysis() -> AnalysisResult {
-  AnalysisResult {
+fn sample_spec() -> TaskSpec {
+  TaskSpec {
+    id: String::new(),
+    title: String::new(),
     complexity: "high".into(),
     plan: "Step-by-step plan".into(),
     relevant_files: vec!["src/lib.rs".into()],
     implementation_steps: vec!["Add module".into(), "Write tests".into()],
     context: "Background context".into(),
+    depends_on: vec![],
   }
 }
 
 // --- Task 生成 ---
 
 #[test]
-fn from_analysisで全フィールドが設定される() {
+fn from_specで全フィールドが設定される() {
   let dir = tempfile::tempdir().unwrap();
   let yaml = "title: Test task\nbody: Implement feature X\nsource: human\n";
   std::fs::write(dir.path().join("task-42.yaml"), yaml).unwrap();
   let intents = Intent::fetch_all(dir.path()).unwrap();
   let intent = &intents[0];
 
-  let analysis = sample_analysis();
-  let task = Task::from_analysis(intent, &analysis);
+  let spec = sample_spec();
+  let task = Task::from_spec(intent, &spec);
 
   assert_eq!(task.intent_id, "task-42");
   assert_eq!(task.title, "Test task");
@@ -41,10 +44,10 @@ fn from_analysisで全フィールドが設定される() {
 }
 
 #[test]
-fn from_analysisでステータスがpendingになる() {
+fn from_specでステータスがpendingになる() {
   let intent = sample_intent();
-  let analysis = sample_analysis();
-  let task = Task::from_analysis(&intent, &analysis);
+  let spec = sample_spec();
+  let task = Task::from_spec(&intent, &spec);
   assert_eq!(task.status, WorkStatus::Pending);
 }
 
@@ -67,44 +70,44 @@ fn 高complexityはcomplexモデルを選択する() {
 #[test]
 fn 不明なcomplexityはmediumにデフォルトする() {
   let intent = sample_intent();
-  let mut analysis = sample_analysis();
-  analysis.complexity = "unknown_value".into();
-  let task = Task::from_analysis(&intent, &analysis);
+  let spec = TaskSpec {
+    complexity: "unknown_value".into(),
+    ..sample_spec()
+  };
+  let task = Task::from_spec(&intent, &spec);
   assert_eq!(task.complexity(), Complexity::Medium);
 }
 
 // --- YAML I/O ---
 
 #[test]
-fn task_yamlの書き込みと読み込みが往復する() {
+fn tasks_yamlの書き込みと読み込みが往復する() {
   let intent = sample_intent();
-  let analysis = sample_analysis();
-  let task = Task::from_analysis(&intent, &analysis);
+  let spec = sample_spec();
+  let task = Task::from_spec(&intent, &spec);
 
   let dir = tempfile::tempdir().unwrap();
-  pfl_forge::task::write_task_yaml(dir.path(), &task).unwrap();
+  let repo_path = dir.path();
+  pfl_forge::task::write_all_tasks(repo_path, "test-intent", &[task.clone()]).unwrap();
 
-  let content = std::fs::read_to_string(dir.path().join(".forge/task.yaml")).unwrap();
-  let loaded: Task = serde_yaml::from_str(&content).unwrap();
-  assert_eq!(loaded.title, task.title);
-  assert_eq!(loaded.complexity, task.complexity);
-  assert_eq!(loaded.relevant_files, task.relevant_files);
+  let loaded = pfl_forge::task::read_all_tasks(repo_path, "test-intent").unwrap();
+  assert_eq!(loaded.len(), 1);
+  assert_eq!(loaded[0].title, task.title);
+  assert_eq!(loaded[0].complexity, task.complexity);
+  assert_eq!(loaded[0].relevant_files, task.relevant_files);
 }
 
 #[test]
-fn set_task_statusでyamlファイルが更新される() {
+fn tasks_existが正しく判定する() {
   let dir = tempfile::tempdir().unwrap();
+  let repo_path = dir.path();
+
+  assert!(!pfl_forge::task::tasks_exist(repo_path, "nonexistent"));
+
   let intent = sample_intent();
-  let analysis = sample_analysis();
-  let task = Task::from_analysis(&intent, &analysis);
+  let spec = sample_spec();
+  let task = Task::from_spec(&intent, &spec);
+  pfl_forge::task::write_all_tasks(repo_path, "exists", &[task]).unwrap();
 
-  let yaml = serde_yaml::to_string(&task).unwrap();
-  let path = dir.path().join("task.yaml");
-  std::fs::write(&path, yaml).unwrap();
-
-  set_task_status(&path, WorkStatus::Completed).unwrap();
-
-  let content = std::fs::read_to_string(&path).unwrap();
-  let loaded: Task = serde_yaml::from_str(&content).unwrap();
-  assert_eq!(loaded.status, WorkStatus::Completed);
+  assert!(pfl_forge::task::tasks_exist(repo_path, "exists"));
 }

@@ -120,7 +120,7 @@ History のバックエンドは当面 YAML ファイル。スケール問題が
 | `inbox` | 提案された Intent の一覧・承認・却下 |
 | `approve` | 特定 Intent の承認（例: `approve 3,5,7`） |
 | `status` | 処理状態の表示 |
-| `parent` | インタラクティブセッション |
+| `operator` | インタラクティブセッション（デフォルト） |
 | `create` | `.forge/intent-drafts/` に Markdown 作成 |
 | `clean` | worktree クリーンアップ |
 | `watch` | daemon モード |

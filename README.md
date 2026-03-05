@@ -35,10 +35,10 @@ pfl-forge init
 $EDITOR pfl-forge.yaml
 
 # 3. Operator Agent を起動（対話的に操作）
-pfl-forge parent
+pfl-forge
 ```
 
-`pfl-forge parent` で起動する Operator Agent が主要な操作インターフェース。Intent の作成・承認・実行をすべて対話的に行える。
+`pfl-forge`（サブコマンド省略）で起動する Operator Agent が主要な操作インターフェース。Intent の作成・承認・実行をすべて対話的に行える。
 
 個別コマンドを直接使う場合:
 
@@ -174,13 +174,14 @@ pfl-forge draft "認証機能の追加" "OAuth2 による認証を実装する"
 # → .forge/intent-drafts/add-auth.md
 ```
 
-### `parent`
+### `operator`
 
-Operator Agent（対話型の Claude Code セッション）を起動する。pfl-forge のコンテキストを持った状態で対話的に操作できる。
+Operator Agent（対話型の Claude Code セッション）を起動する。pfl-forge のコンテキストを持った状態で対話的に操作できる。サブコマンド省略時のデフォルト動作。
 
 ```sh
-pfl-forge parent
-pfl-forge parent --model opus    # モデルを指定
+pfl-forge                        # サブコマンド省略でも起動
+pfl-forge operator
+pfl-forge operator --model opus  # モデルを指定
 ```
 
 ### `audit [path]`
@@ -405,7 +406,7 @@ RUST_LOG=debug pfl-forge run     # 詳細ログ
 | Reflect | 完了後の振り返り・改善 Intent 生成 | sonnet |
 | Audit | コードベース監査 | opus |
 | Skill | パターン抽出 → SKILL.md 生成 | sonnet |
-| Operator | 対話型セッション（`parent` コマンド） | 設定可能 |
+| Operator | 対話型セッション（`operator` コマンド、デフォルト） | 設定可能 |
 
 ## 典型的なワークフロー
 

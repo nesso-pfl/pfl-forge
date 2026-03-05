@@ -18,7 +18,7 @@ use pfl_forge::runner;
 )]
 struct Cli {
   #[command(subcommand)]
-  command: Commands,
+  command: Option<Commands>,
 
   /// Path to config file
   #[arg(short, long, default_value = "pfl-forge.yaml")]
@@ -40,7 +40,7 @@ enum Commands {
   /// Clean up worktrees for completed tasks
   Clean,
   /// Launch operator agent (interactive Claude Code session)
-  Parent {
+  Operator {
     /// Claude model to use
     #[arg(long)]
     model: Option<String>,
@@ -170,14 +170,23 @@ fn cmd_draft(title: &str, body: &str) -> Result<()> {
 async fn run(cli: Cli) -> Result<()> {
   // init and draft don't need config
   match &cli.command {
-    Commands::Init => return cmd_init(),
-    Commands::Draft { title, body } => return cmd_draft(title, body),
+    Some(Commands::Init) => return cmd_init(),
+    Some(Commands::Draft { title, body }) => return cmd_draft(title, body),
     _ => {}
   }
 
   let config = Config::load(&cli.config)?;
 
-  match cli.command {
+  // No subcommand → launch operator
+  let command = match cli.command {
+    Some(cmd) => cmd,
+    None => {
+      let repo_path = Config::repo_path();
+      return agent::operator::launch(&config, None, &repo_path);
+    }
+  };
+
+  match command {
     Commands::Run { dry_run } => {
       let repo_path = Config::repo_path();
       let claude = ClaudeRunner::new(config.implement_tools.clone(), config.mcp_config.clone());
@@ -268,7 +277,7 @@ async fn run(cli: Cli) -> Result<()> {
       println!("{cleaned} worktree(s) cleaned");
       Ok(())
     }
-    Commands::Parent { model } => {
+    Commands::Operator { model } => {
       let repo_path = Config::repo_path();
       agent::operator::launch(&config, model.as_deref(), &repo_path)
     }
@@ -493,6 +502,6 @@ async fn run(cli: Cli) -> Result<()> {
       }
       Ok(())
     }
-    Commands::Init | Commands::Draft { .. } => unreachable!(),
+    Commands::Init | Commands::Draft { .. } => unreachable!("handled before config load"),
   }
 }

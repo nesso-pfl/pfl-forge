@@ -39,7 +39,7 @@ Runner が全エージェント呼び出しを管理する。Intent は `.forge/
 - `clean` — 完了済み worktree の削除
 - `create "<title>" "<body>"` — Intent YAML を `.forge/intents/` に直接作成
 - `draft "<title>" "<body>"` — Intent ドラフト（Markdown）を `.forge/intent-drafts/` に作成
-- `parent` — Operator Agent (interactive Claude Code session) を起動
+- `operator` — Operator Agent (interactive Claude Code session) を起動（サブコマンド省略でも起動）
 - `audit [path]` — コードベース監査 → Observation 記録
 - `inbox` — 承認待ち Intent の一覧
 - `approve <ids>` — Intent の承認

@@ -143,10 +143,15 @@ pub fn analyze(
 
   let timeout = Some(Duration::from_secs(config.analyze_timeout_secs));
 
+  let system_prompt = format!(
+    "{}\n\nThe external memory MCP server name is `{}`. Use tools like `mcp__{}__search_memories` and `mcp__{}__create_memory`.",
+    prompt::ANALYZE, config.memory_server, config.memory_server, config.memory_server
+  );
+
   info!("analyzing: {intent}");
   let (raw, metadata): (RawAnalysis, _) = runner.run_json_with_meta(
     &prompt,
-    prompt::ANALYZE,
+    &system_prompt,
     deep_model,
     repo_path,
     timeout,

@@ -5,6 +5,9 @@ pub enum ForgeError {
   #[error("config file not found: {0}")]
   ConfigNotFound(PathBuf),
 
+  #[error("config error: {0}")]
+  Config(String),
+
   #[error("git error: {0}")]
   Git(String),
 

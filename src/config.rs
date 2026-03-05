@@ -30,6 +30,8 @@ pub struct Config {
   pub worktree_setup: Vec<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub mcp_config: Option<String>,
+  #[serde(default = "default_memory_server")]
+  pub memory_server: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,6 +107,9 @@ fn default_analyze_tools() -> Vec<String> {
     "WebFetch".into(),
   ]
 }
+fn default_memory_server() -> String {
+  "memory-pfl".to_string()
+}
 fn default_analyze_model() -> String {
   "opus".to_string()
 }
@@ -133,8 +138,37 @@ impl Config {
       return Err(ForgeError::ConfigNotFound(path.to_path_buf()));
     }
     let content = std::fs::read_to_string(path)?;
-    let config: Config = serde_yaml::from_str(&content)?;
+    let mut config: Config = serde_yaml::from_str(&content)?;
+    config.resolve_mcp_config()?;
     Ok(config)
+  }
+
+  /// Resolve `mcp_config` to an existing path.
+  /// 1. If explicitly set → use that path
+  /// 2. Otherwise → fallback to `{CWD}/.claude/mcp.json`
+  /// 3. If neither exists → error
+  fn resolve_mcp_config(&mut self) -> Result<()> {
+    let resolved = if let Some(ref explicit) = self.mcp_config {
+      let p = PathBuf::from(explicit);
+      if p.exists() {
+        p
+      } else {
+        return Err(ForgeError::Config(format!(
+          "mcp_config not found: {explicit}"
+        )));
+      }
+    } else {
+      let fallback = Self::repo_path().join(".claude/mcp.json");
+      if fallback.exists() {
+        fallback
+      } else {
+        return Err(ForgeError::Config(
+          "MCP config required but not found. Set mcp_config in pfl-forge.yaml or create .claude/mcp.json".into(),
+        ));
+      }
+    };
+    self.mcp_config = Some(resolved.to_string_lossy().into_owned());
+    Ok(())
   }
 
   pub fn repo_path() -> PathBuf {
@@ -154,5 +188,44 @@ mod tests {
     assert_eq!(config.implement_tools.len(), 6);
     assert_eq!(config.base_branch, "main");
     assert_eq!(config.max_review_retries, 2);
+    assert_eq!(config.memory_server, "memory-pfl");
+  }
+
+  #[test]
+  fn mcp_config指定パスが存在すればresolveに成功する() {
+    let dir = tempfile::tempdir().unwrap();
+    let mcp_path = dir.path().join("mcp.json");
+    std::fs::write(&mcp_path, "{}").unwrap();
+
+    let yaml = format!("mcp_config: {}", mcp_path.display());
+    let config_path = dir.path().join("pfl-forge.yaml");
+    std::fs::write(&config_path, &yaml).unwrap();
+
+    let config = Config::load(&config_path).unwrap();
+    assert!(config.mcp_config.is_some());
+  }
+
+  #[test]
+  fn mcp_config指定パスが不在ならエラーを返す() {
+    let dir = tempfile::tempdir().unwrap();
+    let yaml = "mcp_config: /nonexistent/mcp.json";
+    let config_path = dir.path().join("pfl-forge.yaml");
+    std::fs::write(&config_path, yaml).unwrap();
+
+    let err = Config::load(&config_path).unwrap_err();
+    assert!(err.to_string().contains("mcp_config not found"));
+  }
+
+  #[test]
+  fn mcp_config省略時にcwdのmcp_jsonが不在ならエラーを返す() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = dir.path().join("pfl-forge.yaml");
+    std::fs::write(&config_path, "{}").unwrap();
+
+    // CWD fallback won't find .claude/mcp.json → error
+    let result = Config::load(&config_path);
+    assert!(result.is_err());
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("MCP config required"));
   }
 }

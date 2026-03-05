@@ -31,3 +31,4 @@ max_review_retries: 2
 # worktree_setup:
 #   - npm install
 mcp_config: .claude/mcp.json
+memory_server: memory-pfl

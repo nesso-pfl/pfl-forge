@@ -134,8 +134,8 @@ pub fn analyze(
 ) -> Result<(AnalysisOutcome, ClaudeMetadata, Vec<String>, Vec<String>)> {
   let deep_model = model::resolve(&config.models.analyze);
 
-  // When resuming from clarification, send only the answers
-  let prompt = if matches!(session, SessionMode::Resume(_)) {
+  // Resume with clarification answers only if there are answered clarifications
+  let prompt = if matches!(session, SessionMode::Resume(_)) && !intent.clarifications.is_empty() {
     build_clarification_resume_prompt(intent)
   } else {
     build_full_prompt(intent, active_intents)

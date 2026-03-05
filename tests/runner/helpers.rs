@@ -3,14 +3,37 @@ use std::process::Command;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use pfl_forge::claude::runner::Claude;
+use pfl_forge::claude::runner::{Claude, SessionMode};
 use pfl_forge::config::Config;
 use pfl_forge::error::{ForgeError, Result};
 use pfl_forge::intent::registry::Intent;
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum CapturedSession {
+  New(String),
+  Resume(String),
+  None,
+}
+
+impl From<&SessionMode> for CapturedSession {
+  fn from(mode: &SessionMode) -> Self {
+    match mode {
+      SessionMode::New(id) => CapturedSession::New(id.clone()),
+      SessionMode::Resume(id) => CapturedSession::Resume(id.clone()),
+      SessionMode::None => CapturedSession::None,
+    }
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct CapturedCall {
+  pub prompt: String,
+  pub session: CapturedSession,
+}
+
 pub struct MockClaude {
   responses: Mutex<Vec<Result<String>>>,
-  pub calls: Mutex<Vec<String>>,
+  pub calls: Mutex<Vec<CapturedCall>>,
 }
 
 impl MockClaude {
@@ -24,6 +47,10 @@ impl MockClaude {
   pub fn call_count(&self) -> usize {
     self.calls.lock().unwrap().len()
   }
+
+  pub fn captured_calls(&self) -> Vec<CapturedCall> {
+    self.calls.lock().unwrap().clone()
+  }
 }
 
 impl Claude for MockClaude {
@@ -34,9 +61,12 @@ impl Claude for MockClaude {
     _model: &str,
     _cwd: &Path,
     _timeout: Option<Duration>,
-    _session: &pfl_forge::claude::runner::SessionMode,
+    session: &pfl_forge::claude::runner::SessionMode,
   ) -> Result<String> {
-    self.calls.lock().unwrap().push(prompt.to_string());
+    self.calls.lock().unwrap().push(CapturedCall {
+      prompt: prompt.to_string(),
+      session: CapturedSession::from(session),
+    });
     let mut responses = self.responses.lock().unwrap();
     if responses.len() > 1 {
       let resp = responses.remove(0);
@@ -261,11 +291,16 @@ pub fn add_intent_with_depends_on(
   std::fs::write(intents_dir.join(format!("{intent_id}.yaml")), yaml).unwrap();
 }
 
+pub struct ImplementingIntentOptions {
+  pub analyze_session: Option<String>,
+  pub implement_session: Option<String>,
+}
+
 pub fn add_implementing_intent(
   repo_path: &Path,
   intent_id: &str,
   last_step: Option<&str>,
-  session_id: Option<&str>,
+  sessions: Option<ImplementingIntentOptions>,
 ) {
   let intents_dir = repo_path.join(".forge").join("intents");
   let mut yaml =
@@ -273,8 +308,14 @@ pub fn add_implementing_intent(
   if let Some(step) = last_step {
     yaml.push_str(&format!("last_step: {step}\n"));
   }
-  if let Some(sid) = session_id {
-    yaml.push_str(&format!("session_id: {sid}\n"));
+  if let Some(ref opts) = sessions {
+    yaml.push_str("sessions:\n");
+    if let Some(ref sid) = opts.analyze_session {
+      yaml.push_str(&format!("  analyze: {sid}\n"));
+    }
+    if let Some(ref sid) = opts.implement_session {
+      yaml.push_str(&format!("  implement: {sid}\n"));
+    }
   }
   std::fs::write(intents_dir.join(format!("{intent_id}.yaml")), yaml).unwrap();
 }

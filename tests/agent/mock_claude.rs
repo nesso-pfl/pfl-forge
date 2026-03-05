@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use pfl_forge::claude::runner::Claude;
+use pfl_forge::claude::runner::{Claude, SessionMode};
 use pfl_forge::error::{ForgeError, Result};
 
 #[derive(Debug, Clone)]
@@ -12,6 +12,24 @@ pub struct CapturedCall {
   pub model: String,
   pub cwd: PathBuf,
   pub timeout: Option<Duration>,
+  pub session: CapturedSession,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CapturedSession {
+  New(String),
+  Resume(String),
+  None,
+}
+
+impl From<&SessionMode> for CapturedSession {
+  fn from(mode: &SessionMode) -> Self {
+    match mode {
+      SessionMode::New(id) => CapturedSession::New(id.clone()),
+      SessionMode::Resume(id) => CapturedSession::Resume(id.clone()),
+      SessionMode::None => CapturedSession::None,
+    }
+  }
 }
 
 pub struct MockClaude {
@@ -85,7 +103,7 @@ impl Claude for MockClaude {
     model: &str,
     cwd: &Path,
     timeout: Option<Duration>,
-    _session: &pfl_forge::claude::runner::SessionMode,
+    session: &pfl_forge::claude::runner::SessionMode,
   ) -> Result<String> {
     self.calls.lock().unwrap().push(CapturedCall {
       prompt: prompt.to_string(),
@@ -93,6 +111,7 @@ impl Claude for MockClaude {
       model: model.to_string(),
       cwd: cwd.to_path_buf(),
       timeout,
+      session: CapturedSession::from(session),
     });
     let mut responses = self.responses.lock().unwrap();
     if responses.len() > 1 {

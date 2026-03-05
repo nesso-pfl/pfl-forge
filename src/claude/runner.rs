@@ -412,4 +412,36 @@ mod tests {
     let meta = parse_metadata("not json");
     assert!(meta.session_id.is_none());
   }
+
+  #[test]
+  fn new_sessionはuuidを持つnewバリアントを返す() {
+    let session = SessionMode::new_session();
+    match &session {
+      SessionMode::New(id) => {
+        assert!(!id.is_empty());
+        // UUID v4 format: 8-4-4-4-12
+        assert_eq!(id.len(), 36);
+      }
+      other => panic!("expected New, got {:?}", other),
+    }
+  }
+
+  #[test]
+  fn session_idはnewとresumeでidを返しnoneではnoneを返す() {
+    let new = SessionMode::New("abc-123".into());
+    assert_eq!(new.session_id(), Some("abc-123"));
+
+    let resume = SessionMode::Resume("def-456".into());
+    assert_eq!(resume.session_id(), Some("def-456"));
+
+    let none = SessionMode::None;
+    assert_eq!(none.session_id(), Option::None);
+  }
+
+  #[test]
+  fn new_sessionは毎回異なるuuidを生成する() {
+    let s1 = SessionMode::new_session();
+    let s2 = SessionMode::new_session();
+    assert_ne!(s1.session_id(), s2.session_id());
+  }
 }

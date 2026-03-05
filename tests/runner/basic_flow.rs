@@ -517,3 +517,108 @@ fn approvedとimplementingの両方を処理する() {
   // 5 total calls
   assert_eq!(mock.call_count(), 5);
 }
+
+// --- SessionMode ---
+
+#[test]
+fn 新規実行では全エージェントにnewセッションを渡す() {
+  let (_dir, repo) = setup_repo_with_intent("session-new");
+  let config = default_config();
+
+  let mock = MockClaude::with_sequence(vec![
+    json_response(analysis_json()),
+    raw_response("Done"),
+    json_response(approved_review_json()),
+  ]);
+
+  let mut intent = load_intent(&repo, "session-new");
+  runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  let calls = mock.captured_calls();
+  // analyze, implement, review = 3 calls minimum
+  assert!(calls.len() >= 3);
+  for call in &calls {
+    match &call.session {
+      CapturedSession::New(id) => assert!(!id.is_empty()),
+      other => panic!("expected New session, got {:?}", other),
+    }
+  }
+}
+
+#[test]
+fn resume時にimplementにresumeセッションを渡す() {
+  let (_dir, repo) = setup_repo_with_intent("session-resume");
+  let config = default_config();
+
+  let prev_session = "prev-implement-session-id";
+  add_implementing_intent(
+    &repo,
+    "session-resume",
+    Some("analyze"),
+    Some(ImplementingIntentOptions {
+      analyze_session: None,
+      implement_session: Some(prev_session.to_string()),
+    }),
+  );
+  setup_worktree_with_tasks(&repo, &config, "session-resume");
+
+  let mock = MockClaude::with_sequence(vec![
+    raw_response("Done"),
+    json_response(approved_review_json()),
+  ]);
+
+  let mut intent = load_intent(&repo, "session-resume");
+  runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  let calls = mock.captured_calls();
+  // First call (implement) should use Resume with the saved session
+  assert_eq!(
+    calls[0].session,
+    CapturedSession::Resume(prev_session.into())
+  );
+  // Second call (review) should use a new session
+  match &calls[1].session {
+    CapturedSession::New(id) => assert!(!id.is_empty()),
+    other => panic!("expected New session for review, got {:?}", other),
+  }
+}
+
+#[test]
+fn session_idがintent_yamlにspawn前に書き込まれる() {
+  let (_dir, repo) = setup_repo_with_intent("session-write");
+  let config = default_config();
+
+  let mock = MockClaude::with_sequence(vec![
+    json_response(analysis_json()),
+    raw_response("Done"),
+    json_response(approved_review_json()),
+  ]);
+
+  let mut intent = load_intent(&repo, "session-write");
+  runner::process_intent(&mut intent, &config, &mock, &repo).unwrap();
+
+  // After processing, all session fields should be populated
+  assert!(
+    intent.sessions.analyze.is_some(),
+    "analyze session should be set"
+  );
+  assert!(
+    intent.sessions.implement.is_some(),
+    "implement session should be set"
+  );
+  assert!(
+    intent.sessions.review.is_some(),
+    "review session should be set"
+  );
+
+  // Verify the sessions match what was passed to the mock
+  let calls = mock.captured_calls();
+  let analyze_sid = match &calls[0].session {
+    CapturedSession::New(id) => id.clone(),
+    other => panic!("expected New, got {:?}", other),
+  };
+  assert_eq!(
+    intent.sessions.analyze.as_deref(),
+    Some(analyze_sid.as_str())
+  );
+}

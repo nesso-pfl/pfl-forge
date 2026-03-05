@@ -4,7 +4,7 @@ use std::time::Duration;
 use tracing::info;
 
 use crate::agent::review::ReviewResult;
-use crate::claude::runner::Claude;
+use crate::claude::runner::{Claude, SessionMode};
 use crate::intent::registry::Intent;
 use crate::prompt;
 
@@ -15,7 +15,7 @@ pub fn run(
   worktree_path: &Path,
   timeout: Option<Duration>,
   review_feedback: Option<&ReviewResult>,
-  session_id: Option<&str>,
+  session: &SessionMode,
 ) -> Result<String, crate::error::ForgeError> {
   let mut prompt = format!(
     r#"## Task {id}: {title}
@@ -49,6 +49,6 @@ pub fn run(
     selected_model,
     worktree_path,
     timeout,
-    session_id,
+    session,
   )
 }

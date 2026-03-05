@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::claude::model;
-use crate::claude::runner::{Claude, ClaudeMetadata};
+use crate::claude::runner::{Claude, ClaudeMetadata, SessionMode};
 use crate::config::Config;
 use crate::error::Result;
 use crate::knowledge::observation::{self, Observation};
@@ -47,8 +47,14 @@ pub fn audit(
   let timeout = Some(Duration::from_secs(config.analyze_timeout_secs));
 
   info!("auditing: {}", target_path.unwrap_or("."));
-  let (result, metadata): (AuditResult, _) =
-    runner.run_json_with_meta(&prompt, prompt::AUDIT, audit_model, repo_path, timeout)?;
+  let (result, metadata): (AuditResult, _) = runner.run_json_with_meta(
+    &prompt,
+    prompt::AUDIT,
+    audit_model,
+    repo_path,
+    timeout,
+    &SessionMode::new_session(),
+  )?;
 
   let obs_path = repo_path.join(".forge").join("observations.yaml");
   for obs in &result.observations {

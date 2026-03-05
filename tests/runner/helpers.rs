@@ -34,7 +34,7 @@ impl Claude for MockClaude {
     _model: &str,
     _cwd: &Path,
     _timeout: Option<Duration>,
-    _session_id: Option<&str>,
+    _session: &pfl_forge::claude::runner::SessionMode,
   ) -> Result<String> {
     self.calls.lock().unwrap().push(prompt.to_string());
     let mut responses = self.responses.lock().unwrap();

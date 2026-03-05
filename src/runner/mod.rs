@@ -6,7 +6,7 @@ use tracing::{info, warn};
 use crate::agent::analyze::{ActiveIntentContext, AnalysisOutcome};
 use crate::agent::review::ReviewResult;
 use crate::agent::{analyze, audit, implement, reflect, review, skill};
-use crate::claude::runner::{parse_metadata, Claude};
+use crate::claude::runner::{parse_metadata, Claude, SessionMode};
 use crate::config::Config;
 use crate::error::Result;
 use crate::git;
@@ -202,11 +202,20 @@ pub fn process_intent(
     let active_intents = gather_active_intents(repo_path, config, intent.id());
 
     // Analyze (with optional resume from clarification)
-    let analyze_session_id = if resuming {
-      intent.sessions.analyze.as_deref()
+    let analyze_session = if resuming {
+      intent
+        .sessions
+        .analyze
+        .as_ref()
+        .map(|sid| SessionMode::Resume(sid.clone()))
+        .unwrap_or_else(SessionMode::new_session)
     } else {
-      None
+      SessionMode::new_session()
     };
+    if let Some(sid) = analyze_session.session_id() {
+      intent.sessions.analyze = Some(sid.to_string());
+      update_intent_file(repo_path, intent).ok();
+    }
     let start = Instant::now();
     let (analysis_outcome, analyze_meta, depends_on_intents, analyze_observations) =
       analyze::analyze(
@@ -215,18 +224,13 @@ pub fn process_intent(
         claude,
         repo_path,
         &active_intents,
-        analyze_session_id,
+        &analyze_session,
       )?;
     step_results.push(StepResult {
       step: "analyze".into(),
       duration_secs: start.elapsed().as_secs(),
       metadata: Some(analyze_meta.clone()),
     });
-
-    if let Some(ref sid) = analyze_meta.session_id {
-      intent.sessions.analyze = Some(sid.clone());
-      update_intent_file(repo_path, intent).ok();
-    }
 
     // Save cross-intent dependencies if detected
     if !depends_on_intents.is_empty() {
@@ -289,9 +293,6 @@ pub fn process_intent(
       AnalysisOutcome::Tasks(specs) => specs,
       AnalysisOutcome::NeedsClarification { clarifications } => {
         intent.status = IntentStatus::Blocked;
-        if let Some(ref sid) = analyze_meta.session_id {
-          intent.sessions.analyze = Some(sid.clone());
-        }
         intent.last_step = Some("analyze".into());
         for q in &clarifications {
           intent
@@ -374,8 +375,12 @@ pub fn process_intent(
   };
 
   // Run tasks in dependency order
-  let resume_session_id = if resuming {
-    intent.sessions.implement.clone()
+  let resume_session = if resuming {
+    intent
+      .sessions
+      .implement
+      .as_ref()
+      .map(|sid| SessionMode::Resume(sid.clone()))
   } else {
     None
   };
@@ -389,7 +394,7 @@ pub fn process_intent(
     &worktree_path,
     timeout,
     &mut step_results,
-    resume_session_id.as_deref(),
+    resume_session.as_ref(),
     &mut exec_summary,
   );
 
@@ -423,15 +428,14 @@ pub fn process_intent(
 
   // Reflect: run after successful leaf intent completion
   if outcome == Outcome::Success && !has_children(repo_path, intent.id()) {
-    let start = Instant::now();
-    let reflect_result = reflect::reflect(intent, config, claude, repo_path);
-    let reflect_meta = reflect_result.as_ref().ok().map(|(_, m)| m.clone());
-    if let Some(ref meta) = reflect_meta {
-      if let Some(ref sid) = meta.session_id {
-        intent.sessions.reflect = Some(sid.clone());
-        update_intent_file(repo_path, intent).ok();
-      }
+    let reflect_session = SessionMode::new_session();
+    if let Some(sid) = reflect_session.session_id() {
+      intent.sessions.reflect = Some(sid.to_string());
+      update_intent_file(repo_path, intent).ok();
     }
+    let start = Instant::now();
+    let reflect_result = reflect::reflect(intent, config, claude, repo_path, &reflect_session);
+    let reflect_meta = reflect_result.as_ref().ok().map(|(_, m)| m.clone());
     match reflect_result {
       Ok((r, _)) => info!("reflect: generated {} intents", r.intents.len()),
       Err(e) => warn!("reflect failed: {e}"),
@@ -469,7 +473,7 @@ fn run_tasks_in_order(
   worktree_path: &Path,
   timeout: std::time::Duration,
   step_results: &mut Vec<StepResult>,
-  resume_session_id: Option<&str>,
+  resume_session: Option<&SessionMode>,
   exec_summary: &mut ExecutionSummary,
 ) -> Vec<TaskOutcome> {
   let task_ids: Vec<String> = tasks.iter().map(|t| t.id.clone()).collect();
@@ -509,8 +513,19 @@ fn run_tasks_in_order(
     // Write current task yaml for implement agent
     let _ = task::write_task_yaml(worktree_path, task);
 
-    // Use resume session_id only for the first task
-    let sid = if idx == 0 { resume_session_id } else { None };
+    // Use resume session only for the first task; new session otherwise
+    let session = if idx == 0 {
+      resume_session
+        .cloned()
+        .unwrap_or_else(SessionMode::new_session)
+    } else {
+      SessionMode::new_session()
+    };
+    // Write session_id to intent before spawning
+    if let Some(sid) = session.session_id() {
+      intent.sessions.implement = Some(sid.to_string());
+      update_intent_file(repo_path, intent).ok();
+    }
     let (outcome, last_review) = run_implement_review_cycle(
       intent,
       task,
@@ -521,7 +536,7 @@ fn run_tasks_in_order(
       selected_model,
       timeout,
       step_results,
-      sid,
+      &session,
     );
 
     // Record task summary
@@ -607,17 +622,23 @@ fn run_implement_review_cycle(
   selected_model: &str,
   timeout: std::time::Duration,
   step_results: &mut Vec<StepResult>,
-  resume_session_id: Option<&str>,
+  initial_session: &SessionMode,
 ) -> (TaskOutcome, Option<ReviewResult>) {
   let mut review_feedback: Option<ReviewResult> = None;
   let max_retries = config.max_review_retries;
 
   for attempt in 0..=max_retries {
-    // Use resume session_id only on the first attempt
-    let sid = if attempt == 0 {
-      resume_session_id
+    // Use initial session on the first attempt; new session for retries
+    let session = if attempt == 0 {
+      initial_session.clone()
     } else {
-      None
+      let s = SessionMode::new_session();
+      // Write retry session_id before spawning
+      if let Some(sid) = s.session_id() {
+        intent.sessions.implement = Some(sid.to_string());
+        update_intent_file(repo_path, intent).ok();
+      }
+      s
     };
 
     // Implement
@@ -630,15 +651,9 @@ fn run_implement_review_cycle(
       worktree_path,
       Some(timeout),
       review_feedback.as_ref(),
-      sid,
+      &session,
     );
     let impl_meta = impl_result.as_ref().ok().map(|raw| parse_metadata(raw));
-    if let Some(ref meta) = impl_meta {
-      if let Some(ref sid) = meta.session_id {
-        intent.sessions.implement = Some(sid.clone());
-        update_intent_file(repo_path, intent).ok();
-      }
-    }
     step_results.push(StepResult {
       step: "implement".into(),
       duration_secs: start.elapsed().as_secs(),
@@ -650,14 +665,6 @@ fn run_implement_review_cycle(
       return (TaskOutcome::Failed(format!("implement failed: {e}")), None);
     }
 
-    // Read session_id from worktree if written by implement agent
-    let session_id_path = worktree_path.join(".forge").join("session_id");
-    if let Ok(sid) = std::fs::read_to_string(&session_id_path) {
-      let sid = sid.trim().to_string();
-      if !sid.is_empty() {
-        intent.sessions.implement = Some(sid);
-      }
-    }
     intent.last_step = Some("implement".into());
     update_intent_file(repo_path, intent).ok();
 
@@ -699,6 +706,11 @@ fn run_implement_review_cycle(
       let _ = task::write_task_yaml(&new_wt, task);
 
       // Reimplementation attempt
+      let reimpl_session = SessionMode::new_session();
+      if let Some(sid) = reimpl_session.session_id() {
+        intent.sessions.implement = Some(sid.to_string());
+        update_intent_file(repo_path, intent).ok();
+      }
       let start = Instant::now();
       let reimpl = implement::run(
         intent,
@@ -707,7 +719,7 @@ fn run_implement_review_cycle(
         &new_wt,
         Some(timeout),
         None,
-        None,
+        &reimpl_session,
       );
       let reimpl_meta = reimpl.as_ref().ok().map(|raw| parse_metadata(raw));
       step_results.push(StepResult {
@@ -744,6 +756,11 @@ fn run_implement_review_cycle(
     }
 
     // Review
+    let review_session = SessionMode::new_session();
+    if let Some(sid) = review_session.session_id() {
+      intent.sessions.review = Some(sid.to_string());
+      update_intent_file(repo_path, intent).ok();
+    }
     let start = Instant::now();
     let mut review_result = review::review(
       intent,
@@ -752,13 +769,10 @@ fn run_implement_review_cycle(
       claude,
       worktree_path,
       &config.base_branch,
+      &review_session,
     );
     let review_meta = review_result.as_ref().ok().map(|(_, m)| m.clone());
-    let review_sid = review_meta.as_ref().and_then(|m| m.session_id.clone());
-    if let Some(ref sid) = review_sid {
-      intent.sessions.review = Some(sid.clone());
-      update_intent_file(repo_path, intent).ok();
-    }
+    let review_sid = review_session.session_id().map(String::from);
     // Attach session_id to ReviewResult for debugging
     if let Ok((ref mut result, _)) = review_result {
       result.session_id = review_sid.clone();

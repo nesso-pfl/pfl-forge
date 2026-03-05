@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::claude::model;
-use crate::claude::runner::{Claude, ClaudeMetadata};
+use crate::claude::runner::{Claude, ClaudeMetadata, SessionMode};
 use crate::config::Config;
 use crate::error::Result;
 use crate::intent::registry::Intent;
@@ -34,6 +34,7 @@ pub fn reflect(
   config: &Config,
   runner: &impl Claude,
   repo_path: &Path,
+  session: &SessionMode,
 ) -> Result<(ReflectResult, ClaudeMetadata)> {
   let obs_path = repo_path.join(".forge").join("observations.yaml");
   let all_obs = observation::load(&obs_path)?;
@@ -88,8 +89,14 @@ pub fn reflect(
   let timeout = Some(Duration::from_secs(config.analyze_timeout_secs));
 
   info!("reflecting on {} observations", unprocessed.len());
-  let (result, metadata): (ReflectResult, _) =
-    runner.run_json_with_meta(&prompt, prompt::REFLECT, reflect_model, repo_path, timeout)?;
+  let (result, metadata): (ReflectResult, _) = runner.run_json_with_meta(
+    &prompt,
+    prompt::REFLECT,
+    reflect_model,
+    repo_path,
+    timeout,
+    session,
+  )?;
 
   // Write generated intents to .forge/intents/
   let intents_dir = repo_path.join(".forge").join("intents");

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::claude::model;
-use crate::claude::runner::{Claude, ClaudeMetadata};
+use crate::claude::runner::{Claude, ClaudeMetadata, SessionMode};
 use crate::config::Config;
 use crate::error::{ForgeError, Result};
 use crate::intent::registry::Intent;
@@ -34,6 +34,7 @@ pub fn review(
   runner: &impl Claude,
   worktree_path: &Path,
   base_branch: &str,
+  session: &SessionMode,
 ) -> Result<(ReviewResult, ClaudeMetadata)> {
   review_inner(
     intent,
@@ -43,6 +44,7 @@ pub fn review(
     worktree_path,
     base_branch,
     None,
+    session,
   )
 }
 
@@ -53,6 +55,7 @@ pub fn review_with_diff(
   runner: &impl Claude,
   worktree_path: &Path,
   diff_override: &str,
+  session: &SessionMode,
 ) -> Result<(ReviewResult, ClaudeMetadata)> {
   review_inner(
     intent,
@@ -62,6 +65,7 @@ pub fn review_with_diff(
     worktree_path,
     "",
     Some(diff_override),
+    session,
   )
 }
 
@@ -73,6 +77,7 @@ fn review_inner(
   worktree_path: &Path,
   base_branch: &str,
   diff_override: Option<&str>,
+  session: &SessionMode,
 ) -> Result<(ReviewResult, ClaudeMetadata)> {
   let review_model = model::resolve(&config.models.review);
 
@@ -111,6 +116,7 @@ fn review_inner(
     review_model,
     worktree_path,
     timeout,
+    session,
   )?;
   result.task_id = task.id.clone();
 

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::claude::model;
-use crate::claude::runner::{Claude, ClaudeMetadata};
+use crate::claude::runner::{Claude, ClaudeMetadata, SessionMode};
 use crate::config::Config;
 use crate::error::Result;
 use crate::knowledge::history;
@@ -78,6 +78,7 @@ pub fn observe(
     observe_model,
     repo_path,
     timeout,
+    &SessionMode::new_session(),
   )
 }
 
@@ -114,6 +115,7 @@ pub fn abstract_patterns(
     abstract_model,
     repo_path,
     timeout,
+    &SessionMode::new_session(),
   )
 }
 

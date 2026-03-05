@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::claude::model;
-use crate::claude::runner::{Claude, ClaudeMetadata};
+use crate::claude::runner::{Claude, ClaudeMetadata, SessionMode};
 use crate::config::Config;
 use crate::error::Result;
 use crate::intent::registry::Intent;
@@ -130,12 +130,12 @@ pub fn analyze(
   runner: &impl Claude,
   repo_path: &std::path::Path,
   active_intents: &[ActiveIntentContext],
-  session_id: Option<&str>,
+  session: &SessionMode,
 ) -> Result<(AnalysisOutcome, ClaudeMetadata, Vec<String>, Vec<String>)> {
   let deep_model = model::resolve(&config.models.analyze);
 
   // When resuming from clarification, send only the answers
-  let prompt = if session_id.is_some() {
+  let prompt = if matches!(session, SessionMode::Resume(_)) {
     build_clarification_resume_prompt(intent)
   } else {
     build_full_prompt(intent, active_intents)
@@ -144,13 +144,13 @@ pub fn analyze(
   let timeout = Some(Duration::from_secs(config.analyze_timeout_secs));
 
   info!("analyzing: {intent}");
-  let (raw, metadata): (RawAnalysis, _) = runner.run_json_with_meta_resume(
+  let (raw, metadata): (RawAnalysis, _) = runner.run_json_with_meta(
     &prompt,
     prompt::ANALYZE,
     deep_model,
     repo_path,
     timeout,
-    session_id,
+    session,
   )?;
   let depends_on_intents = raw.depends_on_intents.clone();
   let observations = raw.observations.clone();

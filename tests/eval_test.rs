@@ -112,7 +112,7 @@ fn eval_analyzeでチェックが実行される() {
       _model: &str,
       _cwd: &Path,
       _timeout: Option<Duration>,
-      _session_id: Option<&str>,
+      _session: &pfl_forge::claude::runner::SessionMode,
     ) -> Result<String> {
       let inner = r#"{"complexity":"low","plan":"Add health endpoint","relevant_files":["src/handler.rs"],"implementation_steps":["Create handler","Add route to router"],"context":""}"#;
       let escaped = inner.replace('\\', "\\\\").replace('"', "\\\"");

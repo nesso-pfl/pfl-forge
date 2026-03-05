@@ -30,6 +30,32 @@ pub struct ClaudeMetadata {
   pub num_turns: Option<u64>,
 }
 
+/// Session handling for Claude CLI invocations.
+#[derive(Debug, Clone, Default)]
+pub enum SessionMode {
+  /// Generate a new session with a pre-determined UUID.
+  New(String),
+  /// Resume an existing session.
+  Resume(String),
+  /// No session management.
+  #[default]
+  None,
+}
+
+impl SessionMode {
+  pub fn session_id(&self) -> Option<&str> {
+    match self {
+      SessionMode::New(id) | SessionMode::Resume(id) => Some(id),
+      SessionMode::None => Option::None,
+    }
+  }
+
+  /// Generate a new session with a random UUID.
+  pub fn new_session() -> Self {
+    SessionMode::New(uuid::Uuid::new_v4().to_string())
+  }
+}
+
 pub trait Claude {
   fn run_prompt(
     &self,
@@ -38,7 +64,7 @@ pub trait Claude {
     model: &str,
     cwd: &Path,
     timeout: Option<Duration>,
-    session_id: Option<&str>,
+    session: &SessionMode,
   ) -> Result<String>;
 
   fn run_json<T: DeserializeOwned>(
@@ -49,7 +75,14 @@ pub trait Claude {
     cwd: &Path,
     timeout: Option<Duration>,
   ) -> Result<T> {
-    let raw = self.run_prompt(prompt, system_prompt, model, cwd, timeout, None)?;
+    let raw = self.run_prompt(
+      prompt,
+      system_prompt,
+      model,
+      cwd,
+      timeout,
+      &SessionMode::None,
+    )?;
     parse_claude_json_output(&raw)
   }
 
@@ -60,20 +93,9 @@ pub trait Claude {
     model: &str,
     cwd: &Path,
     timeout: Option<Duration>,
+    session: &SessionMode,
   ) -> Result<(T, ClaudeMetadata)> {
-    self.run_json_with_meta_resume(prompt, system_prompt, model, cwd, timeout, None)
-  }
-
-  fn run_json_with_meta_resume<T: DeserializeOwned>(
-    &self,
-    prompt: &str,
-    system_prompt: &str,
-    model: &str,
-    cwd: &Path,
-    timeout: Option<Duration>,
-    session_id: Option<&str>,
-  ) -> Result<(T, ClaudeMetadata)> {
-    let raw = self.run_prompt(prompt, system_prompt, model, cwd, timeout, session_id)?;
+    let raw = self.run_prompt(prompt, system_prompt, model, cwd, timeout, session)?;
     let metadata = parse_metadata(&raw);
     let result = parse_claude_json_output(&raw)?;
     Ok((result, metadata))
@@ -108,7 +130,7 @@ impl Claude for ClaudeRunner {
     model: &str,
     cwd: &Path,
     timeout: Option<Duration>,
-    session_id: Option<&str>,
+    session: &SessionMode,
   ) -> Result<String> {
     let tools_csv = self.allowed_tools.join(",");
 
@@ -122,8 +144,14 @@ impl Claude for ClaudeRunner {
       .current_dir(cwd)
       .env_remove("CLAUDE_CODE_ENTRYPOINT");
 
-    if let Some(sid) = session_id {
-      cmd.args(["--resume", sid]);
+    match session {
+      SessionMode::New(id) => {
+        cmd.args(["--session-id", id]);
+      }
+      SessionMode::Resume(id) => {
+        cmd.args(["--resume", id]);
+      }
+      SessionMode::None => {}
     }
 
     if let Some(ref mcp_path) = self.mcp_config {

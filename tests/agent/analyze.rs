@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use pfl_forge::agent::analyze::{self, ActiveIntentContext, AnalysisOutcome};
 use pfl_forge::claude::model::OPUS;
+use pfl_forge::claude::runner::SessionMode;
 use pfl_forge::config::Config;
 use pfl_forge::intent::registry::Clarification;
 use pfl_forge::intent::registry::Intent;
@@ -39,7 +40,7 @@ fn 成功した分析からタスクスペックを返す() {
     &mock,
     std::path::Path::new("."),
     &[],
-    None,
+    &SessionMode::new_session(),
   )
   .unwrap();
 
@@ -68,7 +69,7 @@ fn 複数タスクとdepends_onを返す() {
     &mock,
     std::path::Path::new("."),
     &[],
-    None,
+    &SessionMode::new_session(),
   )
   .unwrap();
 
@@ -95,7 +96,7 @@ fn 問題が大きい場合は子intentを返す() {
     &mock,
     std::path::Path::new("."),
     &[],
-    None,
+    &SessionMode::new_session(),
   )
   .unwrap();
 
@@ -123,7 +124,7 @@ fn 情報不足の場合はclarificationを返す() {
     &mock,
     std::path::Path::new("."),
     &[],
-    None,
+    &SessionMode::new_session(),
   )
   .unwrap();
 
@@ -148,7 +149,7 @@ fn configのanalyzeモデルを使用する() {
     &mock,
     std::path::Path::new("."),
     &[],
-    None,
+    &SessionMode::new_session(),
   )
   .unwrap();
 
@@ -168,7 +169,7 @@ fn configのanalyzeタイムアウトを使用する() {
     &mock,
     std::path::Path::new("."),
     &[],
-    None,
+    &SessionMode::new_session(),
   )
   .unwrap();
 
@@ -188,7 +189,7 @@ fn プロンプトにintentのid_title_bodyが含まれる() {
     &mock,
     std::path::Path::new("."),
     &[],
-    None,
+    &SessionMode::new_session(),
   )
   .unwrap();
 
@@ -218,7 +219,7 @@ fn active_intentのコンテキストをプロンプトに含める() {
     &mock,
     std::path::Path::new("."),
     &active,
-    None,
+    &SessionMode::new_session(),
   )
   .unwrap();
 
@@ -242,7 +243,7 @@ fn active_intentが空ならセクションを省略する() {
     &mock,
     std::path::Path::new("."),
     &[],
-    None,
+    &SessionMode::new_session(),
   )
   .unwrap();
 
@@ -262,7 +263,7 @@ fn claudeエラーを伝播する() {
     &mock,
     std::path::Path::new("."),
     &[],
-    None,
+    &SessionMode::new_session(),
   );
   assert!(result.is_err());
   let err = result.unwrap_err().to_string();
@@ -291,7 +292,7 @@ fn 回答済みclarificationをプロンプトに含める() {
     &mock,
     std::path::Path::new("."),
     &[],
-    None,
+    &SessionMode::new_session(),
   )
   .unwrap();
 
@@ -314,7 +315,7 @@ fn clarificationが空ならセクションを省略する() {
     &mock,
     std::path::Path::new("."),
     &[],
-    None,
+    &SessionMode::new_session(),
   )
   .unwrap();
 

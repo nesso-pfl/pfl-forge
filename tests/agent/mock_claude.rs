@@ -85,7 +85,7 @@ impl Claude for MockClaude {
     model: &str,
     cwd: &Path,
     timeout: Option<Duration>,
-    _session_id: Option<&str>,
+    _session: &pfl_forge::claude::runner::SessionMode,
   ) -> Result<String> {
     self.calls.lock().unwrap().push(CapturedCall {
       prompt: prompt.to_string(),

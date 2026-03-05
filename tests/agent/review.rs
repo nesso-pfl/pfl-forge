@@ -1,6 +1,7 @@
 use std::process::Command;
 
 use pfl_forge::agent::review;
+use pfl_forge::claude::runner::SessionMode;
 use pfl_forge::config::Config;
 use pfl_forge::intent::registry::Intent;
 use pfl_forge::task::Task;
@@ -72,8 +73,16 @@ fn 承認されたレビュー結果を返す() {
   let task = sample_task();
   let repo = setup_git_repo();
 
-  let (result, _meta) =
-    review::review(&intent, &task, &config, &mock, repo.path(), "main").unwrap();
+  let (result, _meta) = review::review(
+    &intent,
+    &task,
+    &config,
+    &mock,
+    repo.path(),
+    "main",
+    &SessionMode::new_session(),
+  )
+  .unwrap();
   assert!(result.approved);
   assert!(result.issues.is_empty());
   assert_eq!(result.task_id, task.id);
@@ -88,8 +97,16 @@ fn 却下時にissueを返す() {
   let task = sample_task();
   let repo = setup_git_repo();
 
-  let (result, _meta) =
-    review::review(&intent, &task, &config, &mock, repo.path(), "main").unwrap();
+  let (result, _meta) = review::review(
+    &intent,
+    &task,
+    &config,
+    &mock,
+    repo.path(),
+    "main",
+    &SessionMode::new_session(),
+  )
+  .unwrap();
   assert!(!result.approved);
   assert_eq!(result.issues, vec!["Missing tests"]);
   assert_eq!(result.suggestions, vec!["Add unit tests"]);
@@ -104,7 +121,16 @@ fn プロンプトにdiffとplanを含める() {
   let task = sample_task();
   let repo = setup_git_repo();
 
-  review::review(&intent, &task, &config, &mock, repo.path(), "main").unwrap();
+  review::review(
+    &intent,
+    &task,
+    &config,
+    &mock,
+    repo.path(),
+    "main",
+    &SessionMode::new_session(),
+  )
+  .unwrap();
 
   let call = mock.last_call();
   assert!(call.prompt.contains("The implementation plan"));
@@ -120,7 +146,16 @@ fn configのデフォルトモデルを使用する() {
   let task = sample_task();
   let repo = setup_git_repo();
 
-  review::review(&intent, &task, &config, &mock, repo.path(), "main").unwrap();
+  review::review(
+    &intent,
+    &task,
+    &config,
+    &mock,
+    repo.path(),
+    "main",
+    &SessionMode::new_session(),
+  )
+  .unwrap();
 
   let call = mock.last_call();
   assert_eq!(call.model, pfl_forge::claude::model::SONNET);
@@ -159,7 +194,16 @@ fn 大きなdiffを切り詰める() {
   run(&["add", "."]);
   run(&["commit", "-m", "large change"]);
 
-  review::review(&intent, &task, &config, &mock, p, "main").unwrap();
+  review::review(
+    &intent,
+    &task,
+    &config,
+    &mock,
+    p,
+    "main",
+    &SessionMode::new_session(),
+  )
+  .unwrap();
 
   let call = mock.last_call();
   // The prompt should be truncated: diff portion ≤ 50000 chars
@@ -178,6 +222,14 @@ fn claudeエラーを伝播する() {
   let task = sample_task();
   let repo = setup_git_repo();
 
-  let result = review::review(&intent, &task, &config, &mock, repo.path(), "main");
+  let result = review::review(
+    &intent,
+    &task,
+    &config,
+    &mock,
+    repo.path(),
+    "main",
+    &SessionMode::new_session(),
+  );
   assert!(result.is_err());
 }

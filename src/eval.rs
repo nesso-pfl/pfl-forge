@@ -5,7 +5,7 @@ use tracing::info;
 
 use crate::agent::analyze::{self, AnalysisOutcome};
 use crate::agent::review;
-use crate::claude::runner::Claude;
+use crate::claude::runner::{Claude, SessionMode};
 use crate::config::Config;
 use crate::error::Result;
 use crate::intent::registry::Intent;
@@ -101,8 +101,14 @@ pub fn eval_analyze(
   let intent = Intent::synthetic(&fixture.intent.title, &fixture.intent.body);
 
   info!("eval analyze: running fixture '{fixture_name}'");
-  let (outcome, _meta, _depends, _observations) =
-    analyze::analyze(&intent, config, claude, repo_path, &[], None)?;
+  let (outcome, _meta, _depends, _observations) = analyze::analyze(
+    &intent,
+    config,
+    claude,
+    repo_path,
+    &[],
+    &SessionMode::new_session(),
+  )?;
 
   let mut checks = Vec::new();
 
@@ -260,7 +266,15 @@ pub fn eval_review(
   };
 
   info!("eval review: running fixture '{fixture_name}'");
-  let (result, _meta) = review::review_with_diff(&intent, &task, config, claude, repo_path, diff)?;
+  let (result, _meta) = review::review_with_diff(
+    &intent,
+    &task,
+    config,
+    claude,
+    repo_path,
+    diff,
+    &SessionMode::new_session(),
+  )?;
 
   let mut checks = Vec::new();
 

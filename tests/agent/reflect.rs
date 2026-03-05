@@ -1,4 +1,5 @@
 use pfl_forge::agent::reflect;
+use pfl_forge::claude::runner::SessionMode;
 use pfl_forge::config::Config;
 use pfl_forge::intent::registry::Intent;
 use pfl_forge::knowledge::observation::{self, Observation};
@@ -52,7 +53,14 @@ fn observationからintentを生成する() {
   let mock = MockClaude::with_json(reflect_json());
   let config = default_config();
 
-  let (result, _meta) = reflect::reflect(&intent, &config, &mock, dir.path()).unwrap();
+  let (result, _meta) = reflect::reflect(
+    &intent,
+    &config,
+    &mock,
+    dir.path(),
+    &SessionMode::new_session(),
+  )
+  .unwrap();
 
   assert_eq!(result.intents.len(), 1);
   assert_eq!(result.intents[0].title, "Extract shared validation");
@@ -76,7 +84,14 @@ fn 生成されたintentのsourceがreflectionになる() {
   let mock = MockClaude::with_json(reflect_json());
   let config = default_config();
 
-  reflect::reflect(&intent, &config, &mock, dir.path()).unwrap();
+  reflect::reflect(
+    &intent,
+    &config,
+    &mock,
+    dir.path(),
+    &SessionMode::new_session(),
+  )
+  .unwrap();
 
   let intents_dir = dir.path().join(".forge").join("intents");
   let intents = Intent::fetch_all(&intents_dir).unwrap();
@@ -121,7 +136,14 @@ fn 未処理のobservationのみを処理する() {
   let mock = MockClaude::with_json(reflect_json());
   let config = default_config();
 
-  reflect::reflect(&intent, &config, &mock, dir.path()).unwrap();
+  reflect::reflect(
+    &intent,
+    &config,
+    &mock,
+    dir.path(),
+    &SessionMode::new_session(),
+  )
+  .unwrap();
 
   // The prompt should only contain the unprocessed observation
   let call = mock.last_call();
@@ -139,7 +161,14 @@ fn observationを処理済みにマークする() {
   let mock = MockClaude::with_json(reflect_json());
   let config = default_config();
 
-  reflect::reflect(&intent, &config, &mock, dir.path()).unwrap();
+  reflect::reflect(
+    &intent,
+    &config,
+    &mock,
+    dir.path(),
+    &SessionMode::new_session(),
+  )
+  .unwrap();
 
   // All observations for this intent should now be processed
   let obs_path = dir.path().join(".forge").join("observations.yaml");
@@ -157,6 +186,12 @@ fn claudeエラーを伝播する() {
   let mock = MockClaude::with_error("API error");
   let config = default_config();
 
-  let result = reflect::reflect(&intent, &config, &mock, dir.path());
+  let result = reflect::reflect(
+    &intent,
+    &config,
+    &mock,
+    dir.path(),
+    &SessionMode::new_session(),
+  );
   assert!(result.is_err());
 }

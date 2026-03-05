@@ -1,5 +1,6 @@
 use pfl_forge::agent::implement;
 use pfl_forge::agent::review::ReviewResult;
+use pfl_forge::claude::runner::SessionMode;
 use pfl_forge::intent::registry::Intent;
 
 use crate::mock_claude::MockClaude;
@@ -19,7 +20,16 @@ fn intentコンテキストで実装を実行する() {
   let intent = sample_intent();
   let dir = tempfile::tempdir().unwrap();
 
-  implement::run(&intent, &mock, "sonnet", dir.path(), None, None, None).unwrap();
+  implement::run(
+    &intent,
+    &mock,
+    "sonnet",
+    dir.path(),
+    None,
+    None,
+    &SessionMode::new_session(),
+  )
+  .unwrap();
 
   let call = mock.last_call();
   assert!(call.prompt.contains("fix-bug"));
@@ -40,7 +50,7 @@ fn 低complexityではデフォルトモデルを選択する() {
     dir.path(),
     None,
     None,
-    None,
+    &SessionMode::new_session(),
   )
   .unwrap();
 
@@ -61,7 +71,7 @@ fn 高complexityではcomplexモデルを選択する() {
     dir.path(),
     None,
     None,
-    None,
+    &SessionMode::new_session(),
   )
   .unwrap();
 
@@ -90,7 +100,7 @@ fn リトライ時にレビューフィードバックをプロンプトに含�
     dir.path(),
     None,
     Some(&feedback),
-    None,
+    &SessionMode::new_session(),
   )
   .unwrap();
 
@@ -106,7 +116,16 @@ fn 初回実行時はレビューセクションを省略する() {
   let intent = sample_intent();
   let dir = tempfile::tempdir().unwrap();
 
-  implement::run(&intent, &mock, "sonnet", dir.path(), None, None, None).unwrap();
+  implement::run(
+    &intent,
+    &mock,
+    "sonnet",
+    dir.path(),
+    None,
+    None,
+    &SessionMode::new_session(),
+  )
+  .unwrap();
 
   let call = mock.last_call();
   assert!(!call.prompt.contains("Previous Review Feedback"));
@@ -118,6 +137,14 @@ fn claudeエラーを伝播する() {
   let intent = sample_intent();
   let dir = tempfile::tempdir().unwrap();
 
-  let result = implement::run(&intent, &mock, "sonnet", dir.path(), None, None, None);
+  let result = implement::run(
+    &intent,
+    &mock,
+    "sonnet",
+    dir.path(),
+    None,
+    None,
+    &SessionMode::new_session(),
+  );
   assert!(result.is_err());
 }

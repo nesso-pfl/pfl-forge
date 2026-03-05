@@ -145,30 +145,53 @@ impl Config {
 
   /// Resolve `mcp_config` to an existing path.
   /// 1. If explicitly set → use that path
-  /// 2. Otherwise → fallback to `{CWD}/.claude/mcp.json`
-  /// 3. If neither exists → error
+  /// 2. Fallback to `{CWD}/.claude/mcp.json`
+  /// 3. If global `~/.claude.json` has `mcpServers` → no local config needed
+  /// 4. Otherwise → error
   fn resolve_mcp_config(&mut self) -> Result<()> {
-    let resolved = if let Some(ref explicit) = self.mcp_config {
+    if let Some(ref explicit) = self.mcp_config {
       let p = PathBuf::from(explicit);
       if p.exists() {
-        p
-      } else {
-        return Err(ForgeError::Config(format!(
-          "mcp_config not found: {explicit}"
-        )));
+        self.mcp_config = Some(p.to_string_lossy().into_owned());
+        return Ok(());
       }
-    } else {
-      let fallback = Self::repo_path().join(".claude/mcp.json");
-      if fallback.exists() {
-        fallback
-      } else {
-        return Err(ForgeError::Config(
-          "MCP config required but not found. Set mcp_config in pfl-forge.yaml or create .claude/mcp.json".into(),
-        ));
-      }
+      return Err(ForgeError::Config(format!(
+        "mcp_config not found: {explicit}"
+      )));
+    }
+
+    let local_fallback = Self::repo_path().join(".claude/mcp.json");
+    if local_fallback.exists() {
+      self.mcp_config = Some(local_fallback.to_string_lossy().into_owned());
+      return Ok(());
+    }
+
+    if Self::has_global_mcp_servers() {
+      // mcp_config stays None — Claude CLI picks up global config automatically
+      return Ok(());
+    }
+
+    Err(ForgeError::Config(
+      "MCP config required but not found. Set mcp_config in pfl-forge.yaml, create .claude/mcp.json, or configure mcpServers in ~/.claude.json".into(),
+    ))
+  }
+
+  /// Check if `~/.claude.json` has a non-empty `mcpServers` object.
+  fn has_global_mcp_servers() -> bool {
+    let Ok(home) = std::env::var("HOME") else {
+      return false;
     };
-    self.mcp_config = Some(resolved.to_string_lossy().into_owned());
-    Ok(())
+    let path = PathBuf::from(home).join(".claude.json");
+    let Ok(content) = std::fs::read_to_string(&path) else {
+      return false;
+    };
+    let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) else {
+      return false;
+    };
+    val
+      .get("mcpServers")
+      .and_then(|v| v.as_object())
+      .is_some_and(|m| !m.is_empty())
   }
 
   pub fn repo_path() -> PathBuf {
@@ -217,15 +240,52 @@ mod tests {
   }
 
   #[test]
-  fn mcp_config省略時にcwdのmcp_jsonが不在ならエラーを返す() {
+  fn mcp_config省略時にローカルもグローバルもなければエラーを返す() {
     let dir = tempfile::tempdir().unwrap();
     let config_path = dir.path().join("pfl-forge.yaml");
     std::fs::write(&config_path, "{}").unwrap();
 
-    // CWD fallback won't find .claude/mcp.json → error
+    // Hide global config by unsetting HOME
+    let orig_home = std::env::var("HOME").ok();
+    unsafe { std::env::set_var("HOME", dir.path()) };
+
     let result = Config::load(&config_path);
+
+    // Restore HOME
+    if let Some(h) = orig_home {
+      unsafe { std::env::set_var("HOME", h) };
+    }
+
     assert!(result.is_err());
     let msg = result.unwrap_err().to_string();
     assert!(msg.contains("MCP config required"));
+  }
+
+  #[test]
+  fn mcp_config省略時にグローバルmcpServersがあればokを返す() {
+    let dir = tempfile::tempdir().unwrap();
+    let config_path = dir.path().join("pfl-forge.yaml");
+    std::fs::write(&config_path, "{}").unwrap();
+
+    // Create fake global ~/.claude.json with mcpServers
+    let fake_home = tempfile::tempdir().unwrap();
+    let claude_json = fake_home.path().join(".claude.json");
+    std::fs::write(
+      &claude_json,
+      r#"{"mcpServers":{"test":{"type":"stdio","command":"echo"}}}"#,
+    )
+    .unwrap();
+
+    let orig_home = std::env::var("HOME").ok();
+    unsafe { std::env::set_var("HOME", fake_home.path()) };
+
+    let result = Config::load(&config_path);
+
+    if let Some(h) = orig_home {
+      unsafe { std::env::set_var("HOME", h) };
+    }
+
+    let config = result.unwrap();
+    assert!(config.mcp_config.is_none());
   }
 }

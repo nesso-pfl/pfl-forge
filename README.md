@@ -268,7 +268,7 @@ worktree_dir: .pfl-worktrees   # worktree の作成先 (default: .pfl-worktrees)
 poll_interval_secs: 300        # watch のポーリング間隔秒 (default: 300)
 
 # MCP
-mcp_config: .claude/mcp.json   # MCP 設定ファイルのパス (省略時は .claude/mcp.json をフォールバック、見つからなければエラー)
+mcp_config: .claude/mcp.json   # MCP 設定ファイルのパス (省略時は .claude/mcp.json → ~/.claude.json の mcpServers をフォールバック)
 memory_server: memory-pfl      # 外部メモリ MCP サーバー名 (default: memory-pfl)
 ```
 

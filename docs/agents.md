@@ -78,7 +78,7 @@ Runner が Flow の `analyze` ステップを実行するとき。
 - 情報不足 → `needs_clarification` を返す
 - Clarification 回答後は `--resume` で同一セッションを継続する。回答のみをプロンプトとして渡し、前回の探索コンテキストを活用する。回答は外部メモリにも保存される
 - モデル: `models.analyze`（default: opus）
-- ツール: `analyze_tools`（default: Read, Glob, Grep, Bash, WebSearch, WebFetch）
+- ツール: `analyze_tools`（default: Read, Glob, Grep, WebSearch, WebFetch）
 
 ### 成果物
 

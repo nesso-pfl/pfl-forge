@@ -247,7 +247,6 @@ analyze_tools:                 # Analyze / Audit Agent 用
   - Read
   - Glob
   - Grep
-  - Bash
   - WebSearch
   - WebFetch
 

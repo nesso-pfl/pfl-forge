@@ -102,7 +102,6 @@ fn default_analyze_tools() -> Vec<String> {
     "Read".into(),
     "Glob".into(),
     "Grep".into(),
-    "Bash".into(),
     "WebSearch".into(),
     "WebFetch".into(),
   ]

@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use self_update::cargo_crate_version;
 use tracing::{error, info, warn};
 
 use pfl_forge::agent;
@@ -80,8 +81,30 @@ enum Commands {
   },
 }
 
+fn self_update() {
+  let result = self_update::backends::github::Update::configure()
+    .repo_owner("nesso-pfl")
+    .repo_name("pfl-forge")
+    .bin_name("pfl-forge")
+    .current_version(cargo_crate_version!())
+    .no_confirm(true)
+    .build()
+    .and_then(|u| u.update());
+
+  match result {
+    Ok(status) => {
+      if status.updated() {
+        eprintln!("Updated to v{}", status.version());
+      }
+    }
+    Err(e) => eprintln!("Update check failed: {e}"),
+  }
+}
+
 #[tokio::main]
 async fn main() {
+  self_update();
+
   tracing_subscriber::fmt()
     .with_env_filter(
       tracing_subscriber::EnvFilter::try_from_default_env()

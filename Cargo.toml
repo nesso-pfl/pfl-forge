@@ -15,6 +15,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4"] }
 fs2 = "0.4.3"
+self_update = { version = "0.27", features = ["rustls", "archive-tar", "compression-flate2"], default-features = false }
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3.25.0"
